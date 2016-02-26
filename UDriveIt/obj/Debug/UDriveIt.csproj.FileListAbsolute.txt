@@ -1,0 +1,13 @@
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\UDriveIt.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\UDriveIt.pdb
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\Assembly-CSharp.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\ColossalManaged.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\ICities.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\UnityEngine.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\UnityEngine.UI.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\Assembly-CSharp-firstpass.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\ICSharpCode.SharpZipLib.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\bin\Debug\UnityEngine.xml
+C:\Users\Applepie\UDriveIt\UDriveIt\obj\Debug\UDriveIt.dll
+C:\Users\Applepie\UDriveIt\UDriveIt\obj\Debug\UDriveIt.pdb
+C:\Users\Applepie\UDriveIt\UDriveIt\obj\Debug\UDriveIt.csprojResolveAssemblyReference.cache
