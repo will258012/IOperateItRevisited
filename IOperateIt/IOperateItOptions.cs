@@ -23,11 +23,6 @@ namespace IOperateIt
     {
         public static bool misInGame = false;
         public static bool mhasOpenedPanel = false;
-        public static readonly int mmajor = Assembly.GetExecutingAssembly().GetName().Version.Major;
-        public static readonly int mminor = Assembly.GetExecutingAssembly().GetName().Version.Minor;
-        public static readonly int mbuild = Assembly.GetExecutingAssembly().GetName().Version.Build;
-        public static readonly int mrevision = Assembly.GetExecutingAssembly().GetName().Version.Revision;
-        public static readonly string mversionStringFull = mmajor.ToString() + "." + mminor.ToString() + "." + mbuild.ToString() + "." + mrevision.ToString();
 
         private static UISlider mMaxVelocitySlider = null;
         private static UISlider mAccelerationForceSlider = null;

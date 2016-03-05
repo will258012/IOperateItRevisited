@@ -29,7 +29,7 @@ namespace IOperateIt
         private bool active;
         Rigidbody vehicleRigidBody;
         Mesh vehicleMesh;
-        MeshCollider vehicleCollider;
+        BoxCollider vehicleCollider;
         BuildingManager buildingManager;
         NetManager netManager;
         TerrainManager terrainManager;
@@ -59,7 +59,7 @@ namespace IOperateIt
 
             buildingManager = Singleton<BuildingManager>.instance;
             optionsManager = OptionsManager.Instance();
-            /*
+            
             mBuildingColliders = new ColliderContainer[NUM_BUILDING_COLLIDERS];
             for(int i =0; i<NUM_BUILDING_COLLIDERS; i++)
             {
@@ -68,7 +68,7 @@ namespace IOperateIt
                 container.collider = container.colliderOwner.AddComponent<MeshCollider>();
                 container.collider.convex = true;
                 mBuildingColliders[i] = container;
-            }*/
+            }
         }
         
         void Update()
@@ -126,6 +126,7 @@ namespace IOperateIt
             this.vehicleRigidBody.drag = 1.75f;
             this.vehicleRigidBody.angularDrag = 2.5f;
             this.vehicleRigidBody.freezeRotation = true;
+            this.vehicleCollider = gameObject.AddComponent<BoxCollider>();
 
             Segment3 ray = new Segment3(position + new Vector3(0f, 1.5f, 0f), position + new Vector3(0f, -100f, 0f));
             rayCastSuccess = manager.RayCast(ray, 0f, ItemClass.Service.Road, ItemClass.Service.PublicTransport, ItemClass.SubService.None, ItemClass.SubService.None, ItemClass.Layer.Default, ItemClass.Layer.None, NetNode.Flags.None, NetSegment.Flags.None, out hitPos[0], out nodeIndex, out segmentIndex);
@@ -133,7 +134,6 @@ namespace IOperateIt
             terrainHeight = terrainManager.SampleDetailHeight(transform.position);
             LoggerUtils.Log(string.Format("{0},{1},{2},{3}", hitPos[0], hitPos[1], terrainHeight, position));
             terrainHeight = Mathf.Max(terrainHeight, Mathf.Max(hitPos[0].y, hitPos[1].y));
-
 
             if (position.y < terrainHeight + 1 && m_velocity.y <= 0)
             {
@@ -176,6 +176,9 @@ namespace IOperateIt
             Vector3 hitPos = Vector3.zero;
             HashSet<ushort> hitBuildings = new HashSet<ushort>();
             Building building;
+            Vector3 buildingPosition;
+            Quaternion buildingRotation;
+
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
                 float x  = (float)Math.Cos(Mathf.Deg2Rad * (10f*i ));
@@ -191,8 +194,10 @@ namespace IOperateIt
                     if (!hitBuildings.Contains(buildingIndex) && building.Info.m_class.m_service != ItemClass.Service.Road &&
                         building.Info.name != "478820060.CableStay32m_Data" && building.Info.name != "BridgePillar.CableStay32m_Data")
                     {
+                        building.CalculateMeshPosition(out buildingPosition, out buildingRotation);
                         mBuildingColliders[i].collider.sharedMesh = building.Info.m_mesh;
-                        mBuildingColliders[i].colliderOwner.transform.position = building.m_position;
+                        mBuildingColliders[i].colliderOwner.transform.position = buildingPosition;
+                        mBuildingColliders[i].colliderOwner.transform.rotation = buildingRotation;
                         hitBuildings.Add(buildingIndex);
                     }
                 }
@@ -242,7 +247,7 @@ namespace IOperateIt
                 ushort segmentIndex;
                 bool rayCastSuccess;
 
-                //updateBuildingColliders();
+                updateBuildingColliders();
 
                 //calculateSlope();
 
