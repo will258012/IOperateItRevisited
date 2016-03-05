@@ -58,6 +58,10 @@ namespace IOperateIt.Manager
 
         public void setActive(Vector3 position, Vector3 eulerRotation)
         {
+            if(vehicle!= null)
+            {
+                vehicle.GetComponent<VehicleControler>().setInactive();
+            }
             vehicle = new GameObject("UDIVehicle");
             vehicle.AddComponent<VehicleControler>();
             vehicle.GetComponent<VehicleControler>().setActive(position, mVehicleInfo, eulerRotation);

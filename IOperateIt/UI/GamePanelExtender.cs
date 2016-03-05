@@ -7,6 +7,7 @@ using System.Text;
 using IOperateIt.Manager;
 using IOperateIt.UIUtils;
 using UnityEngine;
+using IOperateIt.Utils;
 
 namespace IOperateIt.UI
 {
@@ -54,11 +55,16 @@ namespace IOperateIt.UI
                     privateVehicleInfoPanel.component,
                     (component, param) =>
                     {
+                        Vector3 position;
+                        Vector3 rotation;
+                        VehicleInfo vehicleInfo;
                         InstanceID instance = ReflectionUtils.ReadPrivate<CitizenVehicleWorldInfoPanel, InstanceID>(privateVehicleInfoPanel, "m_InstanceID");
-                        Vehicle vehicle = manager.m_vehicles.m_buffer[instance.Vehicle];
-                        VehicleHolder.getInstance().setVehicleInfo(vehicle.Info);
-                        VehicleHolder.getInstance().setActive(vehicle.m_frame0.m_position, vehicle.m_frame0.m_rotation.eulerAngles);
-                        vehicle.Unspawn(instance.Vehicle);
+                        vehicleInfo = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].Info : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].Info;
+                        position = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].GetLastFrameData().m_position : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].m_position;
+                        rotation = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].GetLastFrameData().m_rotation.eulerAngles : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].m_rotation.eulerAngles;
+
+                        VehicleHolder.getInstance().setVehicleInfo(vehicleInfo);
+                        VehicleHolder.getInstance().setActive(position, rotation);
                         privateVehicleInfoPanel.Hide();
 
                     }
@@ -72,11 +78,16 @@ namespace IOperateIt.UI
                     serviceVehicleInfoPanel.component,
                     (component, param) =>
                     {
+                        Vector3 position;
+                        Vector3 rotation;
+                        VehicleInfo vehicleInfo;
                         InstanceID instance = ReflectionUtils.ReadPrivate<CityServiceVehicleWorldInfoPanel, InstanceID>(serviceVehicleInfoPanel, "m_InstanceID");
-                        Vehicle vehicle = manager.m_vehicles.m_buffer[instance.Vehicle];
-                        VehicleHolder.getInstance().setVehicleInfo(vehicle.Info);
-                        VehicleHolder.getInstance().setActive(vehicle.m_frame0.m_position, vehicle.m_frame0.m_rotation.eulerAngles);
-                        vehicle.Unspawn(instance.Vehicle);
+                        vehicleInfo = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].Info : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].Info;
+                        position = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].GetLastFrameData().m_position : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].m_position;
+                        rotation = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].GetLastFrameData().m_rotation.eulerAngles : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].m_rotation.eulerAngles;
+
+                        VehicleHolder.getInstance().setVehicleInfo(vehicleInfo);
+                        VehicleHolder.getInstance().setActive(position, rotation);
                         serviceVehicleInfoPanel.Hide();
                     }
                 );
@@ -89,11 +100,16 @@ namespace IOperateIt.UI
                     publicVehicleInfoPanel.component,
                     (component, param) =>
                     {
+                        Vector3 position;
+                        Vector3 rotation;
+                        VehicleInfo vehicleInfo;
                         InstanceID instance = ReflectionUtils.ReadPrivate<PublicTransportVehicleWorldInfoPanel, InstanceID>(publicVehicleInfoPanel, "m_InstanceID");
-                        Vehicle vehicle = manager.m_vehicles.m_buffer[instance.Vehicle];
-                        VehicleHolder.getInstance().setVehicleInfo(vehicle.Info);
-                        VehicleHolder.getInstance().setActive(vehicle.m_frame0.m_position, vehicle.m_frame0.m_rotation.eulerAngles);
-                        vehicle.Unspawn(instance.Vehicle);
+                        vehicleInfo = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].Info : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].Info;
+                        position = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].GetLastFrameData().m_position : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].m_position;
+                        rotation = instance.Vehicle != 0 ? manager.m_vehicles.m_buffer[instance.Vehicle].GetLastFrameData().m_rotation.eulerAngles : manager.m_parkedVehicles.m_buffer[instance.ParkedVehicle].m_rotation.eulerAngles;
+
+                        VehicleHolder.getInstance().setVehicleInfo(vehicleInfo);
+                        VehicleHolder.getInstance().setActive(position, rotation);
                         publicVehicleInfoPanel.Hide();
 
                     }

@@ -28,23 +28,19 @@ namespace IOperateIt
     {
         private bool active;
         Rigidbody vehicleRigidBody;
+        Mesh vehicleMesh;
         MeshCollider vehicleCollider;
         BuildingManager buildingManager;
         NetManager netManager;
         TerrainManager terrainManager;
+        OptionsManager optionsManager;
 
         float terrainHeight;
         private Vector3 m_velocity;
-        private float breakVelocity = 60f;
-        private float maxVelocitySq = 15625f;
 
         private CameraController cameraController;
         private Camera camera;
         private CameraType cameraType = CameraType.normal;
-        private float cameraOffsetXAxis = -35f;
-        private float cameraOffsetYAxis = 50f;
-        private float closeCameraOffsetXAxis = -6f;
-        private float closeCameraOffsetYAxis = 2.5f;
         private float fpsCameraOffsetXAxis = 2.75f;
         private float fpsCameraOffsetYAxis = 1.5f;
         private Vector3 lookAtVector = Vector3.forward;
@@ -62,6 +58,7 @@ namespace IOperateIt
             camera = cameraController.GetComponent<Camera>();
 
             buildingManager = Singleton<BuildingManager>.instance;
+            optionsManager = OptionsManager.Instance();
             /*
             mBuildingColliders = new ColliderContainer[NUM_BUILDING_COLLIDERS];
             for(int i =0; i<NUM_BUILDING_COLLIDERS; i++)
@@ -119,7 +116,8 @@ namespace IOperateIt
             gameObject.transform.parent = (Transform)null;
             gameObject.transform.position = position;
             gameObject.transform.eulerAngles = new Vector3(rotation.x, rotation.y);
-            gameObject.AddComponent<MeshFilter>().mesh = vehicleInfo.m_mesh;
+            vehicleMesh = vehicleInfo.m_mesh;
+            gameObject.AddComponent<MeshFilter>().mesh = vehicleMesh;
             gameObject.AddComponent<MeshRenderer>().material = vehicleInfo.m_material;
             gameObject.SetActive(true);
             this.vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
@@ -265,44 +263,44 @@ namespace IOperateIt
                     this.vehicleRigidBody.AddRelativeForce(Physics.gravity*2f);
                 }
 
-                if (Input.GetKey(KeyCode.UpArrow))
+                if (Input.GetKey(optionsManager.forwardKey))
                 {
-                    this.vehicleRigidBody.AddRelativeForce(Vector3.forward * 60f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                    this.vehicleRigidBody.AddRelativeForce(Vector3.forward * optionsManager.mAccelerationForce * Time.fixedDeltaTime, ForceMode.VelocityChange);
 
                 }
-                else if (Input.GetKey(KeyCode.DownArrow))
+                else if (Input.GetKey(optionsManager.backKey))
                 {
-                    this.vehicleRigidBody.AddRelativeForce(Vector3.back * 60f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                    this.vehicleRigidBody.AddRelativeForce(Vector3.back * optionsManager.mAccelerationForce * Time.fixedDeltaTime, ForceMode.VelocityChange);
                 }
-                if (Input.GetKey(KeyCode.LeftArrow))
+                if (Input.GetKey(optionsManager.leftKey))
                 {
                     Vector3 normalisedVelocity = this.vehicleRigidBody.velocity.normalized;
-                    Vector3 brakeVelocity = normalisedVelocity * 35f;
+                    Vector3 brakeVelocity = normalisedVelocity * optionsManager.mBreakingForce*0.58f;
                     this.vehicleRigidBody.AddForce(-brakeVelocity);
 
                     this.vehicleRigidBody.AddRelativeTorque(Vector3.down * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
                 }
-                if (Input.GetKey(KeyCode.RightArrow))
+                if (Input.GetKey(optionsManager.rightKey))
                 {
                     Vector3 normalisedVelocity = this.vehicleRigidBody.velocity.normalized;
-                    Vector3 brakeVelocity = normalisedVelocity * 35f; 
+                    Vector3 brakeVelocity = normalisedVelocity * optionsManager.mBreakingForce * 0.58f; 
                     this.vehicleRigidBody.AddForce(-brakeVelocity);
 
                     this.vehicleRigidBody.AddRelativeTorque(Vector3.up * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
                 }
 
 
-                if (this.vehicleRigidBody.velocity.sqrMagnitude > maxVelocitySq)
+                if (this.vehicleRigidBody.velocity.sqrMagnitude > optionsManager.mMaxVelocitySquared)
                 {
                     Vector3 normalisedVelocity = this.vehicleRigidBody.velocity.normalized;
-                    Vector3 brakeVelocity = normalisedVelocity * breakVelocity;  
+                    Vector3 brakeVelocity = normalisedVelocity * optionsManager.mAccelerationForce;  
                     this.vehicleRigidBody.AddForce(-brakeVelocity);
                 }
 
                 switch (cameraType)
                 {
                     case CameraType.closeUp:
-                        Vector3 needPos = transform.position + (transform.forward * closeCameraOffsetXAxis)+ (transform.up * closeCameraOffsetYAxis);
+                        Vector3 needPos = transform.position + (transform.forward * (optionsManager.mcloseupXAxisOffset - vehicleMesh.bounds.size.x))+ (transform.up * (optionsManager.mcloseupYAxisOffset + vehicleMesh.bounds.size.y));
                         camera.transform.position = needPos;
                         camera.transform.LookAt(transform);
                         camera.transform.rotation = transform.rotation;
@@ -322,7 +320,7 @@ namespace IOperateIt
                         break;
                     case CameraType.normal:
                     default:
-                        camera.transform.position = transform.position + new Vector3(cameraOffsetXAxis, cameraOffsetYAxis, 0);
+                        camera.transform.position = transform.position + new Vector3(optionsManager.mcameraXAxisOffset, optionsManager.mcameraYAxisOffset, 0);
                         camera.transform.LookAt(transform);
                         break;
                 }

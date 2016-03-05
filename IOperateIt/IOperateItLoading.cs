@@ -23,6 +23,7 @@ namespace IOperateIt
 
         public override void OnCreated(ILoading loading)
         {
+            OptionsManager.Instance().LoadOptions();
             //nah, don't do anything here
         }
 

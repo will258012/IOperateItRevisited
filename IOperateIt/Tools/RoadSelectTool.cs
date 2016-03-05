@@ -17,11 +17,6 @@ namespace IOperateIt.Tools
             base.Awake();
         }
 
-        protected override void OnToolGUI()
-        {
-            base.OnToolGUI();
-        }
-
         protected override void OnEnable()
         {
             base.OnEnable();
@@ -53,7 +48,6 @@ namespace IOperateIt.Tools
                         {
                             if (Event.current.type == EventType.MouseDown /*&& Event.current.button == (int)UIMouseButton.Left*/)
                             {
-                                LoggerUtils.Log(string.Format("Closest Id:{0}", netSegmentId));
                                 ShowToolInfo(false, null, new Vector3());
                                 VehicleInfo info = VehicleHolder.getInstance().getVehicleInfo();
                                 VehicleHolder.getInstance().setActive(netSegment.m_middlePosition,Vector3.zero);
@@ -65,7 +59,7 @@ namespace IOperateIt.Tools
                             }
                             else
                             {
-                                ShowToolInfo(true, "Spawn Vehicle mesh", netSegment.m_bounds.center);
+                                ShowToolInfo(true, "Spawn Vehicle", netSegment.m_bounds.center);
                             }
                         }
                     }
