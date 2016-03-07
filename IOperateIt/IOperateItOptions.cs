@@ -85,7 +85,7 @@ namespace IOperateIt
             vehicleGroup = helper.AddGroup("Vehicle settings");
             // This is temporarily disabled, seems like maximum velocity isn't being hit 
             //mMaxVelocitySlider = vehicleGroup.AddSlider("Maximum velocity", 50, 250, 5, optionsManager.mMaxVelocity, onMaxVelocityChanged) as UISlider;
-            mAccelerationForceSlider = vehicleGroup.AddSlider("Acceleration force", 10, 100, 5, optionsManager.mAccelerationForce, onAccelerationChanged) as UISlider;
+            mAccelerationForceSlider = vehicleGroup.AddSlider("Acceleration force", 10, 200, 10, optionsManager.mAccelerationForce, onAccelerationChanged) as UISlider;
             mBreakingForceSlider = vehicleGroup.AddSlider("Turn breaking force", 10, 100, 5, optionsManager.mBreakingForce, onBreakingChanged) as UISlider;
 
             mcameraXAxisOffsetSliderr = vehicleGroup.AddSlider("Camera X axis offset", -70, 50, 5, optionsManager.mcameraXAxisOffset, onCameraXAxisChange) as UISlider;

@@ -43,11 +43,26 @@ namespace IOperateIt.Tools
 
                         NetManager netManager = Singleton<NetManager>.instance;
                         NetSegment netSegment = netManager.m_segments.m_buffer[(int)netSegmentId];
-
+                       
                         if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
                         {
                             if (Event.current.type == EventType.MouseDown /*&& Event.current.button == (int)UIMouseButton.Left*/)
                             {
+                                Vector3 pos1;
+                                Vector3 pos2;
+                                Vector3 rot1;
+                                Vector3 rot2;
+                                bool smooth1;
+                                bool smooth2;
+
+                                netSegment.CalculateCorner(netSegmentId, true, true, true, out pos1, out rot1, out smooth1);
+                                netSegment.CalculateCorner(netSegmentId, true, false, true, out pos2, out rot2, out smooth2);
+                                LoggerUtils.Log(string.Format("pos:{0},rot:{1}", pos1, rot1));
+                                LoggerUtils.Log(string.Format("pos:{0},rot:{1}", pos2, rot2));
+                                Vector3 diff = pos2 - pos1;
+                                float angle = Mathf.Atan2(diff.y, diff.x) * Mathf.Rad2Deg;
+                                LoggerUtils.Log(string.Format("angle:{0}", angle));
+
                                 ShowToolInfo(false, null, new Vector3());
                                 VehicleInfo info = VehicleHolder.getInstance().getVehicleInfo();
                                 VehicleHolder.getInstance().setActive(netSegment.m_middlePosition,Vector3.zero);

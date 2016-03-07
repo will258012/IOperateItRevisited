@@ -14,7 +14,8 @@ namespace IOperateIt
     class ColliderContainer
     {
         public GameObject colliderOwner;
-        public MeshCollider collider;
+        public MeshCollider meshCollider;
+        public BoxCollider boxCollider;
     }
 
     enum CameraType
@@ -34,41 +35,60 @@ namespace IOperateIt
         NetManager netManager;
         TerrainManager terrainManager;
         OptionsManager optionsManager;
+        VehicleManager vehicleManager;
 
-        float terrainHeight;
-        private Vector3 m_velocity;
+        private float terrainHeight;
+        private Vector3 prevPosition;
 
         private CameraController cameraController;
         private Camera camera;
         private CameraType cameraType = CameraType.normal;
         private float fpsCameraOffsetXAxis = 2.75f;
         private float fpsCameraOffsetYAxis = 1.5f;
-        private Vector3 lookAtVector = Vector3.forward;
 
         private readonly int NUM_BUILDING_COLLIDERS = 360/10;
+        private readonly int NUM_VEHICLE_COLLIDERS = 144;
         private readonly float SCAN_DISTANCE = 500f;
+        private readonly int VEHICLE_SEARCH_GRID_SIZE = 6;
         private ColliderContainer[] mBuildingColliders;
+        private ColliderContainer[] mVehicleColliders;
 
         void Awake()
         {
+            // Get manager instances
             netManager = Singleton<NetManager>.instance;
             terrainManager = Singleton<TerrainManager>.instance;
+            buildingManager = Singleton<BuildingManager>.instance;
+            optionsManager = OptionsManager.Instance();
+            vehicleManager = Singleton<VehicleManager>.instance;
 
+            // Get controller for camera
             cameraController = GameObject.FindObjectOfType<CameraController>();
             camera = cameraController.GetComponent<Camera>();
 
-            buildingManager = Singleton<BuildingManager>.instance;
-            optionsManager = OptionsManager.Instance();
-            
+            // Set up colliders for nearby buildings, vehicles,
             mBuildingColliders = new ColliderContainer[NUM_BUILDING_COLLIDERS];
-            for(int i =0; i<NUM_BUILDING_COLLIDERS; i++)
+            mVehicleColliders = new ColliderContainer[NUM_VEHICLE_COLLIDERS];
+            for (int i =0; i<NUM_BUILDING_COLLIDERS; i++)
             {
-                ColliderContainer container = new ColliderContainer();
-                container.colliderOwner = new GameObject();
-                container.collider = container.colliderOwner.AddComponent<MeshCollider>();
-                container.collider.convex = true;
-                mBuildingColliders[i] = container;
+                //Initialize the building collider
+                ColliderContainer buildingCollider = new ColliderContainer();
+                buildingCollider.colliderOwner = new GameObject("buildingCollider"+i);
+                buildingCollider.meshCollider = buildingCollider.colliderOwner.AddComponent<MeshCollider>();
+                buildingCollider.meshCollider.convex = true;
+                buildingCollider.meshCollider.enabled = true;
+                mBuildingColliders[i] = buildingCollider;
             }
+
+            for( int i =0; i<NUM_VEHICLE_COLLIDERS; i++)
+            {
+                ColliderContainer vehicleCollider = new ColliderContainer();
+                vehicleCollider.colliderOwner = new GameObject("vehicleCollider" + i);
+                vehicleCollider.boxCollider = vehicleCollider.colliderOwner.AddComponent<BoxCollider>();
+                vehicleCollider.boxCollider.enabled = true;
+                mVehicleColliders[i] = vehicleCollider;
+            }
+
         }
         
         void Update()
@@ -93,14 +113,9 @@ namespace IOperateIt
                 this.active = true;
             }
             spawnVehicle(position, rotation, vehicleInfo);
-            updateRoadColliders(position);
             cameraController.enabled = false;
             camera.fieldOfView = 45f;
-            camera.nearClipPlane = 0.1f;
-        }
-
-        private void updateRoadColliders(Vector3 position)
-        {
+            camera.nearClipPlane = 0.75f;
 
         }
 
@@ -123,7 +138,7 @@ namespace IOperateIt
             this.vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             this.vehicleRigidBody.isKinematic = false;
             this.vehicleRigidBody.useGravity = false;
-            this.vehicleRigidBody.drag = 1.75f;
+            this.vehicleRigidBody.drag = 2f;
             this.vehicleRigidBody.angularDrag = 2.5f;
             this.vehicleRigidBody.freezeRotation = true;
             this.vehicleCollider = gameObject.AddComponent<BoxCollider>();
@@ -132,16 +147,15 @@ namespace IOperateIt
             rayCastSuccess = manager.RayCast(ray, 0f, ItemClass.Service.Road, ItemClass.Service.PublicTransport, ItemClass.SubService.None, ItemClass.SubService.None, ItemClass.Layer.Default, ItemClass.Layer.None, NetNode.Flags.None, NetSegment.Flags.None, out hitPos[0], out nodeIndex, out segmentIndex);
             rayCastSuccess = rayCastSuccess || manager.RayCast(ray, 0f, ItemClass.Service.Beautification, ItemClass.Service.Water, ItemClass.SubService.None, ItemClass.SubService.None, ItemClass.Layer.Default, ItemClass.Layer.None, NetNode.Flags.None, NetSegment.Flags.None, out hitPos[1], out nodeIndex, out segmentIndex);
             terrainHeight = terrainManager.SampleDetailHeight(transform.position);
-            LoggerUtils.Log(string.Format("{0},{1},{2},{3}", hitPos[0], hitPos[1], terrainHeight, position));
             terrainHeight = Mathf.Max(terrainHeight, Mathf.Max(hitPos[0].y, hitPos[1].y));
 
-            if (position.y < terrainHeight + 1 && m_velocity.y <= 0)
+            if (position.y < terrainHeight + 1)
             {
                 transform.position = new Vector3(position.x, terrainHeight, position.z);
-                m_velocity.y = Math.Max(0, m_velocity.y);
             }
-            //calculateSlope();
+            prevPosition = transform.position;
 
+            //calculateSlope();
         }
 
         void OnCollisionEnter(Collision col)
@@ -160,12 +174,19 @@ namespace IOperateIt
 
         private void unSpawnVehicle()
         {
+            for (int i =0; i<NUM_BUILDING_COLLIDERS; i++)
+            {
+                UnityEngine.Object.Destroy(mBuildingColliders[i].colliderOwner);
+            }
+            for( int i =0; i<NUM_VEHICLE_COLLIDERS; i++)
+            {
+                UnityEngine.Object.Destroy(mVehicleColliders[i].colliderOwner);
+            }
             UnityEngine.Object.Destroy(gameObject);
         }
 
         private void LateUpdate()
         {
-
         }
 
         private void updateBuildingColliders()
@@ -195,7 +216,7 @@ namespace IOperateIt
                         building.Info.name != "478820060.CableStay32m_Data" && building.Info.name != "BridgePillar.CableStay32m_Data")
                     {
                         building.CalculateMeshPosition(out buildingPosition, out buildingRotation);
-                        mBuildingColliders[i].collider.sharedMesh = building.Info.m_mesh;
+                        mBuildingColliders[i].meshCollider.sharedMesh = building.Info.m_mesh;
                         mBuildingColliders[i].colliderOwner.transform.position = buildingPosition;
                         mBuildingColliders[i].colliderOwner.transform.rotation = buildingRotation;
                         hitBuildings.Add(buildingIndex);
@@ -204,36 +225,59 @@ namespace IOperateIt
             }
         }
 
-        private void calculateSlope()
+        private void setCollider(ushort vehicleId, int colliderIndex)
         {
-            Vector3[] hitPos = new Vector3[2];
+            Vector3 vehiclePosition;
+            Quaternion vehicleRotation;
 
-            Bounds meshBounds = gameObject.GetComponent<MeshFilter>().mesh.bounds;
-            Vector3 vehicleRotation = this.vehicleRigidBody.velocity;
-            Segment3 ray = new Segment3(transform.position + new Vector3(0f, 5f, 0f), transform.position + new Vector3(0f, -100f, 0f));
-            Segment3 ray2 = new Segment3(transform.position + vehicleRotation.normalized + new Vector3(0f, 5f, 0f),  transform.position + vehicleRotation.normalized + new Vector3(0f, -100f, 0f));
+            Vehicle vehicle = vehicleManager.m_vehicles.m_buffer[vehicleId];
+            vehicle.GetSmoothPosition(vehicleId, out vehiclePosition, out vehicleRotation);
+            mVehicleColliders[colliderIndex].boxCollider.size = vehicle.Info.m_lodMesh.bounds.size;
 
-            ushort nodeIndex;
-            ushort segmentIndex;
+            mVehicleColliders[colliderIndex].colliderOwner.transform.position = vehiclePosition;
+            mVehicleColliders[colliderIndex].colliderOwner.transform.rotation = vehicleRotation;
+        }
 
-            bool rayCast1Success = netManager.RayCast(ray, 0f, ItemClass.Service.Road, ItemClass.Service.PublicTransport, ItemClass.SubService.None, ItemClass.SubService.None, ItemClass.Layer.Default, ItemClass.Layer.None, NetNode.Flags.None, NetSegment.Flags.None, out hitPos[0], out nodeIndex, out segmentIndex);
-            bool rayCast2Success = netManager.RayCast(ray2, 0f, ItemClass.Service.Road, ItemClass.Service.PublicTransport, ItemClass.SubService.None, ItemClass.SubService.None, ItemClass.Layer.Default, ItemClass.Layer.None, NetNode.Flags.None, NetSegment.Flags.None, out hitPos[1], out nodeIndex, out segmentIndex);
-            //LoggerUtils.Log(string.Format("{0}",vehicleRotation.magnitude));
+        private void updateVehicleColliders()
+        {
+            int gridX = Mathf.Clamp((int)((transform.position.x / 32.0) + 270.0), 0, 539);
+            int gridZ = Mathf.Clamp((int)((transform.position.z / 32.0) + 270.0), 0, 539);
+            int colliderCounter = 0;
 
-            if (rayCast1Success && rayCast2Success && vehicleRotation.magnitude > 7)
+            Vehicle vehicle;
+            int index = gridZ * 540 + gridX;
+            ushort vehicleId = vehicleManager.m_vehicleGrid[index];
+            if( vehicleId != 0)
             {
-                Vector3 diff = hitPos[1] - hitPos[0];
-                float angle = Mathf.Atan2(diff.y, diff.x) * Mathf.Rad2Deg;
-                //LoggerUtils.Log(string.Format("hitPos[1] {0}, hitPos[0] {1}, angle:{2}", hitPos[1], hitPos[0], angle));
-                if (Math.Abs(angle) >= 4f)
+                setCollider(vehicleId, colliderCounter);
+                colliderCounter++;
+                vehicle = vehicleManager.m_vehicles.m_buffer[vehicleId];
+
+                while (vehicle.m_nextGridVehicle != 0)
                 {
-                    transform.eulerAngles = new Vector3(-angle,transform.eulerAngles.y,0 );
-                }
-                else
-                {
-                    transform.eulerAngles = new Vector3(0, transform.eulerAngles.y, 0);
+                    setCollider(vehicle.m_nextGridVehicle, colliderCounter);
+                    vehicle = vehicleManager.m_vehicles.m_buffer[vehicle.m_nextGridVehicle];
+                    colliderCounter++;
                 }
             }
+            for( int i = colliderCounter; i< NUM_VEHICLE_COLLIDERS; i++)
+            {
+                mVehicleColliders[colliderCounter].boxCollider.transform.position = new Vector3(float.PositiveInfinity, float.PositiveInfinity);
+            }
+
+        }
+
+        private void calculateSlope()
+        {
+            Vector3 diffVector = (Vector3)(transform.position-prevPosition);
+            Quaternion newRotation;
+            if (diffVector.sqrMagnitude > 0.00999999977648258f)
+            {
+                newRotation = Quaternion.LookRotation(diffVector);
+                var a = newRotation.eulerAngles;
+                transform.rotation = Quaternion.AngleAxis( a.x, Vector3.right);
+            }
+            prevPosition = transform.position;
         }
 
         private void FixedUpdate()
@@ -248,8 +292,7 @@ namespace IOperateIt
                 bool rayCastSuccess;
 
                 updateBuildingColliders();
-
-                //calculateSlope();
+                updateVehicleColliders();
 
                 Segment3 ray = new Segment3(transform.position + new Vector3(0f, 1.5f, 0f), transform.position + new Vector3(0f, -100f, 0f));
 
@@ -258,14 +301,14 @@ namespace IOperateIt
                 terrainHeight = terrainManager.SampleDetailHeight(transform.position);
                 terrainHeight = Mathf.Max(terrainHeight, Mathf.Max(hitPos[0].y, hitPos[1].y));
 
-                if (transform.position.y < terrainHeight + 1 && m_velocity.y <= 0)
+                if (transform.position.y < terrainHeight + 1)
                 {
                     this.vehicleRigidBody.velocity = new Vector3(this.vehicleRigidBody.velocity.x, 0, this.vehicleRigidBody.velocity.z);
                     transform.position = new Vector3(transform.position.x, terrainHeight, transform.position.z);
                 }
                 else
                 {
-                    this.vehicleRigidBody.AddRelativeForce(Physics.gravity*2f);
+                    this.vehicleRigidBody.AddRelativeForce(Physics.gravity*3f);
                 }
 
                 if (Input.GetKey(optionsManager.forwardKey))
@@ -277,7 +320,7 @@ namespace IOperateIt
                 {
                     this.vehicleRigidBody.AddRelativeForce(Vector3.back * optionsManager.mAccelerationForce * Time.fixedDeltaTime, ForceMode.VelocityChange);
                 }
-                if (Input.GetKey(optionsManager.leftKey))
+                if (Input.GetKey(optionsManager.leftKey) && this.vehicleRigidBody.velocity.sqrMagnitude > 0.05f)
                 {
                     Vector3 normalisedVelocity = this.vehicleRigidBody.velocity.normalized;
                     Vector3 brakeVelocity = normalisedVelocity * optionsManager.mBreakingForce*0.58f;
@@ -285,7 +328,7 @@ namespace IOperateIt
 
                     this.vehicleRigidBody.AddRelativeTorque(Vector3.down * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
                 }
-                if (Input.GetKey(optionsManager.rightKey))
+                if (Input.GetKey(optionsManager.rightKey) && this.vehicleRigidBody.velocity.sqrMagnitude > 0.05f)
                 {
                     Vector3 normalisedVelocity = this.vehicleRigidBody.velocity.normalized;
                     Vector3 brakeVelocity = normalisedVelocity * optionsManager.mBreakingForce * 0.58f; 
@@ -301,6 +344,8 @@ namespace IOperateIt
                     Vector3 brakeVelocity = normalisedVelocity * optionsManager.mAccelerationForce;  
                     this.vehicleRigidBody.AddForce(-brakeVelocity);
                 }
+
+                //calculateSlope();
 
                 switch (cameraType)
                 {

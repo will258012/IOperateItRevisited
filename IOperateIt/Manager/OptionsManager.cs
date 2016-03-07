@@ -33,7 +33,7 @@ namespace IOperateIt.Manager
         public float mMaxVelocity = 125f;
         public float mMaxVelocitySquared = 125f * 125f;
         [XmlElement(ElementName = "Acceleration", IsNullable = false)]
-        public float mAccelerationForce = 60f;
+        public float mAccelerationForce = 100f;
         [XmlElement(ElementName = "Breaking", IsNullable = false)]
         public float mBreakingForce = 35f;
         [XmlElement(ElementName = "CameraX", IsNullable = false)]
