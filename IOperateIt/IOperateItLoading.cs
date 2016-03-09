@@ -43,6 +43,7 @@ namespace IOperateIt
 
         public override void OnLevelUnloading()
         {
+            VehicleHolder.getInstance().setInactive();
             EventBusManager.Instance().Clear();
         }
 

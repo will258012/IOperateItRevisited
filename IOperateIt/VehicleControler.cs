@@ -27,15 +27,22 @@ namespace IOperateIt
 
     public class VehicleControler : MonoBehaviour
     {
+        private readonly int NUM_BUILDING_COLLIDERS = 360 / 10;
+        private readonly int NUM_VEHICLE_COLLIDERS = 160;
+        private readonly float SCAN_DISTANCE = 500f;
+
         private bool active;
-        Rigidbody vehicleRigidBody;
-        Mesh vehicleMesh;
-        BoxCollider vehicleCollider;
+
         BuildingManager buildingManager;
         NetManager netManager;
         TerrainManager terrainManager;
         OptionsManager optionsManager;
         VehicleManager vehicleManager;
+
+        private Rigidbody vehicleRigidBody;
+        private Mesh vehicleMesh;
+        private BoxCollider vehicleCollider;
+        private List<Light> mLights;
 
         private float terrainHeight;
         private Vector3 prevPosition;
@@ -46,12 +53,9 @@ namespace IOperateIt
         private float fpsCameraOffsetXAxis = 2.75f;
         private float fpsCameraOffsetYAxis = 1.5f;
 
-        private readonly int NUM_BUILDING_COLLIDERS = 360/10;
-        private readonly int NUM_VEHICLE_COLLIDERS = 144;
-        private readonly float SCAN_DISTANCE = 500f;
-        private readonly int VEHICLE_SEARCH_GRID_SIZE = 6;
         private ColliderContainer[] mBuildingColliders;
         private ColliderContainer[] mVehicleColliders;
+
 
         void Awake()
         {
@@ -65,6 +69,9 @@ namespace IOperateIt
             // Get controller for camera
             cameraController = GameObject.FindObjectOfType<CameraController>();
             camera = cameraController.GetComponent<Camera>();
+
+            // Initialize the lights for the vehicle
+            mLights = new List<Light>(2);
 
             // Set up colliders for nearby buildings, vehicles,
             mBuildingColliders = new ColliderContainer[NUM_BUILDING_COLLIDERS];
@@ -103,7 +110,13 @@ namespace IOperateIt
                 cameraType = (CameraType)(((int)cameraType + 1) % Enum.GetNames(typeof(CameraType)).Length);
             }
 
-
+            if (Input.GetKeyDown(KeyCode.F5))
+            {
+                foreach (Light light in mLights)
+                {
+                    light.enabled = !light.enabled;
+                }
+            }
         }
 
         public void setActive(Vector3 position, VehicleInfo vehicleInfo, Vector3 rotation)
@@ -135,6 +148,24 @@ namespace IOperateIt
             gameObject.AddComponent<MeshFilter>().mesh = vehicleMesh;
             gameObject.AddComponent<MeshRenderer>().material = vehicleInfo.m_material;
             gameObject.SetActive(true);
+
+            int numLights = vehicleInfo.m_lightPositions.Length > 1 ? 2 : vehicleInfo.m_lightPositions.Length;
+            for( int i = 0; i< numLights; i++ )
+            {
+                Vector3 lightPosition = vehicleInfo.m_lightPositions[i];
+                GameObject lightObj = new GameObject();
+                Light light = lightObj.AddComponent<Light>();
+                lightObj.transform.parent = gameObject.transform;
+                lightObj.transform.localPosition = lightPosition;
+                light.type = LightType.Spot;
+                light.enabled = false;
+                light.spotAngle = 20f;
+                light.range = 50f;
+                light.intensity = 5f;
+                light.color = Color.white;
+                mLights.Add(light);
+            }
+
             this.vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             this.vehicleRigidBody.isKinematic = false;
             this.vehicleRigidBody.useGravity = false;
@@ -174,7 +205,7 @@ namespace IOperateIt
 
         private void unSpawnVehicle()
         {
-            for (int i =0; i<NUM_BUILDING_COLLIDERS; i++)
+            for(int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
                 UnityEngine.Object.Destroy(mBuildingColliders[i].colliderOwner);
             }
@@ -253,7 +284,7 @@ namespace IOperateIt
                 colliderCounter++;
                 vehicle = vehicleManager.m_vehicles.m_buffer[vehicleId];
 
-                while (vehicle.m_nextGridVehicle != 0)
+                while (vehicle.m_nextGridVehicle != 0 && colliderCounter < NUM_VEHICLE_COLLIDERS)
                 {
                     setCollider(vehicle.m_nextGridVehicle, colliderCounter);
                     vehicle = vehicleManager.m_vehicles.m_buffer[vehicle.m_nextGridVehicle];

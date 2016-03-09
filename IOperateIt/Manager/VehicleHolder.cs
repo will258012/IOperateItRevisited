@@ -67,5 +67,14 @@ namespace IOperateIt.Manager
             vehicle.GetComponent<VehicleControler>().setActive(position, mVehicleInfo, eulerRotation);
         }
 
+        public void setInactive()
+        {
+            if(vehicle != null)
+            {
+                vehicle.GetComponent<VehicleControler>().setInactive();
+                vehicle = null;
+            }
+        }
+
     }
 }
