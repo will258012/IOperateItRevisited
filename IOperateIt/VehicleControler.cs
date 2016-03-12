@@ -300,13 +300,13 @@ namespace IOperateIt
 
         private void calculateSlope()
         {
+            Vector3 oldEuler = transform.rotation.eulerAngles;
             Vector3 diffVector = (Vector3)(transform.position-prevPosition);
             Quaternion newRotation;
-            if (diffVector.sqrMagnitude > 0.00999999977648258f)
+            if (diffVector.sqrMagnitude > 0.05f)
             {
                 newRotation = Quaternion.LookRotation(diffVector);
-                var a = newRotation.eulerAngles;
-                transform.rotation = Quaternion.AngleAxis( a.x, Vector3.right);
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(newRotation.eulerAngles.x, oldEuler.y, 0), Time.deltaTime * 3.0f);
             }
             prevPosition = transform.position;
         }
@@ -376,28 +376,38 @@ namespace IOperateIt
                     this.vehicleRigidBody.AddForce(-brakeVelocity);
                 }
 
-                //calculateSlope();
+                calculateSlope();
 
+                Vector3 forward;
+                Vector3 up;
+                Vector3 pos;
+                Vector3 lookAt;
+                Quaternion currentOrientation;
                 switch (cameraType)
                 {
                     case CameraType.closeUp:
-                        Vector3 needPos = transform.position + (transform.forward * (optionsManager.mcloseupXAxisOffset - vehicleMesh.bounds.size.x))+ (transform.up * (optionsManager.mcloseupYAxisOffset + vehicleMesh.bounds.size.y));
-                        camera.transform.position = needPos;
-                        camera.transform.LookAt(transform);
-                        camera.transform.rotation = transform.rotation;
+                        forward = transform.rotation * Vector3.forward;
+                        up = transform.rotation * Vector3.up;
+
+                        pos = transform.position + (transform.forward * (optionsManager.mcloseupXAxisOffset - vehicleMesh.bounds.size.x)) + (transform.up * (optionsManager.mcloseupYAxisOffset + vehicleMesh.bounds.size.y));
+                        camera.transform.position = pos;
+                        lookAt = pos + (transform.rotation * Vector3.forward) * 1.0f;
+
+                        currentOrientation = camera.transform.rotation;
+                        camera.transform.LookAt(lookAt, Vector3.up);
                         break;
                     case CameraType.fps:
-                        Vector3 forward = transform.rotation * Vector3.forward;
-                        Vector3 up = transform.rotation * Vector3.up;
+                        forward = transform.rotation * Vector3.forward;
+                        up = transform.rotation * Vector3.up;
 
-                        var pos = transform.position + (transform.forward * fpsCameraOffsetXAxis) + (transform.up * fpsCameraOffsetYAxis);
+                        pos = transform.position + (transform.forward * fpsCameraOffsetXAxis) + (transform.up * fpsCameraOffsetYAxis);
                         camera.transform.position = pos;
-                        Vector3 lookAt = pos + (transform.rotation * Vector3.forward) * 1.0f;
+                        lookAt = pos + (transform.rotation * Vector3.forward) * 1.0f;
 
-                        var currentOrientation = camera.transform.rotation;
+                        currentOrientation = camera.transform.rotation;
                         camera.transform.LookAt(lookAt, Vector3.up);
                         camera.transform.rotation = Quaternion.Slerp(currentOrientation, camera.transform.rotation,
-                            Time.deltaTime * 3.0f);
+                            Time.deltaTime * 3.0f); 
                         break;
                     case CameraType.normal:
                     default:

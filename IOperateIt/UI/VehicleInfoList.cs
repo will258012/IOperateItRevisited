@@ -21,7 +21,7 @@ namespace RoadNamer.Panels
 
         private Vector2 offset = Vector2.zero;
 
-        private string trailerNamePattern = @"\d{9}\.Trailer\d";
+        private string trailerNamePattern = @"\d{1,20}\.Trailer\d";
         private Regex trailerRegex;
 
         public override void Awake()
@@ -73,11 +73,15 @@ namespace RoadNamer.Panels
             {
                 //Filter out trailers for now( who'd want to drive a trailer???, and we have to match the workshop id anyways )
                 prefabName = PrefabCollection<VehicleInfo>.PrefabName(i);
-                Match m = trailerRegex.Match(prefabName);
-                if ( !m.Success )
+                if ( prefabName != null)
                 {
-                    vehicleList.rowsData.Add(i);
+                    Match m = trailerRegex.Match(prefabName);
+                    if (!m.Success)
+                    {
+                        vehicleList.rowsData.Add(i);
+                    }
                 }
+
             }
             vehicleList.DisplayAt(0);
             vehicleList.selectedIndex = 0;
