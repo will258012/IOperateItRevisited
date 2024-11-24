@@ -1,9 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35327.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IOperateIt", "IOperateIt\IOperateIt.csproj", "{2F487221-578C-4FB1-99D9-7502B906EF7B}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FPSCamera", "..\FPSCamera-Continued\FPSCamera\FPSCamera.csproj", "{7E242B39-4757-4896-B41F-D7590E511431}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "AlgernonCommonsPatchingShared", "..\FPSCamera-Continued\AlgernonCommons\AlgernonCommonsPatchingShared.shproj", "{25AEF446-6F0D-43A8-BB84-D1306789B68C}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "FPSCamera.API", "..\FPSCamera-Continued\FPSCamera.API\FPSCamera.API.shproj", "{DC080F92-7978-49CC-9E30-A4CF55909535}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,8 +21,22 @@ Global
 		{2F487221-578C-4FB1-99D9-7502B906EF7B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2F487221-578C-4FB1-99D9-7502B906EF7B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2F487221-578C-4FB1-99D9-7502B906EF7B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7E242B39-4757-4896-B41F-D7590E511431}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7E242B39-4757-4896-B41F-D7590E511431}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7E242B39-4757-4896-B41F-D7590E511431}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7E242B39-4757-4896-B41F-D7590E511431}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F8B0327F-6AAA-4D63-8FC8-22C57AB0847D}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		..\FPSCamera-Continued\AlgernonCommons\AlgernonCommonsPatchingShared.projitems*{25aef446-6f0d-43a8-bb84-d1306789b68c}*SharedItemsImports = 13
+		..\FPSCamera-Continued\AlgernonCommons\AlgernonCommonsPatchingShared.projitems*{2f487221-578c-4fb1-99d9-7502b906ef7b}*SharedItemsImports = 4
+		..\FPSCamera-Continued\FPSCamera.API\FPSCamera.API.projitems*{2f487221-578c-4fb1-99d9-7502b906ef7b}*SharedItemsImports = 4
+		..\FPSCamera-Continued\AlgernonCommons\AlgernonCommonsPatchingShared.projitems*{7e242b39-4757-4896-b41f-d7590e511431}*SharedItemsImports = 5
+		..\FPSCamera-Continued\FPSCamera.API\FPSCamera.API.projitems*{dc080f92-7978-49cc-9e30-a4cf55909535}*SharedItemsImports = 13
 	EndGlobalSection
 EndGlobal
