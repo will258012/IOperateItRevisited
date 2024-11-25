@@ -26,7 +26,7 @@ SETTINGS_BREAKINGFORCE,Breaking Force
 SETTINGS_OFFSET,Camera offset
 SETTINGS_KEYUUITOGGLE,Toggle main panel (need to subscribe to UUI mod)
 SETTINGS_KEYLIGHTTOGGLE,Toggle Light
-MAINPANELBTN_TOOLTIP,IOperate It! Revisited
+MAINPANELBTN_TOOLTIP,IOperateIt Revisited
 DRIVEBTN_TOOLTIP,Start driving
 SPAWNBTN_TEXT,Spawn vehicle
 ROAD_SELECT,Select a road segment to start driving

@@ -9,7 +9,7 @@ namespace IOperateIt
 {
     public sealed class Mod : PatcherMod<OptionsPanel, PatcherBase>, IUserMod
     {
-        public override string BaseName => "IOperate It! Revisited";
+        public override string BaseName => "IOperateIt Revisited";
         public override string HarmonyID => "Will258012.IOperateIt";
 
         public string Description => Translations.Translate("MOD_DESCRIPTION");
