@@ -2,7 +2,6 @@
 using AlgernonCommons.Translation;
 using ColossalFramework.UI;
 using FPSCamera.FPSCamera.Cam.Controller;
-using FPSCamera.FPSCamera.Utils;
 using UnityEngine;
 
 namespace IOperateIt.UI
@@ -64,18 +63,18 @@ namespace IOperateIt.UI
             button.pressedTextColor = new Color32(30, 30, 44, 255);
             button.eventClick += (_, p) =>
             {
-                var instanceID = GetPanelInstanceID(panel);
+                var instanceID = WorldInfoPanel.GetCurrentInstanceID();
                 if (instanceID.Type == InstanceType.Vehicle)
                 {
                     var vehicle = VehicleManager.instance.m_vehicles.m_buffer[instanceID.Vehicle];
                     DriveController.Instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info);
-                    MainPanel.Instance._vehicleList.FindItem(vehicle.Info);
+                    MainPanel.Instance._vehicleList.FindItem<uint>(vehicle.m_infoIndex);
                 }
                 else if (instanceID.Type == InstanceType.ParkedVehicle)
                 {
                     var vehicleParked = VehicleManager.instance.m_parkedVehicles.m_buffer[instanceID.ParkedVehicle];
                     DriveController.Instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info);
-                    MainPanel.Instance._vehicleList.FindItem(vehicleParked.Info);
+                    MainPanel.Instance._vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
                 }
                 panel.component.isVisible = false;
             };
@@ -90,12 +89,10 @@ namespace IOperateIt.UI
         {
             if (panel.component.isVisible)
             {
-                var instanceID = GetPanelInstanceID(panel);
+                var instanceID = WorldInfoPanel.GetCurrentInstanceID();
                 button.isVisible = instanceID != default;
             }
         }
-
-        private InstanceID GetPanelInstanceID<T>(T panel) where T : WorldInfoPanel => AccessUtils.GetFieldValue<InstanceID>(panel, "m_InstanceID");
         private CitizenVehicleWorldInfoPanel citizenVehicleInfo_Panel;
         private UIButton citizenVehicleInfo_Button;
 

@@ -49,17 +49,21 @@ namespace IOperateIt.UI
 
                 if (vehicleInfo != null && !vehicleInfo.name.ToLower().Contains("trailer"))
                 {
-                    vehicleInfos.Add(vehicleInfo);
+                    vehicleInfos.Add(i);
                 }
             }
             _vehicleList.Data = vehicleInfos;
-            _vehicleList.EventSelectionChanged += (component, vehicleInfo) =>
+            _vehicleList.EventSelectionChanged += (component, obj) =>
             {
-                VehicleInfo selectedVehicle = vehicleInfo as VehicleInfo;
-                if (selectedVehicle != null)
+                if (obj is uint index)
                 {
-                    _previewPanel.SetTarget(selectedVehicle);
-                    DriveController.Instance.vehicleInfo = selectedVehicle;
+                    VehicleInfo selectedVehicle = PrefabCollection<VehicleInfo>.GetPrefab(index);
+                    if (selectedVehicle != null)
+                    {
+                        _previewPanel.SetTarget(selectedVehicle);
+                        DriveController.Instance.vehicleInfo = selectedVehicle;
+                        _spawnBtn.isEnabled = true;
+                    }
                 }
             };
 
@@ -69,6 +73,8 @@ namespace IOperateIt.UI
             currentY += _vehicleList.height + Margin;
 
             _spawnBtn = UIButtons.AddButton(Panel, (_vehicleList.width - 200f) / 2f, currentY, Translations.Translate("SPAWNBTN_TEXT"), 200f, 40f);
+            _spawnBtn.isEnabled = false;
+            _spawnBtn.playAudioEvents = true;
             _spawnBtn.eventClick += SpawnBtn_eventClick;
             Panel.height = currentY + _spawnBtn.height + Margin;
             Panel.Hide();
@@ -127,28 +133,6 @@ namespace IOperateIt.UI
             #endregion
         }
 
-        private void SpawnBtn_eventClick(UIComponent component, UIMouseEventParameter eventParam)
-        {
-            if (_roadSelectTool == null)
-            {
-                if (!ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>())
-                {
-                    ToolsModifierControl.toolController.gameObject.AddComponent<RoadSelectTool>();
-                }
-                _roadSelectTool = ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>();
-                ToolsModifierControl.toolController.CurrentTool = _roadSelectTool;
-                ToolsModifierControl.SetTool<RoadSelectTool>();
-            }
-            else
-            {
-                ToolsModifierControl.toolController.CurrentTool = ToolsModifierControl.GetTool<DefaultTool>();
-                ToolsModifierControl.SetTool<DefaultTool>();
-                Destroy(_roadSelectTool);
-                _roadSelectTool = null;
-            }
-            OnEsc();
-        }
-
         private void OnDestory()
         {
             _spawnBtn.eventClick -= SpawnBtn_eventClick;
@@ -168,6 +152,31 @@ namespace IOperateIt.UI
                 return true;
             }
             return false;
+        }
+        private void SpawnBtn_eventClick(UIComponent component, UIMouseEventParameter eventParam)
+        {
+            if (DriveController.Instance?.vehicleInfo != null)
+            {
+                if (_roadSelectTool == null)
+                {
+                    if (!ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>())
+                    {
+                        ToolsModifierControl.toolController.gameObject.AddComponent<RoadSelectTool>();
+                    }
+                    _roadSelectTool = ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>();
+                    ToolsModifierControl.toolController.CurrentTool = _roadSelectTool;
+                    ToolsModifierControl.SetTool<RoadSelectTool>();
+                }
+                else
+                {
+                    ToolsModifierControl.toolController.CurrentTool = ToolsModifierControl.GetTool<DefaultTool>();
+                    ToolsModifierControl.SetTool<DefaultTool>();
+                    Destroy(_roadSelectTool);
+                    _roadSelectTool = null;
+                }
+                OnEsc();
+            }
+            else _spawnBtn.isEnabled = false;
         }
         public void LocaleChanged()
         {
@@ -216,7 +225,7 @@ namespace IOperateIt.UI
             /// <param name="rowIndex">Row index number (for background banding).</param>
             public override void Display(object data, int rowIndex)
             {
-                _info = (VehicleInfo)data;
+                _info = PrefabCollection<VehicleInfo>.GetPrefab((uint)data);
                 // Perform initial setup for new rows.
                 if (_vehicleNameLabel == null)
                 {

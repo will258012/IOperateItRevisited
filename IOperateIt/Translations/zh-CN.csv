@@ -7,7 +7,6 @@
 "YES","是","Notification button text - perfom this action."
 "PRESS_ANY_KEY","请按任意键","Shown when awaiting user input when changing a key setting."
 "CONFLICT_DETECTED","检测到不兼容模组！","Warning message that a mod conflict was detected."
-"FPSCAMERA_NOT_DETECTED","由于未检测到受支持的 First Person Camera - Continued 模组，模组已自动禁用。请检查模组状态并重试。",""
 "UNABLE_TO_OPERATE","这表明模组无法运行且已经自动关闭","Warning message letting the user know that the mod can't work."
 "CONFLICTING_MODS","为使模组能正常使用，请取消订阅以下不兼容模组：","Part of the mod conflict warning notification - header for the list of conflicting mods."
 "HARMONY_ERROR","此模组无法调用它所需的 Harmony 库。","Warning message that a patching problem was detected, and the mod can't operate."
@@ -22,7 +21,7 @@
 MOD_DESCRIPTION,在自己的城市中驾驶
 SETTINGS_MAXVELOCITY,最大速度
 SETTINGS_ACCELERATIONFORCE,加速度
-SETTINGS_BREAKINGFORCE,制动力
+SETTINGS_BREAKINGFORCE,转向制动力
 SETTINGS_OFFSET,摄像机偏移
 SETTINGS_KEYUUITOGGLE,切换主面板
 SETTINGS_KEYLIGHTTOGGLE,切换灯光

@@ -7,7 +7,6 @@
 "YES","Yes","Notification button text - perfom this action."
 "PRESS_ANY_KEY","Press any key","Shown when awaiting user input when changing a key setting."
 "CONFLICT_DETECTED","Mod conflict detected!","Warning message that a mod conflict was detected."
-"FPSCAMERA_NOT_DETECTED","The mod is automatically disabled because supported First Person Camera - Continued was not detected. Please check the mod status and try again.",""
 "UNABLE_TO_OPERATE","This means that the mod is not able to operate and has shut down.","Warning message letting the user know that the mod can't work."
 "CONFLICTING_MODS","The conflicting mods are:","Part of the mod conflict warning notification - header for the list of conflicting mods."
 "HARMONY_ERROR","The mod was unable to properly apply its required Harmony patches.","Warning message that a patching problem was detected, and the mod can't operate."
@@ -20,9 +19,9 @@
 "WHATSNEW_L2","For a detailed list of changes, please visit the Steam Workshop or GitHub.",""
 "WHATSNEW_L3","Thank you for your use and support!",""
 MOD_DESCRIPTION,Drive vehicles around your very own city!
-SETTINGS_MAXVELOCITY,Maximum Velocity
-SETTINGS_ACCELERATIONFORCE,Acceleration Force
-SETTINGS_BREAKINGFORCE,Breaking Force
+SETTINGS_MAXVELOCITY,Maximum velocity
+SETTINGS_ACCELERATIONFORCE,Acceleration force
+SETTINGS_BREAKINGFORCE,Steering braking force
 SETTINGS_OFFSET,Camera offset
 SETTINGS_KEYUUITOGGLE,Toggle main panel (need to subscribe to UUI mod)
 SETTINGS_KEYLIGHTTOGGLE,Toggle Light

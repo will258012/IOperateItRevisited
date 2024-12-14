@@ -6,14 +6,10 @@ using UnityEngine;
 
 namespace IOperateIt
 {
-    public class Loading : PatcherLoadingBase<OptionsPanel, PatcherBase>
+    public class IOperateItLoading : PatcherLoadingBase<OptionsPanel, PatcherBase>
     {
         protected override List<AppMode> PermittedModes => new List<AppMode> { AppMode.Game, AppMode.MapEditor };
-        public override void OnLevelLoaded(LoadMode mode)
-        {
-            FPSCameraAPI.Detector.CheckFPSCamera();
-            base.OnLevelLoaded(mode);
-        }
+        protected override bool CreatedChecksPassed() => FPSCameraAPI.Helper.IsFPSCameraInstalledAndEnabled;
         public override void OnLevelUnloading()
         {
             if (gameObject != null)

@@ -1,5 +1,4 @@
-﻿extern alias FPSCamera;
-using HarmonyLib;
+﻿using HarmonyLib;
 using IOperateIt.UI;
 
 namespace IOperateIt.Patches
@@ -9,8 +8,6 @@ namespace IOperateIt.Patches
     internal class EscHandler
     {
         [HarmonyPrefix]
-        public static bool ESCPatch() =>
-            // cancel calling <Escape> if FPSCamera consumes it
-            !MainPanel.Instance.OnEsc();
+        public static bool ESCPatch() => !MainPanel.Instance.OnEsc();
     }
 }

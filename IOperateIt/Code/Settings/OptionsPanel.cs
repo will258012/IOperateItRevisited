@@ -6,6 +6,7 @@ using AlgernonCommons.UI;
 using FPSCamera.FPSCamera.UI;
 using IOperateIt.Settings;
 using UnityEngine;
+
 namespace IOperateIt
 {
     public class OptionsPanel : OptionsPanelBase
@@ -36,7 +37,7 @@ namespace IOperateIt
             logging_CheckBox.eventCheckChanged += (_, isChecked) => Logging.DetailLogging = isChecked;
             currentY += logging_CheckBox.height + LeftMargin;
 
-            var maxVelocity_Slider = UISliders.AddPlainSliderWithIntegerValue(this, LeftMargin, currentY, Translations.Translate("SETTINGS_MAXVELOCITY"), 50f, 280f, 1f, ModSettings.MaxVelocity);
+            var maxVelocity_Slider = UISliders.AddPlainSliderWithValue(this, LeftMargin, currentY, Translations.Translate("SETTINGS_MAXVELOCITY"), 50f, 160f, 1f, ModSettings.MaxVelocity, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: "km/h"));
             maxVelocity_Slider.eventValueChanged += (_, value) => ModSettings.MaxVelocity = value;
             currentY += maxVelocity_Slider.height + SliderMargin;
 

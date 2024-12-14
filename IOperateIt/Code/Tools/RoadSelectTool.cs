@@ -9,25 +9,20 @@ namespace IOperateIt.Tools
         public override void RenderOverlay(RenderManager.CameraInfo cameraInfo)
         {
             base.RenderOverlay(cameraInfo);
-
-            if (m_toolController != null && !m_toolController.IsInsideUI && Cursor.visible)
+            if (!m_toolController.IsInsideUI && Cursor.visible)
             {
-                RaycastOutput raycastOutput;
-
-                if (RaycastRoad(out raycastOutput))
+                if (RaycastRoad(out var raycastOutput))
                 {
                     ushort netSegmentId = raycastOutput.m_netSegment;
 
                     if (netSegmentId != 0)
                     {
-                        var netManager = Singleton<NetManager>.instance;
-                        var netSegment = netManager.m_segments.m_buffer[netSegmentId];
+                        var netSegment = NetManager.instance.m_segments.m_buffer[netSegmentId];
 
                         if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
                         {
-                            var color = GetToolColor(warning: false, false);
-                            var color2 = color;
-                            NetTool.RenderOverlay(cameraInfo, ref netSegment, color, color2);
+                            var color = GetToolColor(false, false);
+                            NetTool.RenderOverlay(cameraInfo, ref netSegment, color, color);
                         }
                     }
                 }
@@ -35,28 +30,26 @@ namespace IOperateIt.Tools
         }
 
 
-        protected override void OnToolUpdate()
+        protected override void OnToolGUI(Event e)
         {
-            if (m_toolController != null && !m_toolController.IsInsideUI && Cursor.visible)
+            if (!m_toolController.IsInsideUI && Cursor.visible)
             {
-                RaycastOutput raycastOutput;
-
-                if (RaycastRoad(out raycastOutput))
+                if (RaycastRoad(out var raycastOutput))
                 {
                     ushort netSegmentId = raycastOutput.m_netSegment;
 
                     if (netSegmentId != 0)
                     {
-
-                        var netManager = Singleton<NetManager>.instance;
-                        var netSegment = netManager.m_segments.m_buffer[netSegmentId];
+                        var netSegment = NetManager.instance.m_segments.m_buffer[netSegmentId];
 
                         if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
                         {
-                            if (Event.current.type == EventType.MouseDown && Event.current.button == 0)
+                            if (e.type == EventType.MouseDown)
                             {
-                                DriveController.Instance.StartDriving(netSegment.m_middlePosition, Quaternion.identity);
-                                ShowToolInfo(false, null, new Vector3());
+                                netSegment.GetClosestPositionAndDirection(netSegment.m_middlePosition, out _, out var dir);
+                                var rotation = Quaternion.LookRotation(dir);
+                                DriveController.Instance.StartDriving(netSegment.m_middlePosition, rotation);
+                                ShowToolInfo(false, null, Vector3.zero);
 
                                 //unset self as tool
                                 ToolsModifierControl.toolController.CurrentTool = ToolsModifierControl.GetTool<DefaultTool>();
@@ -77,7 +70,7 @@ namespace IOperateIt.Tools
             }
         }
 
-        bool RaycastRoad(out RaycastOutput raycastOutput)
+        private bool RaycastRoad(out RaycastOutput raycastOutput)
         {
             RaycastInput raycastInput = new RaycastInput(Camera.main.ScreenPointToRay(Input.mousePosition), Camera.main.farClipPlane);
             raycastInput.m_netService.m_service = ItemClass.Service.Road;

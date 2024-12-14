@@ -5,7 +5,6 @@ using FPSCamera.FPSCamera.Game;
 using FPSCamera.FPSCamera.Utils;
 using IOperateIt.Settings;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using FPCModSettings = FPSCamera.FPSCamera.Settings.ModSettings;
 namespace IOperateIt
@@ -31,16 +30,6 @@ namespace IOperateIt
         {
             Instance = this;
 
-            foreach (var info in from VehicleCollection vehicleCollection in FindObjectsOfType<VehicleCollection>()
-                                 where vehicleCollection.name.Equals("Residential Low")
-                                 from VehicleInfo info in vehicleCollection.m_prefabs
-                                 where info.name.Equals("Hatchback")
-                                 select info)
-            {
-                vehicleInfo = info;
-                UI.MainPanel.Instance?._vehicleList?.FindItem(info);
-            }
-
             gameObject.AddComponent<MeshFilter>();
             gameObject.AddComponent<MeshRenderer>();
             GetComponent<MeshRenderer>().enabled = true;
@@ -51,7 +40,6 @@ namespace IOperateIt
             vehicleRigidBody.freezeRotation = true;
             vehicleRigidBody.drag = 2f;
             vehicleRigidBody.angularDrag = 2.5f;
-
 
             vehicleCollider = gameObject.AddComponent<BoxCollider>();
 
@@ -86,10 +74,15 @@ namespace IOperateIt
                 vehicleRigidBody.AddRelativeForce(Physics.gravity * 6f);
             }
 
-            if (vehicleRigidBody.velocity.sqrMagnitude > ModSettings.MaxVelocity * ModSettings.MaxVelocity)
+            var currentSpeed = FPCModSettings.Instance.XMLUseMetricUnit
+                ? vehicleRigidBody.velocity.magnitude.ToKilometer()
+                : vehicleRigidBody.velocity.magnitude.ToMile();
+
+            if (currentSpeed > ModSettings.MaxVelocity)
             {
                 var normalisedVelocity = vehicleRigidBody.velocity.normalized;
-                var brakeVelocity = normalisedVelocity * ModSettings.AccelerationForce;
+                var overSpeedFactor = currentSpeed - ModSettings.MaxVelocity;
+                var brakeVelocity = normalisedVelocity * (ModSettings.AccelerationForce + overSpeedFactor);
                 vehicleRigidBody.AddForce(-brakeVelocity);
             }
 
@@ -167,8 +160,8 @@ namespace IOperateIt
             gameObject.transform.position = position;
             gameObject.transform.rotation = rotation;
             var vehicleMesh = vehicleInfo.m_mesh;
-            GetComponent<MeshFilter>().mesh = vehicleMesh;
-            GetComponent<MeshRenderer>().material = vehicleInfo.m_material;
+            GetComponent<MeshFilter>().mesh = GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
+            GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
             gameObject.SetActive(true);
 
             for (int i = 0; i < vehicleInfo.m_lightPositions.Length; i++)
@@ -188,6 +181,9 @@ namespace IOperateIt
                 Lights.Add(lightObj, light);
             }
             vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
+
+            rotationOffset = Quaternion.identity;
+            vehicleRigidBody.velocity = Vector3.zero;
             /*
             foreach (var effect in vehicleInfo.m_effects)
             {
@@ -321,7 +317,7 @@ namespace IOperateIt
             // Limit pitch
             var eulerAngles = rotationOffset.eulerAngles;
             if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
-            eulerAngles.x = eulerAngles.x.Clamp(-FPCModSettings.Instance.XMLMaxPitchDeg, FPCModSettings.Instance.XMLMaxPitchDeg);
+            eulerAngles.x = eulerAngles.x.Clamp(ModSettings.Offset.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
             eulerAngles.z = 0f;
             rotationOffset = Quaternion.Euler(eulerAngles);
         }
@@ -329,10 +325,10 @@ namespace IOperateIt
         {
             var cameraTransform = GameCamController.Instance.MainCamera.transform;
 
-            //Let the camera rotate with transform.position, our vehicle position.
-            Quaternion instanceRotation = transform.rotation * rotationOffset;
-            var rotatedOffset = instanceRotation * ModSettings.Offset;
-            var instancePos = transform.position + rotatedOffset;
+            var instanceRotation = transform.rotation * rotationOffset;
+            var instancePos = transform.position +
+                ((ModSettings.Offset.z > -1f ? transform.rotation /*rotate with the offset position*/ :
+                instanceRotation  /*rotate with the vehicle position*/) * ModSettings.Offset);
 
             // Limit the camera's position to the allowed area.
             instancePos = CameraController.ClampCameraPosition(instancePos);
