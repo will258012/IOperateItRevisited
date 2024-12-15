@@ -14,9 +14,9 @@ To enter driving mode, (optionally) select a vehicle from the "Vehicle Selector"
  
 Once in driving mode, controls are:
 
-* Arrow keys: Control the vehicle
+~~ * Arrow keys: Control the vehicle
 * F2: Exit driving mode
-* F3: Switch viewing mode
+* F3: Switch viewing mode ~~
 
 -------------------
 
@@ -33,8 +33,8 @@ Once the velocity exceeds the maximum limit, a breaking force is applied to slow
 
 # Upcoming Features
 
-* Configurable control forces
-* Configurable control keys
+~~ * Configurable control forces
+* Configurable control keys ~~
 * More documentation
 
 -------------------
@@ -48,6 +48,6 @@ With the current version, there is no physics interation with in-game objects( r
 
 # Acknowledgements
 
-* [FPS Camera for game panel extender and camera positioning ](https://github.com/AlexanderDzhoganov/Skylines-FPSCamera)
-* [Skylines-Multiplayer for the character control code ](https://github.com/Fr0sZ/Skylines-Multiplayer)
-* [Road Namer for the road selector tool code ](https://github.com/PropaneDragon/RoadNamer)
+* [FPS Camera for game panel extender and camera positioning ](https://github.com/will258012/FPSCamera-Continued)
+~~ * [Skylines-Multiplayer for the character control code ](https://github.com/Fr0sZ/Skylines-Multiplayer)
+* [Road Namer for the road selector tool code ](https://github.com/PropaneDragon/RoadNamer) ~~
