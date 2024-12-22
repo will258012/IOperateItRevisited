@@ -1,4 +1,4 @@
-﻿"LANGUAGE","简体中文","Language name (in native language)."
+﻿"LANGUAGE","简体中文","Language name (in native language).  This means the NAME OF THE LANGUAGE BEING TRANSLATED INTO, and should NOT be a translation of the word 'English'"
 "LANGUAGE_CHOICE","选择语言","Heading for language selection menu."
 "LANGUAGE_GAME","使用游戏默认语言","Default selection in language selection menu."
 "NOTE_CLOSE","关闭","Notification button text - closes the notification."
@@ -18,14 +18,14 @@
 "WHATSNEW_L1","此消息只是为了让您知晓模组已经更新。",""
 "WHATSNEW_L2","请访问创意工坊或 GitHub 以获取详细更新日志。",""
 "WHATSNEW_L3","感谢您的使用及支持！",""
-MOD_DESCRIPTION,在自己的城市中驾驶
-SETTINGS_MAXVELOCITY,最大速度
-SETTINGS_ACCELERATIONFORCE,加速度
-SETTINGS_BREAKINGFORCE,转向制动力
-SETTINGS_OFFSET,摄像机偏移
-SETTINGS_KEYUUITOGGLE,切换主面板
-SETTINGS_KEYLIGHTTOGGLE,切换灯光
-MAINPANELBTN_TOOLTIP,IOperateIt Revisited
-DRIVEBTN_TOOLTIP,开始驾驶
-SPAWNBTN_TEXT,生成车辆
-ROAD_SELECT,选择一段道路以开始驾驶
+"MOD_DESCRIPTION","在自己的城市中驾驶",""
+"SETTINGS_MAXVELOCITY","最大速度",""
+"SETTINGS_ACCELERATIONFORCE","加速度",""
+"SETTINGS_BREAKINGFORCE","转向制动力",""
+"SETTINGS_OFFSET","摄像机偏移",""
+"SETTINGS_KEYUUITOGGLE","切换主面板",""
+"SETTINGS_KEYLIGHTTOGGLE","切换灯光",""
+"MAINPANELBTN_TOOLTIP","IOperateIt Revisited",""
+"DRIVEBTN_TOOLTIP","开始驾驶",""
+"SPAWNBTN_TEXT","生成车辆",""
+"ROAD_SELECT","选择一段道路以开始驾驶",""
