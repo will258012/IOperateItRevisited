@@ -36,10 +36,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Update="Translations\en-EN.csv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Translations\zh-CN.csv">
+    <None Update="Translations\*.csv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
