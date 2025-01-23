@@ -74,7 +74,7 @@ namespace IOperateIt
                 vehicleRigidBody.AddRelativeForce(Physics.gravity * 6f);
             }
 
-            var currentSpeed = FPCModSettings.Instance.XMLUseMetricUnit
+            var currentSpeed = FPCModSettings.Instance.XMLSpeedUnit != FPCModSettings.SpeedUnits.mph
                 ? vehicleRigidBody.velocity.magnitude.ToKilometer()
                 : vehicleRigidBody.velocity.magnitude.ToMile();
 
