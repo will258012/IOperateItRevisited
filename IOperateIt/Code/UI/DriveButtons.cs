@@ -14,8 +14,8 @@ namespace IOperateIt.UI
             citizenVehicleInfo_Button = Initialize(ref citizenVehicleInfo_Panel);
             cityServiceVehicleInfo_Button = Initialize(ref cityServiceVehicleInfo_Panel);
             publicTransportVehicleInfo_Button = Initialize(ref publicTransportVehicleInfo_Panel);
-            FPSCamController.Instance.OnCameraEnabled += SetDisable;
-            FPSCamController.Instance.OnCameraDisabled += SetEnable;
+            FPSCamController.OnCameraEnabled += SetDisable;
+            FPSCamController.OnCameraDisabled += SetEnable;
         }
 
         private void Update()
@@ -30,8 +30,8 @@ namespace IOperateIt.UI
             Destroy(citizenVehicleInfo_Button);
             Destroy(cityServiceVehicleInfo_Button);
             Destroy(publicTransportVehicleInfo_Button);
-            FPSCamController.Instance.OnCameraEnabled -= SetDisable;
-            FPSCamController.Instance.OnCameraDisabled -= SetEnable;
+            FPSCamController.OnCameraEnabled -= SetDisable;
+            FPSCamController.OnCameraDisabled -= SetEnable;
         }
 
         private void SetEnable() => enabled = true;
