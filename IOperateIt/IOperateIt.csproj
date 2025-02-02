@@ -8,26 +8,6 @@
     <DebugType>none</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
-  <PropertyGroup>
-    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
-  </PropertyGroup>
-  <ItemGroup>
-    <Reference Update="System">
-      <Private>False</Private>
-    </Reference>
-    <Reference Update="System.Core">
-      <Private>False</Private>
-    </Reference>
-    <Reference Update="System.Xml.Linq">
-      <Private>False</Private>
-    </Reference>
-    <Reference Update="System.Data">
-      <Private>False</Private>
-    </Reference>
-    <Reference Update="System.Xml">
-      <Private>False</Private>
-    </Reference>
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\FPSCamera-Continued\FPSCamera.API\FPSCamera.API.csproj" />
     <ProjectReference Include="..\..\FPSCamera-Continued\FPSCamera\FPSCamera.csproj">
@@ -66,19 +46,14 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
-  <PropertyGroup>
-    <AssemblyTitle>IOperateIt</AssemblyTitle>
-  </PropertyGroup>
     <Target Name="DeployToModDirectory" AfterTargets="Build">
-
 	    <ItemGroup>
-		    <TranslationsCore Include="../../FPSCamera-Continued/AlgernonCommons/Translations/*.csv" />
+		    <TranslationsCore Include="..\..\FPSCamera-Continued\AlgernonCommons\Translations\*.csv" />
 		    <SourceDir Include="$(TargetDir)\**\*.*" />
 	    </ItemGroup>
 	    <PropertyGroup>
-		    <DeployDir>$(LOCALAPPDATA)/Colossal Order/Cities_Skylines/Addons/Mods/$(SolutionName)/</DeployDir>
+		    <DeployDir>$(LOCALAPPDATA)/Colossal Order/Cities_Skylines/Addons/Mods/$(ProjectName)/</DeployDir>
 	    </PropertyGroup>
-
 	    <Copy SourceFiles="@(SourceDir)" DestinationFolder="$(DeployDir)\%(RecursiveDir)" SkipUnchangedFiles="true" />
 	    <Copy SourceFiles="@(TranslationsCore)" DestinationFolder="$(DeployDir)\Translations\Core" SkipUnchangedFiles="true" />
     </Target>
