@@ -17,8 +17,6 @@ namespace IOperateIt
         private BoxCollider vehicleCollider;
         internal VehicleInfo vehicleInfo;
         private Dictionary<GameObject, Light> Lights = new Dictionary<GameObject, Light>();
-        //private List<EffectInfo> audioEffects = new List<EffectInfo>();
-        //private List<EffectInfo> togglableAudioEffects = new List<EffectInfo>();
         private CollidersManager _collidersManager;
         private float terrainHeight;
         private Vector3 prevPosition;
@@ -36,10 +34,13 @@ namespace IOperateIt
 
             vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             vehicleRigidBody.isKinematic = false;
-            vehicleRigidBody.useGravity = false;
+            vehicleRigidBody.useGravity = true;
             vehicleRigidBody.freezeRotation = true;
-            vehicleRigidBody.drag = 2f;
+            vehicleRigidBody.drag = 1f;
             vehicleRigidBody.angularDrag = 2.5f;
+            vehicleRigidBody.mass = 1500f;
+            vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
+
 
             vehicleCollider = gameObject.AddComponent<BoxCollider>();
 
@@ -69,48 +70,29 @@ namespace IOperateIt
                 vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0, vehicleRigidBody.velocity.z);
                 transform.position = new Vector3(transform.position.x, terrainHeight, transform.position.z);
             }
-            else
+
+            if (Speed > ModSettings.MaxVelocity.FromKmph())
             {
-                vehicleRigidBody.AddRelativeForce(Physics.gravity * 6f);
+                vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
             }
 
-            var currentSpeed = FPCModSettings.Instance.XMLSpeedUnit != FPCModSettings.SpeedUnits.mph
-                ? vehicleRigidBody.velocity.magnitude.ToKilometer()
-                : vehicleRigidBody.velocity.magnitude.ToMile();
-
-            if (currentSpeed > ModSettings.MaxVelocity)
+            var position = Vector3.Lerp(vehicleRigidBody.position, prevPosition, 0.2f);
+            var velocity = Vector3.Lerp(vehicleRigidBody.velocity, prevVelocity, 0.2f);
+            var swayPosition = Vector3.zero;
+            var rotation = vehicleRigidBody.rotation;
+            var scale = Vector3.one;
+            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created, ref position, ref rotation, ref scale, ref swayPosition);
+            var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
+            if (vehicleInfo.m_effects != null)
             {
-                var normalisedVelocity = vehicleRigidBody.velocity.normalized;
-                var overSpeedFactor = currentSpeed - ModSettings.MaxVelocity;
-                var brakeVelocity = normalisedVelocity * (ModSettings.AccelerationForce + overSpeedFactor);
-                vehicleRigidBody.AddForce(-brakeVelocity);
+                foreach (var effect in vehicleInfo.m_effects)
+                {
+                    {
+                        effect.m_effect?.PlayEffect(default, area, velocity, ModSettings.AccelerationForce, 1f, AudioManager.instance.CurrentListenerInfo, VehicleManager.instance.m_audioGroup);
+                    }
+                }
             }
-
             prevVelocity = vehicleRigidBody.velocity;
-
-            /*
-            foreach (var effect in audioEffects)
-            {
-                effect.PlayEffect(default,
-                           new EffectInfo.SpawnArea(vehicleRigidBody.transform.localToWorldMatrix, vehicleInfo.m_lodMeshData),
-                           vehicleRigidBody.velocity,
-                           (vehicleRigidBody.velocity.magnitude - prevVelocity.magnitude) / Time.fixedDeltaTime,
-                           vehicleRigidBody.velocity.magnitude,
-                           AudioManager.instance.CurrentListenerInfo,
-                           VehicleManager.instance.m_audioGroup);
-
-            }
-            foreach (var effect in togglableAudioEffects)
-            {
-                effect.PlayEffect(default,
-                   new EffectInfo.SpawnArea(vehicleRigidBody.transform.localToWorldMatrix, vehicleInfo.m_lodMeshData),
-                   vehicleRigidBody.velocity,
-                   (vehicleRigidBody.velocity.magnitude - prevVelocity.magnitude) / Time.fixedDeltaTime,
-                   vehicleRigidBody.velocity.magnitude,
-                   AudioManager.instance.CurrentListenerInfo,
-                   VehicleManager.instance.m_audioGroup);
-            }
-            */
         }
         private void LateUpdate()
         {
@@ -123,24 +105,6 @@ namespace IOperateIt
                 Destroy(light.Key);
             }
             Lights.Clear();
-            /*
-            foreach (var audioEffect in audioEffects)
-            {
-                if (audioEffect != null)
-                {
-                    Destroy(audioEffect);
-                }
-            }
-            audioEffects.Clear();
-            foreach (var togglableAudioEffect in togglableAudioEffects)
-            {
-                if (togglableAudioEffect != null)
-                {
-                    Destroy(togglableAudioEffect);
-                }
-            }
-            togglableAudioEffects.Clear();
-            */
         }
 
         private void OnCollisionEnter()
@@ -184,24 +148,6 @@ namespace IOperateIt
 
             rotationOffset = Quaternion.identity;
             vehicleRigidBody.velocity = Vector3.zero;
-            /*
-            foreach (var effect in vehicleInfo.m_effects)
-            {
-                var effectInfo = effect.m_effect;
-
-                if (effectInfo != null)
-                {
-                    if ((effect.m_vehicleFlagsRequired & (Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2)) != Vehicle.Flags.Deleted)
-                    {
-                        togglableAudioEffects.Add(effectInfo);
-                    }
-                    else
-                    {
-                        audioEffects.Add(effectInfo);
-                    }
-                }
-            }
-            */
         }
         internal void DestroyVehicle()
         {
@@ -210,24 +156,6 @@ namespace IOperateIt
                 Destroy(light.Key);
             }
             Lights.Clear();
-            /*
-            foreach (var audioEffect in audioEffects)
-            {
-                if (audioEffect != null)
-                {
-                    Destroy(audioEffect);
-                }
-            }
-            audioEffects.Clear();
-            foreach (var togglableAudioEffect in togglableAudioEffects)
-            {
-                if (togglableAudioEffect != null)
-                {
-                    Destroy(togglableAudioEffect);
-                }
-            }
-            togglableAudioEffects.Clear();
-            */
             StartCoroutine(_collidersManager.DisableColliders());
             enabled = false;
             gameObject.SetActive(false);
@@ -249,21 +177,19 @@ namespace IOperateIt
         {
 
             if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveForward))
-            {
-                vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce * Time.fixedDeltaTime, ForceMode.VelocityChange);
-            }
+                vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce, ForceMode.Acceleration);
+
             if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveBackward))
-            {
-                vehicleRigidBody.AddRelativeForce(Vector3.back * ModSettings.AccelerationForce * Time.fixedDeltaTime, ForceMode.VelocityChange);
-            }
-            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveLeft) && vehicleRigidBody.velocity.sqrMagnitude > 0.05f)
+                vehicleRigidBody.AddRelativeForce(Vector3.back * ModSettings.AccelerationForce, ForceMode.Acceleration);
+
+            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveLeft))
             {
                 var normalizedVelocity = vehicleRigidBody.velocity.normalized;
                 var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;
                 vehicleRigidBody.AddForce(-brakeVelocity);
                 vehicleRigidBody.AddRelativeTorque(Vector3.down * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
             }
-            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveRight) && vehicleRigidBody.velocity.sqrMagnitude > 0.05f)
+            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveRight))
             {
                 var normalizedVelocity = vehicleRigidBody.velocity.normalized;
                 var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;

@@ -7,7 +7,7 @@ SETTINGS_MAXVELOCITY,Maximum velocity
 SETTINGS_ACCELERATIONFORCE,Acceleration force
 SETTINGS_BREAKINGFORCE,Steering braking force
 SETTINGS_OFFSET,Camera offset
-SETTINGS_KEYUUITOGGLE,Toggle main panel (need to subscribe to UUI mod)
+SETTINGS_KEYUUITOGGLE,Toggle main panel (requires UUI mod)
 SETTINGS_KEYLIGHTTOGGLE,Toggle Light
 MAINPANELBTN_TOOLTIP,IOperateIt Revisited
 DRIVEBTN_TOOLTIP,Start driving

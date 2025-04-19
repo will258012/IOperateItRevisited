@@ -38,9 +38,7 @@ namespace IOperateIt.Settings
         internal static Vector3 Offset = new Vector3(0f, 2f, 2f);
 
         [XmlElement("KeyUUIToggle")]
-        public Keybinding XMLKeyUUIToggle { get => KeyUUIToggle; set => KeyUUIToggle = value; }
-        [XmlIgnore]
-        internal static Keybinding KeyUUIToggle = new Keybinding(KeyCode.D, false, true, false);
+        public Keybinding XMLKeyUUIToggle { get => Utils.UUISupport.UUIKey.Keybinding; set => Utils.UUISupport.UUIKey.Keybinding = value; }
 
         [XmlElement("KeyLightToggle")]
         public KeyOnlyBinding XMLKeyLightToggle { get => KeyLightToggle; set => KeyLightToggle = value; }

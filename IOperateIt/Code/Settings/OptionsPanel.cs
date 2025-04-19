@@ -41,7 +41,7 @@ namespace IOperateIt
             maxVelocity_Slider.eventValueChanged += (_, value) => ModSettings.MaxVelocity = value;
             currentY += maxVelocity_Slider.height + SliderMargin;
 
-            var accelerationForce_Slider = UISliders.AddPlainSliderWithIntegerValue(this, LeftMargin, currentY, Translations.Translate("SETTINGS_ACCELERATIONFORCE"), 10f, 200f, 1f, ModSettings.AccelerationForce);
+            var accelerationForce_Slider = UISliders.AddPlainSliderWithValue(this, LeftMargin, currentY, Translations.Translate("SETTINGS_ACCELERATIONFORCE"), 10f, 200f, 1f, ModSettings.AccelerationForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: "m/s"));
             accelerationForce_Slider.eventValueChanged += (_, value) => ModSettings.AccelerationForce = value;
             currentY += accelerationForce_Slider.height + SliderMargin;
 
@@ -55,7 +55,7 @@ namespace IOperateIt
             offset.z_Slider.eventValueChanged += (_, value) => ModSettings.Offset.z = value;
             currentY += offset.slidersPanel.height;
 
-            var keyUUIToggle = OptionsKeymapping.AddKeymapping(this, LeftMargin, currentY, Translations.Translate("SETTINGS_KEYUUITOGGLE"), ModSettings.KeyUUIToggle);
+            var keyUUIToggle = Utils.UUISupport.UUIKeymapping.AddKeymapping(this, LeftMargin, currentY);
             currentY += keyUUIToggle.Panel.height + Margin;
 
             var keyLightToggle = OptionsKeymapping.AddKeymapping(this, LeftMargin, currentY, Translations.Translate("SETTINGS_KEYLIGHTTOGGLE"), ModSettings.KeyLightToggle);
