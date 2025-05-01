@@ -1,53 +1,12 @@
-# IOperateIt
+# Cities: Skylines
+# IOperateIt Revisited
+<img src="Images/banner.jpg" width="750px"/>
 
-A driving vehicle simulator, in the vein of the U-drive-it mode of Simcity 4 and Streets of Simcity. 
-The mod lets you operate any vehicle currently driving around the city, or spawn any vehicle on a road segment with 3 view angles:
+> This mod is an updated version for [IOperateIt](https://github.com/tony56a/IOperateIt) by tony56a.
 
-* Far view
-* Follow up
-* First person
+## Please install the prerequisite [First Person Camera - Continued](https://github.com/Will258012/FPSCamera-Continued/releases/latest) before using.
 
--------------------
+## Help with translate!
+[![Crowdin](https://badges.crowdin.net/ioperateit-revisited/localized.svg)](https://crowdin.com/project/ioperateit-revisited)
 
-# Controls
-To enter driving mode, (optionally) select a vehicle from the "Vehicle Selector" panel, click on the "Spawn vehicle" button, and click on a road segment. Alternatively, clicking on the "Drive This Vehicle" button in the vehicle info panel will spawn a copy of the vehicle in the same spot.
- 
-Once in driving mode, controls are:
-
-~~ * Arrow keys: Control the vehicle
-* F2: Exit driving mode
-* F3: Switch viewing mode ~~
-
--------------------
-
-# Operation
-
-In this version(just testing/pre-pre-alpha), 
-the vehicle renders the selected vehicle's mesh from its VehicleInfo object, and adds a single rigidbody to enable physics. 
-
-Forward/backward acceleration are implemented by applying forward/backward force, and rotation is achieved by applying a breaking force and adding torque.
-
-Once the velocity exceeds the maximum limit, a breaking force is applied to slow the vehicle down.
-
--------------------
-
-# Upcoming Features
-
-~~ * Configurable control forces
-* Configurable control keys ~~
-* More documentation
-
--------------------
-
-# Limitations
-
-## Physics
-With the current version, there is no physics interation with in-game objects( roads, buildings ), which means things like the rotation of the vehicle and collision detection aren't available yet. While physics can be enabled for buidldings easily, road segments will likely detouring/overriding the road rendering functionality to include enabling physics.
-
--------------------
-
-# Acknowledgements
-
-* [FPS Camera for game panel extender and camera positioning ](https://github.com/will258012/FPSCamera-Continued)
-~~ * [Skylines-Multiplayer for the character control code ](https://github.com/Fr0sZ/Skylines-Multiplayer)
-* [Road Namer for the road selector tool code ](https://github.com/PropaneDragon/RoadNamer) ~~
+> For more information, please visit [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3371685709). The mod can also be downloaded there.
