@@ -69,7 +69,7 @@ namespace IOperateIt
                 terrainHeight = newHeight;
             terrainHeight -= 2f;
 
-            if (transform.position.y < terrainHeight + 1f)
+            if (transform.position.y - 1f < terrainHeight)
             {
                 vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0, vehicleRigidBody.velocity.z);
                 transform.position = new Vector3(transform.position.x, terrainHeight, transform.position.z);
@@ -80,7 +80,6 @@ namespace IOperateIt
                 vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
             }
 
-            prevPosition = transform.position;
             prevVelocity = vehicleRigidBody.velocity;
         }
         private void LateUpdate()
@@ -130,19 +129,37 @@ namespace IOperateIt
         }
         private void CalculateSlope()
         {
-            var oldEuler = transform.rotation.eulerAngles;
-            var diffVector = transform.position - prevPosition;
-            Quaternion newRotation;
-            if (diffVector.sqrMagnitude > 0.05f)
+            Vector3 diffVector = transform.position - prevPosition;
+            Vector3 horizontalDirection = new Vector3(diffVector.x, 0f, diffVector.z);
+            float heightDifference = diffVector.y;
+
+            if (horizontalDirection.sqrMagnitude > 0.01f)
             {
-                newRotation = Quaternion.LookRotation(diffVector);
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(Mathf.Abs(newRotation.eulerAngles.x), oldEuler.y, 0), Time.deltaTime * 6.0f);
+                float slopeAngle = Mathf.Atan2(heightDifference, horizontalDirection.magnitude) * Mathf.Rad2Deg;//+: upslope -: downslope
+                slopeAngle = Mathf.Clamp(slopeAngle, -90f, 90f);
+
+                bool isReversing = Vector3.Dot(diffVector.normalized, transform.forward) < 0;
+
+                if (isReversing)
+                    slopeAngle = -slopeAngle;
+
+                var targetRotation = Quaternion.Euler(
+                    -slopeAngle,
+                    transform.rotation.eulerAngles.y,
+                    0f
+                );
+
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    targetRotation,
+                    Time.deltaTime * 6f
+                );
             }
+            prevPosition = transform.position;
         }
 
         private void HandleInputOnFixedUpdate()
         {
-
             if (FPCModSettings.Instance.XMLKeyMoveForward.IsPressed())
                 vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce, ForceMode.Acceleration);
 
@@ -224,13 +241,16 @@ namespace IOperateIt
                         {
                             if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2))
                                 specialEffects.Add(effect.m_effect);
-                            else if (effect.m_effect is MultiEffect multiEffect)
+                            else
                             {
-                                foreach (var sub in multiEffect.m_effects)
-                                    if (sub.m_effect is LightEffect lightEffect)
-                                        lightEffects.Add(lightEffect);
+                                if (effect.m_effect is MultiEffect multiEffect)
+                                {
+                                    foreach (var sub in multiEffect.m_effects)
+                                        if (sub.m_effect is LightEffect lightEffect)
+                                            lightEffects.Add(lightEffect);
+                                }
+                                regularEffects.Add(effect.m_effect);
                             }
-                            regularEffects.Add(effect.m_effect);
                         }
                     }
                 }
@@ -242,7 +262,7 @@ namespace IOperateIt
             var velocity = vehicleRigidBody.velocity;
             var acceleration = ((vehicleRigidBody.velocity - prevVelocity) / Time.fixedDeltaTime).magnitude;
             var swayPosition = Vector3.zero;
-            var rotation = vehicleRigidBody.rotation;
+            var rotation = transform.rotation;
             var scale = Vector3.one;
             var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
             var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
