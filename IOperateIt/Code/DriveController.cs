@@ -16,18 +16,22 @@ namespace IOperateIt
         private Rigidbody vehicleRigidBody;
         private BoxCollider vehicleCollider;
         internal VehicleInfo vehicleInfo;
-        private Dictionary<GameObject, Light> Lights = new Dictionary<GameObject, Light>();
-        private CollidersManager _collidersManager;
+
+        private List<LightEffect> lightEffects = new List<LightEffect>();
+        private List<EffectInfo> regularEffects = new List<EffectInfo>();
+        private List<EffectInfo> specialEffects = new List<EffectInfo>();
+
+        private CollidersManager collidersManager = new CollidersManager();
         private float terrainHeight;
         private Vector3 prevPosition;
         private Vector3 prevVelocity;
         private Quaternion rotationOffset;
-
+        private bool isSirenEnabled = true;
+        private bool isLightEnabled = false;
         internal float Speed => vehicleRigidBody.velocity.magnitude;
         private void Awake()
         {
             Instance = this;
-
             gameObject.AddComponent<MeshFilter>();
             gameObject.AddComponent<MeshRenderer>();
             GetComponent<MeshRenderer>().enabled = true;
@@ -36,7 +40,7 @@ namespace IOperateIt
             vehicleRigidBody.isKinematic = false;
             vehicleRigidBody.useGravity = true;
             vehicleRigidBody.freezeRotation = true;
-            vehicleRigidBody.drag = 1f;
+            vehicleRigidBody.drag = 2f;
             vehicleRigidBody.angularDrag = 2.5f;
             vehicleRigidBody.mass = 1500f;
             vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
@@ -44,8 +48,7 @@ namespace IOperateIt
 
             vehicleCollider = gameObject.AddComponent<BoxCollider>();
 
-            _collidersManager = new CollidersManager();
-            StartCoroutine(_collidersManager.InitializeColliders());
+            StartCoroutine(collidersManager.InitializeColliders());
             gameObject.SetActive(false);
             enabled = false;
         }
@@ -53,12 +56,13 @@ namespace IOperateIt
         {
             HandleInputOnUpdate();
             UpdateCameraPos();
+            PlayEffects();
         }
         private void FixedUpdate()
         {
             HandleInputOnFixedUpdate();
             CalculateSlope();
-            _collidersManager.UpdateColliders(transform);
+            collidersManager.UpdateColliders(transform);
 
             terrainHeight = MapUtils.GetMinHeightAt(transform.position);
             if (MapUtils.GetClosestSegmentLevel(transform.position, out var newHeight))
@@ -76,22 +80,7 @@ namespace IOperateIt
                 vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
             }
 
-            var position = Vector3.Lerp(vehicleRigidBody.position, prevPosition, 0.2f);
-            var velocity = Vector3.Lerp(vehicleRigidBody.velocity, prevVelocity, 0.2f);
-            var swayPosition = Vector3.zero;
-            var rotation = vehicleRigidBody.rotation;
-            var scale = Vector3.one;
-            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created, ref position, ref rotation, ref scale, ref swayPosition);
-            var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
-            if (vehicleInfo.m_effects != null)
-            {
-                foreach (var effect in vehicleInfo.m_effects)
-                {
-                    {
-                        effect.m_effect?.PlayEffect(default, area, velocity, ModSettings.AccelerationForce, 1f, AudioManager.instance.CurrentListenerInfo, VehicleManager.instance.m_audioGroup);
-                    }
-                }
-            }
+            prevPosition = transform.position;
             prevVelocity = vehicleRigidBody.velocity;
         }
         private void LateUpdate()
@@ -99,12 +88,7 @@ namespace IOperateIt
         }
         private void OnDestroy()
         {
-            _collidersManager.DestroyColliders();
-            foreach (var light in Lights)
-            {
-                Destroy(light.Key);
-            }
-            Lights.Clear();
+            collidersManager.DestroyColliders();
         }
 
         private void OnCollisionEnter()
@@ -127,36 +111,20 @@ namespace IOperateIt
             GetComponent<MeshFilter>().mesh = GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
             GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
             gameObject.SetActive(true);
-
-            for (int i = 0; i < vehicleInfo.m_lightPositions.Length; i++)
-            {
-                var lightPosition = vehicleInfo.m_lightPositions[i];
-                var lightObj = new GameObject("Light" + i);
-                var light = lightObj.AddComponent<Light>();
-                lightObj.transform.parent = gameObject.transform;
-                lightObj.transform.localPosition = lightPosition;
-                lightObj.transform.localRotation = Quaternion.identity;
-                light.type = LightType.Spot;
-                light.enabled = false;
-                light.spotAngle = 20f;
-                light.range = 50f;
-                light.intensity = 5f;
-                light.color = Color.white;
-                Lights.Add(lightObj, light);
-            }
             vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
-
             rotationOffset = Quaternion.identity;
             vehicleRigidBody.velocity = Vector3.zero;
+
+            AddEffects();
         }
+
         internal void DestroyVehicle()
         {
-            foreach (var light in Lights)
-            {
-                Destroy(light.Key);
-            }
-            Lights.Clear();
-            StartCoroutine(_collidersManager.DisableColliders());
+            lightEffects.Clear();
+            regularEffects.Clear();
+            specialEffects.Clear();
+
+            StartCoroutine(collidersManager.DisableColliders());
             enabled = false;
             gameObject.SetActive(false);
         }
@@ -170,26 +138,25 @@ namespace IOperateIt
                 newRotation = Quaternion.LookRotation(diffVector);
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(Mathf.Abs(newRotation.eulerAngles.x), oldEuler.y, 0), Time.deltaTime * 6.0f);
             }
-            prevPosition = transform.position;
         }
 
         private void HandleInputOnFixedUpdate()
         {
 
-            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveForward))
+            if (FPCModSettings.Instance.XMLKeyMoveForward.IsPressed())
                 vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce, ForceMode.Acceleration);
 
-            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveBackward))
+            if (FPCModSettings.Instance.XMLKeyMoveBackward.IsPressed())
                 vehicleRigidBody.AddRelativeForce(Vector3.back * ModSettings.AccelerationForce, ForceMode.Acceleration);
 
-            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveLeft))
+            if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
             {
                 var normalizedVelocity = vehicleRigidBody.velocity.normalized;
                 var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;
                 vehicleRigidBody.AddForce(-brakeVelocity);
                 vehicleRigidBody.AddRelativeTorque(Vector3.down * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
             }
-            if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyMoveRight))
+            if (FPCModSettings.Instance.XMLKeyMoveRight.IsPressed())
             {
                 var normalizedVelocity = vehicleRigidBody.velocity.normalized;
                 var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;
@@ -201,14 +168,13 @@ namespace IOperateIt
         private void HandleInputOnUpdate()
         {
             if (InputManager.KeyTriggered((KeyCode)ModSettings.KeyLightToggle.Key))
-            {
-                foreach (var light in Lights)
-                {
-                    light.Value.enabled = !light.Value.enabled;
-                }
-            }
+                isLightEnabled = !isLightEnabled;
+
+            if (InputManager.KeyTriggered((KeyCode)ModSettings.KeySirenToggle.Key))
+                isSirenEnabled = !isSirenEnabled;
+
             var cursorVisible =
-                InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyCursorToggle) ^ (FPCModSettings.Instance.XMLShowCursorFollow);
+             FPCModSettings.Instance.XMLKeyCursorToggle.IsPressed() ^ (FPCModSettings.Instance.XMLShowCursorFollow);
             InputManager.ToggleCursor(cursorVisible);
 
             if (InputManager.MouseTriggered(InputManager.MouseButton.Middle) ||
@@ -220,10 +186,10 @@ namespace IOperateIt
             { // key rotation
                 var rotateFactor = FPCModSettings.Instance.XMLRotateKeyFactor * Time.deltaTime;
 
-                if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyRotateRight)) yawDegree += 1f * rotateFactor;
-                if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyRotateLeft)) yawDegree -= 1f * rotateFactor;
-                if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyRotateUp)) pitchDegree -= 1f * rotateFactor;
-                if (InputManager.KeyPressed(FPCModSettings.Instance.XMLKeyRotateDown)) pitchDegree += 1f * rotateFactor;
+                if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) yawDegree += 1f * rotateFactor;
+                if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) yawDegree -= 1f * rotateFactor;
+                if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) pitchDegree -= 1f * rotateFactor;
+                if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) pitchDegree += 1f * rotateFactor;
 
                 if (yawDegree == 0f && pitchDegree == 0f)
                 {
@@ -246,6 +212,61 @@ namespace IOperateIt
             eulerAngles.x = eulerAngles.x.Clamp(ModSettings.Offset.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
             eulerAngles.z = 0f;
             rotationOffset = Quaternion.Euler(eulerAngles);
+        }
+        private void AddEffects()
+        {
+            if (vehicleInfo.m_effects != null)
+            {
+                foreach (var effect in vehicleInfo.m_effects)
+                {
+                    {
+                        if (effect.m_effect != null)
+                        {
+                            if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2))
+                                specialEffects.Add(effect.m_effect);
+                            else if (effect.m_effect is MultiEffect multiEffect)
+                            {
+                                foreach (var sub in multiEffect.m_effects)
+                                    if (sub.m_effect is LightEffect lightEffect)
+                                        lightEffects.Add(lightEffect);
+                            }
+                            regularEffects.Add(effect.m_effect);
+                        }
+                    }
+                }
+            }
+        }
+        private void PlayEffects()
+        {
+            var position = transform.position;
+            var velocity = vehicleRigidBody.velocity;
+            var acceleration = ((vehicleRigidBody.velocity - prevVelocity) / Time.fixedDeltaTime).magnitude;
+            var swayPosition = Vector3.zero;
+            var rotation = vehicleRigidBody.rotation;
+            var scale = Vector3.one;
+            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
+            var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
+            var listenerInfo = AudioManager.instance.CurrentListenerInfo;
+            var audioGroup = VehicleManager.instance.m_audioGroup;
+            RenderGroup.MeshData effectMeshData = vehicleInfo.m_vehicleAI.GetEffectMeshData();
+            var area2 = new EffectInfo.SpawnArea(matrix, effectMeshData, vehicleInfo.m_generatedInfo.m_tyres, vehicleInfo.m_lightPositions);
+
+            foreach (var regularEffect in regularEffects)
+            {
+                regularEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
+            }
+            if (isLightEnabled)
+                foreach (var light in lightEffects)
+                {
+                    light.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
+                }
+
+            if (isSirenEnabled)
+                foreach (var specialEffect in specialEffects)
+                {
+                    specialEffect.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
+                    specialEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
+                }
         }
         private void UpdateCameraPos()
         {

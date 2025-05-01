@@ -37,6 +37,16 @@ namespace IOperateIt.Settings
         [XmlIgnore]
         internal static Vector3 Offset = new Vector3(0f, 2f, 2f);
 
+        [XmlElement("BuildingCollision")]
+        public bool XMLBuildingCollision { get => BuildingCollision; set => BuildingCollision = value; }
+        [XmlIgnore]
+        internal static bool BuildingCollision = true;
+
+        [XmlElement("VehicleCollision")]
+        public bool XMLVehicleCollision { get => VehicleCollision; set => VehicleCollision = value; }
+        [XmlIgnore]
+        internal static bool VehicleCollision = true;
+
         [XmlElement("KeyUUIToggle")]
         public Keybinding XMLKeyUUIToggle { get => Utils.UUISupport.UUIKey.Keybinding; set => Utils.UUISupport.UUIKey.Keybinding = value; }
 
@@ -44,6 +54,11 @@ namespace IOperateIt.Settings
         public KeyOnlyBinding XMLKeyLightToggle { get => KeyLightToggle; set => KeyLightToggle = value; }
         [XmlIgnore]
         internal static KeyOnlyBinding KeyLightToggle = new KeyOnlyBinding(KeyCode.H);
+
+        [XmlElement("KeySirenToggle")]
+        public KeyOnlyBinding XMLKeySirenToggle { get => KeySirenToggle; set => KeySirenToggle = value; }
+        [XmlIgnore]
+        internal static KeyOnlyBinding KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
 
         [XmlElement("MainButtonPos")]
         public Vector2 XMLMainButtonPos { get => MainButtonPos; set => MainButtonPos = value; }
