@@ -1,4 +1,5 @@
 ﻿using ColossalFramework.Math;
+using IOperateIt.Settings;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -96,9 +97,13 @@ namespace IOperateIt
         }
         public void UpdateColliders(Transform transform)
         {
-            UpdateBuildingColliders(transform);
-            UpdateVehicleColliders(transform);
-            UpdateParkedVehicleColliders(transform);
+            if (ModSettings.BuildingCollision)
+                UpdateBuildingColliders(transform);
+            if (ModSettings.VehicleCollision)
+            {
+                UpdateVehicleColliders(transform);
+                UpdateParkedVehicleColliders(transform);
+            }
         }
         private void UpdateBuildingColliders(Transform transform)
         {
