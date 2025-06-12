@@ -1,9 +1,11 @@
 ﻿extern alias FPSCamera;
+
 using ColossalFramework;
 using FPSCamera.FPSCamera.Cam.Controller;
 using FPSCamera.FPSCamera.Game;
 using FPSCamera.FPSCamera.Utils;
 using IOperateIt.Settings;
+using KianCommons;
 using System.Collections.Generic;
 using UnityEngine;
 using FPCModSettings = FPSCamera.FPSCamera.Settings.ModSettings;
@@ -11,10 +13,23 @@ namespace IOperateIt
 {
     public class DriveController : MonoBehaviour
     {
+        private const float THROTTLE_RESP = 0.5f;
+        private const float STEER_RESP = 0.25f;
+        private const float STEER_MAX = 30.0f * Mathf.PI / 180.0f;
+        private const float ROAD_RAYCAST_UPPER = 2.0f;
+        private const float ROAD_RAYCAST_LOWER = -7.5f;
+        private const float WALL_HEIGHT = 0.5f;
+        private const float GRIP = 2.0f;
+
+        private float halfLength = 0.0f;
+        private float halfWidth = 0.0f;
+        
         public static DriveController Instance { get; private set; }
 
         private Rigidbody vehicleRigidBody;
         private BoxCollider vehicleCollider;
+        private Color vehicleColor;
+        private bool setColor;
         internal VehicleInfo vehicleInfo;
 
         private List<LightEffect> lightEffects = new List<LightEffect>();
@@ -28,6 +43,9 @@ namespace IOperateIt
         private Quaternion rotationOffset;
         private bool isSirenEnabled = true;
         private bool isLightEnabled = false;
+
+        private float steer = 0f;
+        private float throttle = 0f;
         internal float Speed => vehicleRigidBody.velocity.magnitude;
         private void Awake()
         {
@@ -40,9 +58,9 @@ namespace IOperateIt
             vehicleRigidBody.isKinematic = false;
             vehicleRigidBody.useGravity = true;
             vehicleRigidBody.freezeRotation = true;
-            vehicleRigidBody.drag = 2f;
-            vehicleRigidBody.angularDrag = 2.5f;
-            vehicleRigidBody.mass = 1500f;
+            vehicleRigidBody.drag = 0.1f;
+            vehicleRigidBody.angularDrag = 0.1f;
+            vehicleRigidBody.mass = 1000f;
             vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
 
 
@@ -57,30 +75,69 @@ namespace IOperateIt
             HandleInputOnUpdate();
             UpdateCameraPos();
             PlayEffects();
+
+            /*
+            MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
+            materialBlock.Clear();
+            //materialBlock.SetMatrix(VehicleManager.instance.ID_TyreMatrix, value);
+            //materialBlock.SetVector(VehicleManager.instance.ID_TyrePosition, tyrePosition);
+            materialBlock.SetVector(VehicleManager.instance.ID_LightState, Vector4.one);
+            if (setColor)
+            {
+                materialBlock.SetColor(VehicleManager.instance.ID_Color, vehicleColor);
+            }
+            GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+             */
         }
         private void FixedUpdate()
         {
             HandleInputOnFixedUpdate();
-            CalculateSlope();
+
+            vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce * throttle, ForceMode.Force);
+
+            var lateralVel = transform.InverseTransformDirection(vehicleRigidBody.velocity);
+            lateralVel.z = 0.0f;
+            lateralVel.y = 0.0f;
+
+            lateralVel = Mathf.Min(Vector3.Magnitude(lateralVel) * 0.99f, GRIP) * Vector3.Normalize(lateralVel);
+
+            vehicleRigidBody.AddRelativeForce(-lateralVel, ForceMode.VelocityChange);
+
+            var invert = Vector3.Dot(Vector3.forward, transform.InverseTransformDirection(vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
+            var speedsteer = Mathf.Min(Mathf.Max(Speed * 20f, 0f), 60f);
+            speedsteer = Mathf.Sign(steer) * Mathf.Min(Mathf.Abs(60f * steer), speedsteer);
+
+            var angularTarget = 0.99f * (Vector3.down * invert * speedsteer * Time.fixedDeltaTime) - transform.InverseTransformDirection(vehicleRigidBody.angularVelocity);
+
+            vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
+
             collidersManager.UpdateColliders(transform);
 
-            terrainHeight = MapUtils.GetMinHeightAt(transform.position);
-            if (MapUtils.GetClosestSegmentLevel(transform.position, out var newHeight))
-                terrainHeight = newHeight;
-            terrainHeight -= 2f;
+            terrainHeight = CalculateHeight(transform.position);
 
-            if (transform.position.y - 1f < terrainHeight)
+            if (transform.position.y < terrainHeight)
             {
-                vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0, vehicleRigidBody.velocity.z);
-                transform.position = new Vector3(transform.position.x, terrainHeight, transform.position.z);
+                vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0f, vehicleRigidBody.velocity.z);
+                transform.position = new Vector3(transform.position.x, 0.5f * terrainHeight + 0.5f * transform.position.y, transform.position.z);
             }
+
+            if (transform.position.y + WALL_HEIGHT < terrainHeight)
+            {
+                transform.position = prevPosition;
+                vehicleRigidBody.velocity = Vector3.zero;
+            }
+
+            CalculateSlope();
 
             if (Speed > ModSettings.MaxVelocity.FromKmph())
             {
                 vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
             }
 
+            UpdateCameraRendering();
+
             prevVelocity = vehicleRigidBody.velocity;
+            prevPosition = transform.position;
         }
         private void LateUpdate()
         {
@@ -90,13 +147,20 @@ namespace IOperateIt
             collidersManager.DestroyColliders();
         }
 
-        private void OnCollisionEnter()
+        private void OnCollisionEnter(Collision collision)
         {
+            foreach (ContactPoint contact in collision.contacts)
+            {
+                Debug.DrawRay(contact.point, contact.normal, Color.white);
+            }
         }
-        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, vehicleInfo);
-        public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo)
+
+        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, vehicleInfo, Color.gray, false);
+        public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
         {
             enabled = true;
+            this.setColor = setColor;
+            this.vehicleColor = vehicleColor;
             this.vehicleInfo = vehicleInfo;
             SpawnVehicle(position, rotation);
             FPSCamController.Instance.FPSCam = new DriveCam();
@@ -107,10 +171,22 @@ namespace IOperateIt
             gameObject.transform.position = position;
             gameObject.transform.rotation = rotation;
             var vehicleMesh = vehicleInfo.m_mesh;
+            vehicleInfo.CalculateGeneratedInfo();
             GetComponent<MeshFilter>().mesh = GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
             GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
+
+            MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
+            materialBlock.Clear();
+            if (setColor)
+            {
+                materialBlock.SetColor(VehicleManager.instance.ID_Color, vehicleColor);
+            }
+            GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+
             gameObject.SetActive(true);
             vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
+            halfWidth = vehicleMesh.bounds.size.x;
+            halfLength = vehicleMesh.bounds.size.z;
             rotationOffset = Quaternion.identity;
             vehicleRigidBody.velocity = Vector3.zero;
 
@@ -155,30 +231,162 @@ namespace IOperateIt
                     Time.deltaTime * 6f
                 );
             }
-            prevPosition = transform.position;
+        }
+
+        private float CalculateHeight(Vector3 position)
+        {
+            bool roadFound = false;
+            ToolBase.RaycastInput input;
+            ToolBase.RaycastOutput output;
+            Vector3 roadPos;
+
+            var height = FPSCamera.FPSCamera.Utils.MapUtils.GetMinHeightAt(position);
+            height -= 2f; // Map Utils adds 2f
+
+            input = MapUtils.RayCastTool.GetRaycastInput(position, ROAD_RAYCAST_LOWER, ROAD_RAYCAST_UPPER); // Configure raycast input parameters
+            input.m_netService.m_service = ItemClass.Service.Road;
+            input.m_netService.m_itemLayers = ItemClass.Layer.Default |// ItemClass.Layer.PublicTransport is sonly for TransportLine, not for Road.
+                                              ItemClass.Layer.MetroTunnels;
+            input.m_netService2.m_service = ItemClass.Service.Beautification; // For paths
+
+            input.m_ignoreSegmentFlags = NetSegment.Flags.Deleted |
+                                         NetSegment.Flags.Collapsed |
+                                         NetSegment.Flags.Flooded;
+            input.m_ignoreTerrain = true;
+
+            // Perform the raycast and check for a result:
+            if (MapUtils.RayCastTool.RayCast(input, out output, 0f))
+            {
+                height = Mathf.Max(height, output.m_hitPos.y);
+                roadFound = true;
+            }
+
+            // If no result, change the service to ItemClass.Service.PublicTransport (for tracks).
+            if (!roadFound)
+            {
+                input.m_netService.m_service = ItemClass.Service.PublicTransport;
+
+                // Perform the raycast again:
+                if (MapUtils.RayCastTool.RayCast(input, out output, 0f))
+                {
+                    height = Mathf.Max(height, output.m_hitPos.y);
+                    roadFound = true;
+                }
+            }
+
+            // If a road was found, try to find a lane and find the precise height.
+            if (roadFound)
+            {
+                if (output.m_netSegment != 0)
+                {
+                    float offset = 0f;
+                    NetSegment segment = NetManager.instance.m_segments.m_buffer[output.m_netSegment];
+
+                    if (GetClosestLanePositionDriveFiltered(segment, transform.position, out roadPos, out offset))
+                    {
+                        height = roadPos.y;
+
+                        if (offset == 0f || offset == 1f)
+                        {
+                            var node = NetManager.instance.m_nodes.m_buffer[offset == 0f ? segment.m_startNode : segment.m_endNode];
+                            if (node.CountSegments() == 2)
+                            {
+                                segment = NetManager.instance.m_segments.m_buffer[node.GetAnotherSegment(output.m_netSegment)];
+                                if (GetClosestLanePositionDriveFiltered(segment, transform.position, out roadPos, out _))
+                                {
+                                    height = Mathf.Min(roadPos.y, height);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return height;
+        }
+
+        private bool GetClosestLanePositionDriveFiltered(NetSegment segmentIn, Vector3 posIn, out Vector3 posOut, out float offsetOut)
+        {
+            uint lane = segmentIn.m_lanes;
+            float dist = 10000.0f;
+            bool found = false;
+            int index = 0;
+            NetInfo.LaneType type;
+
+            posOut = Vector3.zero;
+            offsetOut = -1f;
+            
+            while (lane != 0)
+            {
+                type = segmentIn.Info.m_lanes[index].m_laneType;
+
+                if (type != NetInfo.LaneType.None)
+                {
+                    NetManager.instance.m_lanes.m_buffer[lane].GetClosestPosition(transform.position, out var posTmp, out var offsetTmp);
+                    if ((offsetTmp != 0f && offsetTmp != 1f) || ((type & NetInfo.LaneType.Pedestrian) == 0))
+                    {
+                        float distTmp = Vector3.Magnitude(posTmp - posIn);
+                        if (distTmp < dist)
+                        {
+                            dist = distTmp;
+                            posOut = posTmp;
+                            offsetOut = offsetTmp;
+                            found = true;
+                        }
+                    }
+                }
+                lane = NetManager.instance.m_lanes.m_buffer[lane].m_nextLane;
+                index++;
+            }
+            return found;
         }
 
         private void HandleInputOnFixedUpdate()
         {
+            bool throttling = false;
             if (FPCModSettings.Instance.XMLKeyMoveForward.IsPressed())
-                vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce, ForceMode.Acceleration);
-
+            {
+                throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                throttling = true;
+            }
             if (FPCModSettings.Instance.XMLKeyMoveBackward.IsPressed())
-                vehicleRigidBody.AddRelativeForce(Vector3.back * ModSettings.AccelerationForce, ForceMode.Acceleration);
+            {
+                throttle = Mathf.Clamp(throttle - Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
+                throttling = true;
+            }
+            if (!throttling)
+            {
+                if (throttle > 0.0f)
+                {
+                    throttle = Mathf.Clamp(throttle - Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                }
+                else if (throttle < 0.0f)
+                {
+                    throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
+                }
+            }
 
+            bool steering = false;
             if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
             {
-                var normalizedVelocity = vehicleRigidBody.velocity.normalized;
-                var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;
-                vehicleRigidBody.AddForce(-brakeVelocity);
-                vehicleRigidBody.AddRelativeTorque(Vector3.down * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
+                steering = true;
             }
             if (FPCModSettings.Instance.XMLKeyMoveRight.IsPressed())
             {
-                var normalizedVelocity = vehicleRigidBody.velocity.normalized;
-                var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;
-                vehicleRigidBody.AddForce(-brakeVelocity);
-                vehicleRigidBody.AddRelativeTorque(Vector3.up * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
+                steering = true;
+            }
+            if (!steering)
+            {
+                if (steer > 0.0f)
+                {
+                    steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, 0.0f, 1.0f);
+                }
+                if (steer < 0.0f)
+                {
+                    steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 0.0f);
+                }
             }
         }
 
@@ -292,28 +500,48 @@ namespace IOperateIt
         {
             var cameraTransform = GameCamController.Instance.MainCamera.transform;
 
-            var instanceRotation = transform.rotation * rotationOffset;
-            var instancePos = transform.position +
-                ((ModSettings.Offset.z > -1f ? transform.rotation /*rotate with the offset position*/ :
-                instanceRotation  /*rotate with the vehicle position*/) * ModSettings.Offset);
-
-            // Limit the camera's position to the allowed area.
-            instancePos = CameraController.ClampCameraPosition(instancePos);
+            Vector3 vehiclePosition = vehicleRigidBody.transform.position;
+            Vector3 vehicleDirection = Vector3.Normalize(vehicleRigidBody.velocity);
+            if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
+            {
+                vehicleDirection = Vector3.Normalize(vehicleRigidBody.transform.InverseTransformDirection(Vector3.forward));
+            }
+            if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
+            {
+                vehicleDirection = Vector3.forward;
+            }
+            Quaternion targetRotation = Quaternion.identity;
+            targetRotation.SetLookRotation(vehicleDirection);
+            targetRotation *= rotationOffset;
 
             // Apply the calculated position and rotation to the camera.
             if (FPCModSettings.Instance.XMLSmoothTransition)
             {
-                cameraTransform.position =
-                cameraTransform.position.DistanceTo(instancePos) > FPCModSettings.Instance.XMLMinTransDistance &&
-                cameraTransform.position.DistanceTo(instancePos) <= FPCModSettings.Instance.XMLMaxTransDistance
-                ? Vector3.Lerp(cameraTransform.position, instancePos, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed)
-                : instancePos;
-                cameraTransform.rotation = Quaternion.Slerp(cameraTransform.rotation, instanceRotation, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed);
+                targetRotation = Quaternion.Slerp(cameraTransform.rotation, targetRotation, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed);
+            }
+
+            cameraTransform.position = vehiclePosition + targetRotation * ModSettings.Offset;
+            cameraTransform.rotation = targetRotation;
+
+            // Limit the camera's position to the allowed area.
+            cameraTransform.position = CameraController.ClampCameraPosition(cameraTransform.position);
+        }
+
+        private void UpdateCameraRendering()
+        {
+            var cameraTransform = GameCamController.Instance.MainCamera.transform;
+            var terrainHeight = MapUtils.GetTerrainLevel(cameraTransform.position);
+            var roadFound = MapUtils.GetClosestSegmentLevel(cameraTransform.position, out float roadHeight);
+            if (!roadFound || roadHeight < terrainHeight + ROAD_RAYCAST_LOWER) {
+                roadHeight = terrainHeight;
+            }
+            if (Mathf.Min(terrainHeight, roadHeight) > cameraTransform.position.y)
+            {
+                RenderManager.instance.CurrentCameraInfo.m_camera.cullingMask |= (1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
             }
             else
             {
-                cameraTransform.position = instancePos;
-                cameraTransform.rotation = instanceRotation;
+                RenderManager.instance.CurrentCameraInfo.m_camera.cullingMask &= ~(1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
             }
         }
     }

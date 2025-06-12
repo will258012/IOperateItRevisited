@@ -17,7 +17,7 @@ namespace IOperateIt
         private const int NUM_BUILDING_COLLIDERS = 36;
         private const int NUM_VEHICLE_COLLIDERS = 160;
         private const int NUM_PARKED_VEHICLE_COLLIDERS = 80;
-        private const float SCAN_DISTANCE = 250f;
+        private const float SCAN_DISTANCE = 50f;
 
         private ColliderContainer[] _BuildingColliders;
         private ColliderContainer[] _VehicleColliders;
@@ -38,7 +38,7 @@ namespace IOperateIt
                     ColliderOwner = new GameObject("BuildingCollider" + i)
                 };
                 buildingCollider.MeshCollider = buildingCollider.ColliderOwner.AddComponent<MeshCollider>();
-                buildingCollider.MeshCollider.convex = true;
+                buildingCollider.MeshCollider.convex = false;
                 buildingCollider.MeshCollider.enabled = true;
                 _BuildingColliders[i] = buildingCollider;
                 _BuildingColliders[i].ColliderOwner.SetActive(false);
@@ -118,8 +118,8 @@ namespace IOperateIt
 
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
-                float x = (float)Mathf.Cos(Mathf.Deg2Rad * (10f * i));
-                float z = (float)Mathf.Sin(Mathf.Deg2Rad * (10f * i));
+                float x = (float)Mathf.Cos(Mathf.Deg2Rad * (360f / NUM_BUILDING_COLLIDERS * i));
+                float z = (float)Mathf.Sin(Mathf.Deg2Rad * (360f / NUM_BUILDING_COLLIDERS * i));
                 segmentVector = new Vector3(x, 1f, z) * SCAN_DISTANCE;
                 circularScanSegment = new Segment3(transform.position,
                                                    transform.position + segmentVector);
@@ -128,10 +128,16 @@ namespace IOperateIt
                 if (hitPos != Vector3.zero)
                 {
                     building = BuildingManager.instance.m_buildings.m_buffer[buildingIndex];
-                    if (!hitBuildings.Contains(buildingIndex) && building.Info.m_class.m_service != ItemClass.Service.Road &&
+                    if (!hitBuildings.Contains(buildingIndex) &&
                         building.Info.name != "478820060.CableStay32m_Data" && building.Info.name != "BridgePillar.CableStay32m_Data")
                     {
                         building.CalculateMeshPosition(out buildingPosition, out buildingRotation);
+
+                        if (building.Info.m_class.m_service == ItemClass.Service.Road)
+                        {
+                            buildingPosition.y -= 1.0f;
+                        }
+
                         _BuildingColliders[i].ColliderOwner.SetActive(true);
                         _BuildingColliders[i].MeshCollider.sharedMesh = building.Info.m_mesh;
                         _BuildingColliders[i].ColliderOwner.transform.position = buildingPosition;

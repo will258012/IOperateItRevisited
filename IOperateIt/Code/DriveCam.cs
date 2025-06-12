@@ -10,6 +10,7 @@ namespace IOperateIt
         public DriveCam()
         {
             IsActivated = true;
+            UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.Locked;
             Logging.KeyMessage("Drive cam started");
         }
         public bool IsActivated { get; private set; }
@@ -17,6 +18,7 @@ namespace IOperateIt
         {
             IsActivated = false;
             DriveController.Instance.DestroyVehicle();
+            UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.None;
         }
         public FPSCamera.FPSCamera.Utils.MathUtils.Positioning GetPositioning()
             => new FPSCamera.FPSCamera.Utils.MathUtils.Positioning(DriveController.Instance.gameObject.transform.position, DriveController.Instance.gameObject.transform.rotation);
