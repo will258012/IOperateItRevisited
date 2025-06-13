@@ -17,12 +17,12 @@ namespace IOperateIt
         public void DisableCam()
         {
             IsActivated = false;
-            DriveController.Instance.DestroyVehicle();
+            DriveController.instance.DestroyVehicle();
             UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.None;
         }
         public FPSCamera.FPSCamera.Utils.MathUtils.Positioning GetPositioning()
-            => new FPSCamera.FPSCamera.Utils.MathUtils.Positioning(DriveController.Instance.gameObject.transform.position, DriveController.Instance.gameObject.transform.rotation);
-        public float GetSpeed() => DriveController.Instance.Speed;
+            => new FPSCamera.FPSCamera.Utils.MathUtils.Positioning(DriveController.instance.gameObject.transform.position, DriveController.instance.gameObject.transform.rotation);
+        public float GetSpeed() => DriveController.instance.m_speed;
         public bool IsValid() => true;
     }
 }

@@ -19,54 +19,61 @@ namespace IOperateIt
         private const float ROAD_RAYCAST_UPPER = 2.0f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float WALL_HEIGHT = 0.5f;
-        private const float GRIP = 2.0f;
+        private const float GRIP = 25.0f;
+        private const float MAX_COLLISION_V = 30.0f;
 
-        private float halfLength = 0.0f;
-        private float halfWidth = 0.0f;
+        private float m_halfLength = 0.0f;
+        private float m_halfWidth = 0.0f;
+        private float m_distanceTravelled = 0.0f;
         
-        public static DriveController Instance { get; private set; }
+        public static DriveController instance { get; private set; }
 
-        private Rigidbody vehicleRigidBody;
-        private BoxCollider vehicleCollider;
-        private Color vehicleColor;
-        private bool setColor;
-        internal VehicleInfo vehicleInfo;
+        private Rigidbody       m_vehicleRigidBody;
+        private BoxCollider     m_vehicleCollider;
+        private Color           m_vehicleColor;
+        private bool            m_setColor;
+        internal VehicleInfo    m_vehicleInfo;
 
-        private List<LightEffect> lightEffects = new List<LightEffect>();
-        private List<EffectInfo> regularEffects = new List<EffectInfo>();
-        private List<EffectInfo> specialEffects = new List<EffectInfo>();
+        private List<LightEffect>   m_lightEffects      = new List<LightEffect>();
+        private List<EffectInfo>    m_regularEffects    = new List<EffectInfo>();
+        private List<EffectInfo>    m_specialEffects    = new List<EffectInfo>();
 
-        private CollidersManager collidersManager = new CollidersManager();
-        private float terrainHeight;
-        private Vector3 prevPosition;
-        private Vector3 prevVelocity;
-        private Quaternion rotationOffset;
-        private bool isSirenEnabled = true;
-        private bool isLightEnabled = false;
+        private CollidersManager m_collidersManager = new CollidersManager();
+        private float   m_terrainHeight;
+        private Vector3 m_prevPosition;
+        private Vector3 m_prevVelocity;
+        private Vector4 m_lightState;
+        private Quaternion m_rotationOffset;
+        private bool m_isSirenEnabled = true;
+        private bool m_isLightEnabled = false;
 
-        private float steer = 0f;
-        private float throttle = 0f;
-        internal float Speed => vehicleRigidBody.velocity.magnitude;
+        private float m_steer = 0f;
+        private float m_throttle = 0f;
+        internal float m_speed => m_vehicleRigidBody.velocity.magnitude;
         private void Awake()
         {
-            Instance = this;
+            instance = this;
             gameObject.AddComponent<MeshFilter>();
             gameObject.AddComponent<MeshRenderer>();
             GetComponent<MeshRenderer>().enabled = true;
 
-            vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
-            vehicleRigidBody.isKinematic = false;
-            vehicleRigidBody.useGravity = true;
-            vehicleRigidBody.freezeRotation = true;
-            vehicleRigidBody.drag = 0.1f;
-            vehicleRigidBody.angularDrag = 0.1f;
-            vehicleRigidBody.mass = 1000f;
-            vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
+            m_vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
+            m_vehicleRigidBody.isKinematic = false;
+            m_vehicleRigidBody.useGravity = true;
+            m_vehicleRigidBody.freezeRotation = false;
+            m_vehicleRigidBody.drag = 0.1f;
+            m_vehicleRigidBody.angularDrag = 0.1f;
+            m_vehicleRigidBody.mass = 1000f;
+            m_vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
+            
+            PhysicMaterial material = new PhysicMaterial();
+            material.bounciness = 0f;
+            material.staticFriction = 0.1f;
 
+            m_vehicleCollider = gameObject.AddComponent<BoxCollider>();
+            m_vehicleCollider.material = material;
 
-            vehicleCollider = gameObject.AddComponent<BoxCollider>();
-
-            StartCoroutine(collidersManager.InitializeColliders());
+            StartCoroutine(m_collidersManager.InitializeColliders());
             gameObject.SetActive(false);
             enabled = false;
         }
@@ -76,92 +83,100 @@ namespace IOperateIt
             UpdateCameraPos();
             PlayEffects();
 
-            /*
             MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
             materialBlock.Clear();
             //materialBlock.SetMatrix(VehicleManager.instance.ID_TyreMatrix, value);
-            //materialBlock.SetVector(VehicleManager.instance.ID_TyrePosition, tyrePosition);
-            materialBlock.SetVector(VehicleManager.instance.ID_LightState, Vector4.one);
-            if (setColor)
+            Vector4 tyrePosition = default;
+            tyrePosition.x = m_steer * Mathf.PI / 4.0f;
+            tyrePosition.y = m_distanceTravelled;
+            tyrePosition.z = 0f;
+            tyrePosition.w = 0f;
+            materialBlock.SetVector(VehicleManager.instance.ID_TyrePosition, tyrePosition);
+
+            m_lightState.x = m_isLightEnabled ? 1.0f : 0.0f;
+            materialBlock.SetVector(VehicleManager.instance.ID_LightState, m_lightState);
+            if (m_setColor)
             {
-                materialBlock.SetColor(VehicleManager.instance.ID_Color, vehicleColor);
+                materialBlock.SetColor(VehicleManager.instance.ID_Color, m_vehicleColor);
             }
             GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
-             */
         }
         private void FixedUpdate()
         {
             HandleInputOnFixedUpdate();
 
-            vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce * throttle, ForceMode.Force);
+            m_vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce * m_throttle, ForceMode.Force);
 
-            var lateralVel = transform.InverseTransformDirection(vehicleRigidBody.velocity);
+            var lateralVel = transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
             lateralVel.z = 0.0f;
             lateralVel.y = 0.0f;
 
-            lateralVel = Mathf.Min(Vector3.Magnitude(lateralVel) * 0.99f, GRIP) * Vector3.Normalize(lateralVel);
+            lateralVel = Mathf.Min(Vector3.Magnitude(lateralVel) * 0.99f, GRIP * Time.fixedDeltaTime) * Vector3.Normalize(lateralVel);
 
-            vehicleRigidBody.AddRelativeForce(-lateralVel, ForceMode.VelocityChange);
+            m_vehicleRigidBody.AddRelativeForce(-lateralVel, ForceMode.VelocityChange);
 
-            var invert = Vector3.Dot(Vector3.forward, transform.InverseTransformDirection(vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
-            var speedsteer = Mathf.Min(Mathf.Max(Speed * 20f, 0f), 60f);
-            speedsteer = Mathf.Sign(steer) * Mathf.Min(Mathf.Abs(60f * steer), speedsteer);
+            var invert = Vector3.Dot(Vector3.forward, transform.InverseTransformDirection(m_vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
+            var speedsteer = Mathf.Min(Mathf.Max(m_speed * 20f, 0f), 60f);
+            speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
 
-            var angularTarget = 0.99f * (Vector3.down * invert * speedsteer * Time.fixedDeltaTime) - transform.InverseTransformDirection(vehicleRigidBody.angularVelocity);
+            var angularTarget = 0.99f * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - transform.InverseTransformDirection(m_vehicleRigidBody.angularVelocity);
 
-            vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
+            m_vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
 
-            collidersManager.UpdateColliders(transform);
+            m_collidersManager.UpdateColliders(transform);
 
-            terrainHeight = CalculateHeight(transform.position);
+            m_terrainHeight = CalculateHeight(transform.position);
 
-            if (transform.position.y < terrainHeight)
+            if (transform.position.y < m_terrainHeight)
             {
-                vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0f, vehicleRigidBody.velocity.z);
-                transform.position = new Vector3(transform.position.x, 0.5f * terrainHeight + 0.5f * transform.position.y, transform.position.z);
+                m_vehicleRigidBody.velocity = new Vector3(m_vehicleRigidBody.velocity.x, 0f, m_vehicleRigidBody.velocity.z);
+                transform.position = new Vector3(transform.position.x, 0.5f * m_terrainHeight + 0.5f * transform.position.y, transform.position.z);
             }
 
-            if (transform.position.y + WALL_HEIGHT < terrainHeight)
+            if (transform.position.y + WALL_HEIGHT < m_terrainHeight)
             {
-                transform.position = prevPosition;
-                vehicleRigidBody.velocity = Vector3.zero;
+                transform.position = m_prevPosition;
+                m_vehicleRigidBody.velocity = Vector3.zero;
             }
 
             CalculateSlope();
 
-            if (Speed > ModSettings.MaxVelocity.FromKmph())
+            if (m_speed > ModSettings.MaxVelocity.FromKmph())
             {
-                vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
+                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph() - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
             }
 
             UpdateCameraRendering();
 
-            prevVelocity = vehicleRigidBody.velocity;
-            prevPosition = transform.position;
+            m_distanceTravelled += invert * Vector3.Magnitude(transform.position - m_prevPosition);
+
+            m_prevVelocity = m_vehicleRigidBody.velocity;
+            m_prevPosition = transform.position;
         }
         private void LateUpdate()
         {
         }
         private void OnDestroy()
         {
-            collidersManager.DestroyColliders();
+            m_collidersManager.DestroyColliders();
         }
 
         private void OnCollisionEnter(Collision collision)
         {
-            foreach (ContactPoint contact in collision.contacts)
+            if (m_speed > MAX_COLLISION_V)
             {
-                Debug.DrawRay(contact.point, contact.normal, Color.white);
+                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * MAX_COLLISION_V - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
             }
         }
 
-        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, vehicleInfo, Color.gray, false);
+        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, m_vehicleInfo, Color.gray, false);
         public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
         {
             enabled = true;
-            this.setColor = setColor;
-            this.vehicleColor = vehicleColor;
-            this.vehicleInfo = vehicleInfo;
+            m_setColor = setColor;
+            m_vehicleColor = vehicleColor;
+            m_vehicleInfo = vehicleInfo;
+            m_lightState = Vector4.zero;
             SpawnVehicle(position, rotation);
             FPSCamController.Instance.FPSCam = new DriveCam();
             FPSCamController.Instance.EnableCam(true);
@@ -170,42 +185,42 @@ namespace IOperateIt
         {
             gameObject.transform.position = position;
             gameObject.transform.rotation = rotation;
-            var vehicleMesh = vehicleInfo.m_mesh;
-            vehicleInfo.CalculateGeneratedInfo();
+            var vehicleMesh = m_vehicleInfo.m_mesh;
+            m_vehicleInfo.CalculateGeneratedInfo();
             GetComponent<MeshFilter>().mesh = GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
-            GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
+            GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
 
             MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
             materialBlock.Clear();
-            if (setColor)
+            if (m_setColor)
             {
-                materialBlock.SetColor(VehicleManager.instance.ID_Color, vehicleColor);
+                materialBlock.SetColor(VehicleManager.instance.ID_Color, m_vehicleColor);
             }
             GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
 
             gameObject.SetActive(true);
-            vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
-            halfWidth = vehicleMesh.bounds.size.x;
-            halfLength = vehicleMesh.bounds.size.z;
-            rotationOffset = Quaternion.identity;
-            vehicleRigidBody.velocity = Vector3.zero;
+            m_vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
+            m_halfWidth = vehicleMesh.bounds.size.x;
+            m_halfLength = vehicleMesh.bounds.size.z;
+            m_rotationOffset = Quaternion.identity;
+            m_vehicleRigidBody.velocity = Vector3.zero;
 
             AddEffects();
         }
 
         internal void DestroyVehicle()
         {
-            lightEffects.Clear();
-            regularEffects.Clear();
-            specialEffects.Clear();
+            m_lightEffects.Clear();
+            m_regularEffects.Clear();
+            m_specialEffects.Clear();
 
-            StartCoroutine(collidersManager.DisableColliders());
+            StartCoroutine(m_collidersManager.DisableColliders());
             enabled = false;
             gameObject.SetActive(false);
         }
         private void CalculateSlope()
         {
-            Vector3 diffVector = transform.position - prevPosition;
+            Vector3 diffVector = transform.position - m_prevPosition;
             Vector3 horizontalDirection = new Vector3(diffVector.x, 0f, diffVector.z);
             float heightDifference = diffVector.y;
 
@@ -346,46 +361,46 @@ namespace IOperateIt
             bool throttling = false;
             if (FPCModSettings.Instance.XMLKeyMoveForward.IsPressed())
             {
-                throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                m_throttle = Mathf.Clamp(m_throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
                 throttling = true;
             }
             if (FPCModSettings.Instance.XMLKeyMoveBackward.IsPressed())
             {
-                throttle = Mathf.Clamp(throttle - Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
+                m_throttle = Mathf.Clamp(m_throttle - Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
                 throttling = true;
             }
             if (!throttling)
             {
-                if (throttle > 0.0f)
+                if (m_throttle > 0.0f)
                 {
-                    throttle = Mathf.Clamp(throttle - Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                    m_throttle = Mathf.Clamp(m_throttle - Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
                 }
-                else if (throttle < 0.0f)
+                else if (m_throttle < 0.0f)
                 {
-                    throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
+                    m_throttle = Mathf.Clamp(m_throttle + Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
                 }
             }
 
             bool steering = false;
-            if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
-            {
-                steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
-                steering = true;
-            }
             if (FPCModSettings.Instance.XMLKeyMoveRight.IsPressed())
             {
-                steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
+                m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
+                steering = true;
+            }
+            if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
+            {
+                m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
                 steering = true;
             }
             if (!steering)
             {
-                if (steer > 0.0f)
+                if (m_steer > 0.0f)
                 {
-                    steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, 0.0f, 1.0f);
+                    m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, 0.0f, 1.0f);
                 }
-                if (steer < 0.0f)
+                if (m_steer < 0.0f)
                 {
-                    steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 0.0f);
+                    m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 0.0f);
                 }
             }
         }
@@ -393,10 +408,10 @@ namespace IOperateIt
         private void HandleInputOnUpdate()
         {
             if (InputManager.KeyTriggered((KeyCode)ModSettings.KeyLightToggle.Key))
-                isLightEnabled = !isLightEnabled;
+                m_isLightEnabled = !m_isLightEnabled;
 
             if (InputManager.KeyTriggered((KeyCode)ModSettings.KeySirenToggle.Key))
-                isSirenEnabled = !isSirenEnabled;
+                m_isSirenEnabled = !m_isSirenEnabled;
 
             var cursorVisible =
              FPCModSettings.Instance.XMLKeyCursorToggle.IsPressed() ^ (FPCModSettings.Instance.XMLShowCursorFollow);
@@ -405,7 +420,7 @@ namespace IOperateIt
             if (InputManager.MouseTriggered(InputManager.MouseButton.Middle) ||
                 InputManager.KeyTriggered(FPCModSettings.Instance.XMLKeyCamReset))
             {
-                rotationOffset = Quaternion.identity;
+                m_rotationOffset = Quaternion.identity;
             }
             float yawDegree = 0f, pitchDegree = 0f;
             { // key rotation
@@ -429,35 +444,35 @@ namespace IOperateIt
 
             var yawRotation = Quaternion.Euler(0f, yawDegree, 0f);
             var pitchRotation = Quaternion.Euler(pitchDegree, 0f, 0f);
-            rotationOffset = yawRotation * rotationOffset * pitchRotation;
+            m_rotationOffset = yawRotation * m_rotationOffset * pitchRotation;
 
             // Limit pitch
-            var eulerAngles = rotationOffset.eulerAngles;
+            var eulerAngles = m_rotationOffset.eulerAngles;
             if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
             eulerAngles.x = eulerAngles.x.Clamp(ModSettings.Offset.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
             eulerAngles.z = 0f;
-            rotationOffset = Quaternion.Euler(eulerAngles);
+            m_rotationOffset = Quaternion.Euler(eulerAngles);
         }
         private void AddEffects()
         {
-            if (vehicleInfo.m_effects != null)
+            if (m_vehicleInfo.m_effects != null)
             {
-                foreach (var effect in vehicleInfo.m_effects)
+                foreach (var effect in m_vehicleInfo.m_effects)
                 {
                     {
                         if (effect.m_effect != null)
                         {
                             if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2))
-                                specialEffects.Add(effect.m_effect);
+                                m_specialEffects.Add(effect.m_effect);
                             else
                             {
                                 if (effect.m_effect is MultiEffect multiEffect)
                                 {
                                     foreach (var sub in multiEffect.m_effects)
                                         if (sub.m_effect is LightEffect lightEffect)
-                                            lightEffects.Add(lightEffect);
+                                            m_lightEffects.Add(lightEffect);
                                 }
-                                regularEffects.Add(effect.m_effect);
+                                m_regularEffects.Add(effect.m_effect);
                             }
                         }
                     }
@@ -467,30 +482,30 @@ namespace IOperateIt
         private void PlayEffects()
         {
             var position = transform.position;
-            var velocity = vehicleRigidBody.velocity;
-            var acceleration = ((vehicleRigidBody.velocity - prevVelocity) / Time.fixedDeltaTime).magnitude;
+            var velocity = m_vehicleRigidBody.velocity;
+            var acceleration = ((m_vehicleRigidBody.velocity - m_prevVelocity) / Time.fixedDeltaTime).magnitude;
             var swayPosition = Vector3.zero;
             var rotation = transform.rotation;
             var scale = Vector3.one;
-            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
-            var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
+            var matrix = m_vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
+            var area = new EffectInfo.SpawnArea(matrix, m_vehicleInfo.m_lodMeshData);
             var listenerInfo = AudioManager.instance.CurrentListenerInfo;
             var audioGroup = VehicleManager.instance.m_audioGroup;
-            RenderGroup.MeshData effectMeshData = vehicleInfo.m_vehicleAI.GetEffectMeshData();
-            var area2 = new EffectInfo.SpawnArea(matrix, effectMeshData, vehicleInfo.m_generatedInfo.m_tyres, vehicleInfo.m_lightPositions);
+            RenderGroup.MeshData effectMeshData = m_vehicleInfo.m_vehicleAI.GetEffectMeshData();
+            var area2 = new EffectInfo.SpawnArea(matrix, effectMeshData, m_vehicleInfo.m_generatedInfo.m_tyres, m_vehicleInfo.m_lightPositions);
 
-            foreach (var regularEffect in regularEffects)
+            foreach (var regularEffect in m_regularEffects)
             {
                 regularEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
             }
-            if (isLightEnabled)
-                foreach (var light in lightEffects)
+            if (m_isLightEnabled)
+                foreach (var light in m_lightEffects)
                 {
                     light.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
                 }
 
-            if (isSirenEnabled)
-                foreach (var specialEffect in specialEffects)
+            if (m_isSirenEnabled)
+                foreach (var specialEffect in m_specialEffects)
                 {
                     specialEffect.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
                     specialEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
@@ -500,11 +515,11 @@ namespace IOperateIt
         {
             var cameraTransform = GameCamController.Instance.MainCamera.transform;
 
-            Vector3 vehiclePosition = vehicleRigidBody.transform.position;
-            Vector3 vehicleDirection = Vector3.Normalize(vehicleRigidBody.velocity);
+            Vector3 vehiclePosition = m_vehicleRigidBody.transform.position;
+            Vector3 vehicleDirection = Vector3.Normalize(m_vehicleRigidBody.velocity);
             if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
             {
-                vehicleDirection = Vector3.Normalize(vehicleRigidBody.transform.InverseTransformDirection(Vector3.forward));
+                vehicleDirection = Vector3.Normalize(m_vehicleRigidBody.transform.InverseTransformDirection(Vector3.forward));
             }
             if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
             {
@@ -512,7 +527,7 @@ namespace IOperateIt
             }
             Quaternion targetRotation = Quaternion.identity;
             targetRotation.SetLookRotation(vehicleDirection);
-            targetRotation *= rotationOffset;
+            targetRotation *= m_rotationOffset;
 
             // Apply the calculated position and rotation to the camera.
             if (FPCModSettings.Instance.XMLSmoothTransition)

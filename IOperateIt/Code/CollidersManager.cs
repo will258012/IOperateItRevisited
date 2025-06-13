@@ -1,4 +1,5 @@
-﻿using ColossalFramework.Math;
+﻿using AlgernonCommons;
+using ColossalFramework.Math;
 using IOperateIt.Settings;
 using System.Collections;
 using System.Collections.Generic;
@@ -11,12 +12,13 @@ namespace IOperateIt
         public GameObject ColliderOwner;
         public MeshCollider MeshCollider;
         public BoxCollider BoxCollider;
+        public Rigidbody Rigidbody;
     }
     public class CollidersManager
     {
         private const int NUM_BUILDING_COLLIDERS = 36;
-        private const int NUM_VEHICLE_COLLIDERS = 160;
-        private const int NUM_PARKED_VEHICLE_COLLIDERS = 80;
+        private const int NUM_VEHICLE_COLLIDERS = 32;
+        private const int NUM_PARKED_VEHICLE_COLLIDERS = 32;
         private const float SCAN_DISTANCE = 50f;
 
         private ColliderContainer[] _BuildingColliders;
@@ -31,6 +33,10 @@ namespace IOperateIt
             _VehicleColliders = new ColliderContainer[NUM_VEHICLE_COLLIDERS];
             _ParkedVehicleColliders = new ColliderContainer[NUM_PARKED_VEHICLE_COLLIDERS];
 
+            PhysicMaterial material = new PhysicMaterial();
+            material.bounciness = 0f;
+            material.staticFriction = 0.1f;
+
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
                 var buildingCollider = new ColliderContainer
@@ -40,6 +46,7 @@ namespace IOperateIt
                 buildingCollider.MeshCollider = buildingCollider.ColliderOwner.AddComponent<MeshCollider>();
                 buildingCollider.MeshCollider.convex = false;
                 buildingCollider.MeshCollider.enabled = true;
+                buildingCollider.MeshCollider.sharedMaterial = material;
                 _BuildingColliders[i] = buildingCollider;
                 _BuildingColliders[i].ColliderOwner.SetActive(false);
             }
@@ -52,6 +59,10 @@ namespace IOperateIt
                 };
                 vehicleCollider.BoxCollider = vehicleCollider.ColliderOwner.AddComponent<BoxCollider>();
                 vehicleCollider.BoxCollider.enabled = true;
+                vehicleCollider.BoxCollider.sharedMaterial = material;
+                vehicleCollider.Rigidbody = vehicleCollider.ColliderOwner.AddComponent<Rigidbody>();
+                vehicleCollider.Rigidbody.isKinematic = true;
+                vehicleCollider.Rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
                 _VehicleColliders[i] = vehicleCollider;
                 _VehicleColliders[i].ColliderOwner.SetActive(false);
             }
@@ -64,6 +75,7 @@ namespace IOperateIt
                 };
                 parkedVehicleCollider.BoxCollider = parkedVehicleCollider.ColliderOwner.AddComponent<BoxCollider>();
                 parkedVehicleCollider.BoxCollider.enabled = true;
+                parkedVehicleCollider.BoxCollider.sharedMaterial = material;
                 _ParkedVehicleColliders[i] = parkedVehicleCollider;
                 _ParkedVehicleColliders[i].ColliderOwner.SetActive(false);
             }
@@ -79,7 +91,7 @@ namespace IOperateIt
                 vehicleRotation = parkedVehicle.m_rotation;
                 vehiclePosition = parkedVehicle.m_position;
                 _ParkedVehicleColliders[colliderIndex].ColliderOwner.SetActive(true);
-                _ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_mesh.bounds.size + new Vector3(0, 2.6f, 0);
+                _ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_mesh.bounds.size;
                 _ParkedVehicleColliders[colliderIndex].ColliderOwner.transform.position = vehiclePosition;
                 _ParkedVehicleColliders[colliderIndex].ColliderOwner.transform.rotation = vehicleRotation;
             }
@@ -87,11 +99,10 @@ namespace IOperateIt
             {
                 var vehicle = VehicleManager.instance.m_vehicles.m_buffer[vehicleId];
                 vehicle.GetSmoothPosition(vehicleId, out vehiclePosition, out vehicleRotation);
-                // add an arbitrary height to make collider work better
                 _VehicleColliders[colliderIndex].ColliderOwner.SetActive(true);
-                _VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_lodMesh.bounds.size + new Vector3(0, 1.3f, 0);
-                _VehicleColliders[colliderIndex].ColliderOwner.transform.position = vehiclePosition;
-                _VehicleColliders[colliderIndex].ColliderOwner.transform.rotation = vehicleRotation;
+                _VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_lodMesh.bounds.size;
+                _VehicleColliders[colliderIndex].Rigidbody.MovePosition(vehiclePosition);
+                _VehicleColliders[colliderIndex].Rigidbody.MoveRotation(vehicleRotation);
             }
 
         }
@@ -151,19 +162,42 @@ namespace IOperateIt
 
         private void UpdateVehicleColliders(Transform transform)
         {
-            int gridX = Mathf.Clamp((int)(transform.position.x / 32.0 + 270.0), 0, 539);
-            int gridZ = Mathf.Clamp((int)(transform.position.z / 32.0 + 270.0), 0, 539);
+            int gridX = Mathf.Clamp((int)(transform.position.x / 32f + 270f), 0, 539);
+            int gridZ = Mathf.Clamp((int)(transform.position.z / 32f + 270f), 0, 539);
+            int offsetX = (transform.position.x / 32f + 270f) - (int)(transform.position.x / 32f + 270f) > 0.5 ? 1 : -1;
+            int offsetZ = (transform.position.z / 32f + 270f) - (int)(transform.position.z / 32f + 270f) > 0.5 ? 1 : -1;
             int colliderCounter = 0;
+           
+            UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX, ref colliderCounter);
 
-            Vehicle vehicle;
+            if (colliderCounter >= NUM_VEHICLE_COLLIDERS) { Logging.Error("Vehicle Colliders Full!"); return; }
 
-            int index = gridZ * 540 + gridX;
+            UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX + offsetX, ref colliderCounter);
+
+            if (colliderCounter >= NUM_VEHICLE_COLLIDERS) { Logging.Error("Vehicle Colliders Full!"); return; }
+
+            UpdateVehicleCollidersInGridSpace((gridZ + offsetZ) * 540 + gridX, ref colliderCounter);
+
+            if (colliderCounter >= NUM_VEHICLE_COLLIDERS) { Logging.Error("Vehicle Colliders Full!"); return; }
+
+            UpdateVehicleCollidersInGridSpace((gridZ + offsetZ) * 540 + gridX + offsetX, ref colliderCounter);
+
+            if (colliderCounter >= NUM_VEHICLE_COLLIDERS) { Logging.Error("Vehicle Colliders Full!"); return; }
+
+            for (int i = colliderCounter; i < NUM_VEHICLE_COLLIDERS; i++)
+            {
+                _VehicleColliders[i].ColliderOwner.SetActive(false);
+            }
+        }
+
+        private void UpdateVehicleCollidersInGridSpace(int index, ref int colliderCounter)
+        {
             ushort vehicleId = VehicleManager.instance.m_vehicleGrid[index];
             if (vehicleId != 0)
             {
                 SetVehicleCollider(vehicleId, colliderCounter);
                 colliderCounter++;
-                vehicle = VehicleManager.instance.m_vehicles.m_buffer[vehicleId];
+                var vehicle = VehicleManager.instance.m_vehicles.m_buffer[vehicleId];
 
                 while (vehicle.m_nextGridVehicle != 0 && colliderCounter < NUM_VEHICLE_COLLIDERS)
                 {
@@ -172,29 +206,46 @@ namespace IOperateIt
                     colliderCounter++;
                 }
             }
-            for (int i = colliderCounter; i < NUM_VEHICLE_COLLIDERS; i++)
-            {
-                _VehicleColliders[i].ColliderOwner.SetActive(false);
-                //_VehicleColliders[colliderCounter].BoxCollider.transform.position = new Vector3(float.PositiveInfinity, float.PositiveInfinity);
-            }
-
         }
 
         private void UpdateParkedVehicleColliders(Transform transform)
         {
             int gridX = Mathf.Clamp((int)(transform.position.x / 32.0 + 270.0), 0, 539);
             int gridZ = Mathf.Clamp((int)(transform.position.z / 32.0 + 270.0), 0, 539);
+            int offsetX = (transform.position.x / 32f + 270f) - (int)(transform.position.x / 32f + 270f) > 0.5 ? 1 : -1;
+            int offsetZ = (transform.position.z / 32f + 270f) - (int)(transform.position.z / 32f + 270f) > 0.5 ? 1 : -1;
             int colliderCounter = 0;
 
-            VehicleParked parkedVehicle;
+            UpdateParkedVehicleCollidersInGridSpace(gridZ * 540 + gridX, ref colliderCounter);
 
-            int index = gridZ * 540 + gridX;
+            if (colliderCounter >= NUM_PARKED_VEHICLE_COLLIDERS) { Logging.Error("Parked Vehicle Colliders Full!"); return; }
+
+            UpdateParkedVehicleCollidersInGridSpace(gridZ * 540 + gridX + offsetX, ref colliderCounter);
+
+            if (colliderCounter >= NUM_PARKED_VEHICLE_COLLIDERS) { Logging.Error("Parked Vehicle Colliders Full!"); return; }
+
+            UpdateParkedVehicleCollidersInGridSpace((gridZ + offsetZ) * 540 + gridX, ref colliderCounter);
+
+            if (colliderCounter >= NUM_PARKED_VEHICLE_COLLIDERS) { Logging.Error("Parked Vehicle Colliders Full!"); return; }
+
+            UpdateParkedVehicleCollidersInGridSpace((gridZ + offsetZ) * 540 + gridX + offsetX, ref colliderCounter);
+
+            if (colliderCounter >= NUM_PARKED_VEHICLE_COLLIDERS) { Logging.Error("Parked Vehicle Colliders Full!"); return; }
+
+            for (int i = colliderCounter; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
+            {
+                _ParkedVehicleColliders[i].ColliderOwner.SetActive(false);
+            }
+        }
+
+        private void UpdateParkedVehicleCollidersInGridSpace(int index, ref int colliderCounter)
+        {
             ushort vehicleId = VehicleManager.instance.m_parkedGrid[index];
             if (vehicleId != 0)
             {
                 SetVehicleCollider(vehicleId, colliderCounter, true);
                 colliderCounter++;
-                parkedVehicle = VehicleManager.instance.m_parkedVehicles.m_buffer[vehicleId];
+                var parkedVehicle = VehicleManager.instance.m_parkedVehicles.m_buffer[vehicleId];
 
                 while (parkedVehicle.m_nextGridParked != 0 && colliderCounter < NUM_PARKED_VEHICLE_COLLIDERS)
                 {
@@ -203,14 +254,7 @@ namespace IOperateIt
                     colliderCounter++;
                 }
             }
-            for (int i = colliderCounter; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
-            {
-                _ParkedVehicleColliders[i].ColliderOwner.SetActive(false);
-                //_VehicleColliders[colliderCounter].BoxCollider.transform.position = new Vector3(float.PositiveInfinity, float.PositiveInfinity);
-            }
         }
-
-
 
         public IEnumerator DisableColliders()
         {

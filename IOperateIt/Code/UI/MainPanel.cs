@@ -62,7 +62,7 @@ namespace IOperateIt.UI
                     if (selectedVehicle != null)
                     {
                         _previewPanel.SetTarget(selectedVehicle);
-                        DriveController.Instance.vehicleInfo = selectedVehicle;
+                        DriveController.instance.m_vehicleInfo = selectedVehicle;
                         _spawnBtn.isEnabled = true;
                     }
                 }
@@ -156,7 +156,7 @@ namespace IOperateIt.UI
         }
         private void SpawnBtn_eventClick(UIComponent component, UIMouseEventParameter eventParam)
         {
-            if (DriveController.Instance?.vehicleInfo != null)
+            if (DriveController.instance?.m_vehicleInfo != null)
             {
                 if (_roadSelectTool == null)
                 {
