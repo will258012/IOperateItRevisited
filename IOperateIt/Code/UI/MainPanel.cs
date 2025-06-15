@@ -1,4 +1,6 @@
 ﻿extern alias FPSCamera;
+
+using AlgernonCommons;
 using AlgernonCommons.Translation;
 using AlgernonCommons.UI;
 using AlgernonCommons.Utils;
@@ -56,13 +58,24 @@ namespace IOperateIt.UI
             _vehicleList.Data = vehicleInfos;
             _vehicleList.EventSelectionChanged += (component, obj) =>
             {
-                if (obj is uint index)
+                if (Panel.isVisible && obj is uint index)
                 {
                     VehicleInfo selectedVehicle = PrefabCollection<VehicleInfo>.GetPrefab(index);
                     if (selectedVehicle != null)
                     {
-                        _previewPanel.SetTarget(selectedVehicle);
-                        DriveController.instance.m_vehicleInfo = selectedVehicle;
+                        if (selectedVehicle.name == "Forest Forwarder 01") // The Forest Forwarder has blinking alpha set for some reason
+                        {
+                            Color adjustedColor = selectedVehicle.m_color0;
+                            adjustedColor.a = 0;
+                            _previewPanel.SetTarget(selectedVehicle, adjustedColor, true);
+                            DriveController.instance.updateColor(adjustedColor, true);
+                        }
+                        else
+                        {
+                            _previewPanel.SetTarget(selectedVehicle);
+                            DriveController.instance.updateColor(default, false);
+                        }
+                        DriveController.instance.updateVehicleInfo(selectedVehicle);
                         _spawnBtn.isEnabled = true;
                     }
                 }
@@ -156,7 +169,7 @@ namespace IOperateIt.UI
         }
         private void SpawnBtn_eventClick(UIComponent component, UIMouseEventParameter eventParam)
         {
-            if (DriveController.instance?.m_vehicleInfo != null)
+            if (DriveController.instance.isVehicleInfoSet())
             {
                 if (_roadSelectTool == null)
                 {

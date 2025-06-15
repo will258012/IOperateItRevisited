@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35327.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IOperateIt", "IOperateIt\IOperateIt.csproj", "{2F487221-578C-4FB1-99D9-7502B906EF7B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IOperateIt", "IOperateIt\IOperateIt.csproj", "{2F487221-578C-4FB1-99D9-7502B906EF7B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FPSCamera", "..\FPSCamera-Continued\FPSCamera\FPSCamera.csproj", "{7E242B39-4757-4896-B41F-D7590E511431}"
 EndProject

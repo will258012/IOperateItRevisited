@@ -1,5 +1,5 @@
 ﻿using AlgernonCommons;
-using ColossalFramework.Math;
+using ColossalFramework;
 using IOperateIt.Settings;
 using System.Collections;
 using System.Collections.Generic;
@@ -7,12 +7,19 @@ using UnityEngine;
 
 namespace IOperateIt
 {
-    public class ColliderContainer
+    public class ColliderContainer : MonoBehaviour
     {
-        public GameObject ColliderOwner;
+        public enum ContainerType
+        {
+            TYPE_DEFAULT = 0,
+            TYPE_VEHICLE,
+        }
+
         public MeshCollider MeshCollider;
         public BoxCollider BoxCollider;
         public Rigidbody Rigidbody;
+        public ContainerType Type = ContainerType.TYPE_DEFAULT;
+        public int ID = 0;
     }
     public class CollidersManager
     {
@@ -20,6 +27,7 @@ namespace IOperateIt
         private const int NUM_VEHICLE_COLLIDERS = 32;
         private const int NUM_PARKED_VEHICLE_COLLIDERS = 32;
         private const float SCAN_DISTANCE = 50f;
+        private const float COLLIDER_JUMP_DISTANCE = 10f;
 
         private ColliderContainer[] _BuildingColliders;
         private ColliderContainer[] _VehicleColliders;
@@ -34,50 +42,45 @@ namespace IOperateIt
             _ParkedVehicleColliders = new ColliderContainer[NUM_PARKED_VEHICLE_COLLIDERS];
 
             PhysicMaterial material = new PhysicMaterial();
-            material.bounciness = 0f;
+            material.bounciness = 0.05f;
             material.staticFriction = 0.1f;
 
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
-                var buildingCollider = new ColliderContainer
-                {
-                    ColliderOwner = new GameObject("BuildingCollider" + i)
-                };
-                buildingCollider.MeshCollider = buildingCollider.ColliderOwner.AddComponent<MeshCollider>();
+                GameObject gameObject = new GameObject("BuildingCollider" + i);
+                var buildingCollider = gameObject.AddComponent<ColliderContainer>();
+                buildingCollider.MeshCollider = gameObject.AddComponent<MeshCollider>();
                 buildingCollider.MeshCollider.convex = false;
                 buildingCollider.MeshCollider.enabled = true;
                 buildingCollider.MeshCollider.sharedMaterial = material;
                 _BuildingColliders[i] = buildingCollider;
-                _BuildingColliders[i].ColliderOwner.SetActive(false);
+                gameObject.SetActive(false);
             }
 
             for (int i = 0; i < NUM_VEHICLE_COLLIDERS; i++)
             {
-                var vehicleCollider = new ColliderContainer
-                {
-                    ColliderOwner = new GameObject("VehicleCollider" + i)
-                };
-                vehicleCollider.BoxCollider = vehicleCollider.ColliderOwner.AddComponent<BoxCollider>();
+                GameObject gameObject = new GameObject("VehicleCollider" + i);
+                var vehicleCollider = gameObject.AddComponent<ColliderContainer>();
+                vehicleCollider.BoxCollider = gameObject.AddComponent<BoxCollider>();
                 vehicleCollider.BoxCollider.enabled = true;
                 vehicleCollider.BoxCollider.sharedMaterial = material;
-                vehicleCollider.Rigidbody = vehicleCollider.ColliderOwner.AddComponent<Rigidbody>();
+                vehicleCollider.Rigidbody = gameObject.AddComponent<Rigidbody>();
                 vehicleCollider.Rigidbody.isKinematic = true;
                 vehicleCollider.Rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+                vehicleCollider.Type = ColliderContainer.ContainerType.TYPE_VEHICLE;
                 _VehicleColliders[i] = vehicleCollider;
-                _VehicleColliders[i].ColliderOwner.SetActive(false);
+                gameObject.SetActive(false);
             }
 
             for (int i = 0; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
             {
-                var parkedVehicleCollider = new ColliderContainer
-                {
-                    ColliderOwner = new GameObject("ParkedVehicleCollider" + i)
-                };
-                parkedVehicleCollider.BoxCollider = parkedVehicleCollider.ColliderOwner.AddComponent<BoxCollider>();
+                GameObject gameObject = new GameObject("ParkedVehicleCollider" + i);
+                var parkedVehicleCollider = gameObject.AddComponent<ColliderContainer>();
+                parkedVehicleCollider.BoxCollider = gameObject.AddComponent<BoxCollider>();
                 parkedVehicleCollider.BoxCollider.enabled = true;
                 parkedVehicleCollider.BoxCollider.sharedMaterial = material;
                 _ParkedVehicleColliders[i] = parkedVehicleCollider;
-                _ParkedVehicleColliders[i].ColliderOwner.SetActive(false);
+                gameObject.SetActive(false);
             }
             yield return null;
         }
@@ -87,22 +90,34 @@ namespace IOperateIt
             Quaternion vehicleRotation;
             if (isParked)
             {
-                var parkedVehicle = VehicleManager.instance.m_parkedVehicles.m_buffer[vehicleId];
+                ref var parkedVehicle = ref Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[vehicleId];
                 vehicleRotation = parkedVehicle.m_rotation;
                 vehiclePosition = parkedVehicle.m_position;
-                _ParkedVehicleColliders[colliderIndex].ColliderOwner.SetActive(true);
+                _ParkedVehicleColliders[colliderIndex].gameObject.SetActive(true);
                 _ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_mesh.bounds.size;
-                _ParkedVehicleColliders[colliderIndex].ColliderOwner.transform.position = vehiclePosition;
-                _ParkedVehicleColliders[colliderIndex].ColliderOwner.transform.rotation = vehicleRotation;
+                _ParkedVehicleColliders[colliderIndex].gameObject.transform.position = vehiclePosition;
+                _ParkedVehicleColliders[colliderIndex].gameObject.transform.rotation = vehicleRotation;
             }
             else
             {
-                var vehicle = VehicleManager.instance.m_vehicles.m_buffer[vehicleId];
+                ref var vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[vehicleId];
                 vehicle.GetSmoothPosition(vehicleId, out vehiclePosition, out vehicleRotation);
-                _VehicleColliders[colliderIndex].ColliderOwner.SetActive(true);
+
+                if (vehicleId == _VehicleColliders[colliderIndex].ID 
+                    && Vector3.Magnitude(vehiclePosition - _VehicleColliders[colliderIndex].Rigidbody.transform.position) < COLLIDER_JUMP_DISTANCE)
+                {
+                    _VehicleColliders[colliderIndex].Rigidbody.MovePosition(vehiclePosition);
+                    _VehicleColliders[colliderIndex].Rigidbody.MoveRotation(vehicleRotation);
+                }
+                else
+                {
+                    _VehicleColliders[colliderIndex].Rigidbody.transform.position = vehiclePosition;
+                    _VehicleColliders[colliderIndex].Rigidbody.transform.rotation = vehicleRotation;
+                }
+
+                _VehicleColliders[colliderIndex].gameObject.SetActive(true);
+                _VehicleColliders[colliderIndex].ID = vehicleId;
                 _VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_lodMesh.bounds.size;
-                _VehicleColliders[colliderIndex].Rigidbody.MovePosition(vehiclePosition);
-                _VehicleColliders[colliderIndex].Rigidbody.MoveRotation(vehicleRotation);
             }
 
         }
@@ -119,11 +134,10 @@ namespace IOperateIt
         private void UpdateBuildingColliders(Transform transform)
         {
             Vector3 segmentVector;
-            Segment3 circularScanSegment;
+            ColossalFramework.Math.Segment3 circularScanSegment;
             ushort buildingIndex;
             var hitPos = Vector3.zero;
             HashSet<ushort> hitBuildings = new HashSet<ushort>();
-            Building building;
             Vector3 buildingPosition;
             Quaternion buildingRotation;
 
@@ -132,13 +146,13 @@ namespace IOperateIt
                 float x = (float)Mathf.Cos(Mathf.Deg2Rad * (360f / NUM_BUILDING_COLLIDERS * i));
                 float z = (float)Mathf.Sin(Mathf.Deg2Rad * (360f / NUM_BUILDING_COLLIDERS * i));
                 segmentVector = new Vector3(x, 1f, z) * SCAN_DISTANCE;
-                circularScanSegment = new Segment3(transform.position,
-                                                   transform.position + segmentVector);
+                circularScanSegment = new ColossalFramework.Math.Segment3(transform.position,
+                                                                          transform.position + segmentVector);
 
-                BuildingManager.instance.RayCast(circularScanSegment, ItemClass.Service.None, ItemClass.SubService.None, ItemClass.Layer.Default, Building.Flags.None, out hitPos, out buildingIndex);
+                Singleton<BuildingManager>.instance.RayCast(circularScanSegment, ItemClass.Service.None, ItemClass.SubService.None, ItemClass.Layer.Default, Building.Flags.None, out hitPos, out buildingIndex);
                 if (hitPos != Vector3.zero)
                 {
-                    building = BuildingManager.instance.m_buildings.m_buffer[buildingIndex];
+                    ref var building = ref Singleton<BuildingManager>.instance.m_buildings.m_buffer[buildingIndex];
                     if (!hitBuildings.Contains(buildingIndex) &&
                         building.Info.name != "478820060.CableStay32m_Data" && building.Info.name != "BridgePillar.CableStay32m_Data")
                     {
@@ -149,10 +163,10 @@ namespace IOperateIt
                             buildingPosition.y -= 1.0f;
                         }
 
-                        _BuildingColliders[i].ColliderOwner.SetActive(true);
+                        _BuildingColliders[i].gameObject.SetActive(true);
                         _BuildingColliders[i].MeshCollider.sharedMesh = building.Info.m_mesh;
-                        _BuildingColliders[i].ColliderOwner.transform.position = buildingPosition;
-                        _BuildingColliders[i].ColliderOwner.transform.rotation = buildingRotation;
+                        _BuildingColliders[i].gameObject.transform.position = buildingPosition;
+                        _BuildingColliders[i].gameObject.transform.rotation = buildingRotation;
                         hitBuildings.Add(buildingIndex);
                     }
                 }
@@ -186,23 +200,23 @@ namespace IOperateIt
 
             for (int i = colliderCounter; i < NUM_VEHICLE_COLLIDERS; i++)
             {
-                _VehicleColliders[i].ColliderOwner.SetActive(false);
+                _VehicleColliders[i].gameObject.SetActive(false);
             }
         }
 
         private void UpdateVehicleCollidersInGridSpace(int index, ref int colliderCounter)
         {
-            ushort vehicleId = VehicleManager.instance.m_vehicleGrid[index];
+            ushort vehicleId = Singleton<VehicleManager>.instance.m_vehicleGrid[index];
             if (vehicleId != 0)
             {
                 SetVehicleCollider(vehicleId, colliderCounter);
                 colliderCounter++;
-                var vehicle = VehicleManager.instance.m_vehicles.m_buffer[vehicleId];
+                var vehicle = Singleton<VehicleManager>.instance.m_vehicles.m_buffer[vehicleId];
 
                 while (vehicle.m_nextGridVehicle != 0 && colliderCounter < NUM_VEHICLE_COLLIDERS)
                 {
                     SetVehicleCollider(vehicle.m_nextGridVehicle, colliderCounter);
-                    vehicle = VehicleManager.instance.m_vehicles.m_buffer[vehicle.m_nextGridVehicle];
+                    vehicle = Singleton<VehicleManager>.instance.m_vehicles.m_buffer[vehicle.m_nextGridVehicle];
                     colliderCounter++;
                 }
             }
@@ -234,23 +248,23 @@ namespace IOperateIt
 
             for (int i = colliderCounter; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
             {
-                _ParkedVehicleColliders[i].ColliderOwner.SetActive(false);
+                _ParkedVehicleColliders[i].gameObject.SetActive(false);
             }
         }
 
         private void UpdateParkedVehicleCollidersInGridSpace(int index, ref int colliderCounter)
         {
-            ushort vehicleId = VehicleManager.instance.m_parkedGrid[index];
+            ushort vehicleId = Singleton<VehicleManager>.instance.m_parkedGrid[index];
             if (vehicleId != 0)
             {
                 SetVehicleCollider(vehicleId, colliderCounter, true);
                 colliderCounter++;
-                var parkedVehicle = VehicleManager.instance.m_parkedVehicles.m_buffer[vehicleId];
+                var parkedVehicle = Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[vehicleId];
 
                 while (parkedVehicle.m_nextGridParked != 0 && colliderCounter < NUM_PARKED_VEHICLE_COLLIDERS)
                 {
                     SetVehicleCollider(parkedVehicle.m_nextGridParked, colliderCounter, true);
-                    parkedVehicle = VehicleManager.instance.m_parkedVehicles.m_buffer[parkedVehicle.m_nextGridParked];
+                    parkedVehicle = Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[parkedVehicle.m_nextGridParked];
                     colliderCounter++;
                 }
             }
@@ -260,17 +274,17 @@ namespace IOperateIt
         {
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
-                _BuildingColliders[i].ColliderOwner.SetActive(false);
+                _BuildingColliders[i].gameObject.SetActive(false);
             }
 
             for (int i = 0; i < NUM_VEHICLE_COLLIDERS; i++)
             {
-                _VehicleColliders[i].ColliderOwner.SetActive(false);
+                _VehicleColliders[i].gameObject.SetActive(false);
             }
 
             for (int i = 0; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
             {
-                _ParkedVehicleColliders[i].ColliderOwner.SetActive(false);
+                _ParkedVehicleColliders[i].gameObject.SetActive(false);
             }
             yield return null;
         }
@@ -278,25 +292,25 @@ namespace IOperateIt
         {
             foreach (var collider in _BuildingColliders)
             {
-                if (collider != null && collider.ColliderOwner != null)
+                if (collider != null && collider.gameObject != null)
                 {
-                    Object.Destroy(collider.ColliderOwner);
+                    Object.Destroy(collider.gameObject);
                 }
             }
 
             foreach (var collider in _VehicleColliders)
             {
-                if (collider != null && collider.ColliderOwner != null)
+                if (collider != null && collider.gameObject != null)
                 {
-                    Object.Destroy(collider.ColliderOwner);
+                    Object.Destroy(collider.gameObject);
                 }
             }
 
             foreach (var collider in _ParkedVehicleColliders)
             {
-                if (collider != null && collider.ColliderOwner != null)
+                if (collider != null && collider.gameObject != null)
                 {
-                    Object.Destroy(collider.ColliderOwner);
+                    Object.Destroy(collider.gameObject);
                 }
             }
         }

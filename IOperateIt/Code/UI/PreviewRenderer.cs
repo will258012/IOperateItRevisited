@@ -79,8 +79,8 @@ namespace IOperateIt.UI
             sunLight.color = Color.white;
             sunLight.transform.eulerAngles = new Vector3(50, 180, 70);
 
-            Light mainLight = RenderManager.instance.MainLight;
-            RenderManager.instance.MainLight = sunLight;
+            Light mainLight = Singleton<RenderManager>.instance.MainLight;
+            Singleton<RenderManager>.instance.MainLight = sunLight;
 
             if (mainLight == DayNightProperties.instance.moonLightSource)
             {
@@ -124,7 +124,7 @@ namespace IOperateIt.UI
             sunLight.color = lightColor;
             sunLight.transform.eulerAngles = lightAngles;
 
-            RenderManager.instance.MainLight = mainLight;
+            Singleton<RenderManager>.instance.MainLight = mainLight;
 
             if (mainLight == DayNightProperties.instance.moonLightSource)
             {

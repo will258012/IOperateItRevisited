@@ -1,5 +1,6 @@
 ﻿extern alias FPSCamera;
 
+using AlgernonCommons;
 using ColossalFramework;
 using FPSCamera.FPSCamera.Cam.Controller;
 using FPSCamera.FPSCamera.Game;
@@ -19,8 +20,7 @@ namespace IOperateIt
         private const float ROAD_RAYCAST_UPPER = 2.0f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float WALL_HEIGHT = 0.5f;
-        private const float GRIP = 25.0f;
-        private const float MAX_COLLISION_V = 30.0f;
+        private const float GRIP = 23.0f;
 
         private float m_halfLength = 0.0f;
         private float m_halfWidth = 0.0f;
@@ -32,7 +32,7 @@ namespace IOperateIt
         private BoxCollider     m_vehicleCollider;
         private Color           m_vehicleColor;
         private bool            m_setColor;
-        internal VehicleInfo    m_vehicleInfo;
+        private VehicleInfo     m_vehicleInfo;
 
         private List<LightEffect>   m_lightEffects      = new List<LightEffect>();
         private List<EffectInfo>    m_regularEffects    = new List<EffectInfo>();
@@ -42,10 +42,12 @@ namespace IOperateIt
         private float   m_terrainHeight;
         private Vector3 m_prevPosition;
         private Vector3 m_prevVelocity;
+        private Vector3 m_lastValidCameraVector = Vector3.forward;
         private Vector4 m_lightState;
         private Quaternion m_rotationOffset;
         private bool m_isSirenEnabled = true;
         private bool m_isLightEnabled = false;
+        private int m_renderMask = 0;
 
         private float m_steer = 0f;
         private float m_throttle = 0f;
@@ -55,7 +57,7 @@ namespace IOperateIt
             instance = this;
             gameObject.AddComponent<MeshFilter>();
             gameObject.AddComponent<MeshRenderer>();
-            GetComponent<MeshRenderer>().enabled = true;
+            gameObject.GetComponent<MeshRenderer>().enabled = true;
 
             m_vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             m_vehicleRigidBody.isKinematic = false;
@@ -67,7 +69,7 @@ namespace IOperateIt
             m_vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
             
             PhysicMaterial material = new PhysicMaterial();
-            material.bounciness = 0f;
+            material.bounciness = 0.05f;
             material.staticFriction = 0.1f;
 
             m_vehicleCollider = gameObject.AddComponent<BoxCollider>();
@@ -83,27 +85,35 @@ namespace IOperateIt
             UpdateCameraPos();
             PlayEffects();
 
-            MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
+            MaterialPropertyBlock materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
             materialBlock.Clear();
-            //materialBlock.SetMatrix(VehicleManager.instance.ID_TyreMatrix, value);
+            //materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, value);
             Vector4 tyrePosition = default;
-            tyrePosition.x = m_steer * Mathf.PI / 4.0f;
+            tyrePosition.x = m_steer * Mathf.PI / 6.0f;
             tyrePosition.y = m_distanceTravelled;
             tyrePosition.z = 0f;
             tyrePosition.w = 0f;
-            materialBlock.SetVector(VehicleManager.instance.ID_TyrePosition, tyrePosition);
+            materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
 
             m_lightState.x = m_isLightEnabled ? 1.0f : 0.0f;
-            materialBlock.SetVector(VehicleManager.instance.ID_LightState, m_lightState);
+            materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_LightState, m_lightState);
             if (m_setColor)
             {
-                materialBlock.SetColor(VehicleManager.instance.ID_Color, m_vehicleColor);
+                materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
             }
-            GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+            gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
         }
         private void FixedUpdate()
         {
             HandleInputOnFixedUpdate();
+
+            for (int iter = 0; iter < Singleton<VehicleManager>.instance.m_vehicleCount; iter++)
+            {
+                ref Vehicle vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[iter];
+                vehicle.Info.m_undergroundMaterial = vehicle.Info.m_material;
+                vehicle.Info.m_undergroundLodMaterial = vehicle.Info.m_lodMaterial;
+                //vehicle.Info.m_lodRenderDistance = 100;
+            }
 
             m_vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce * m_throttle, ForceMode.Force);
 
@@ -141,10 +151,7 @@ namespace IOperateIt
 
             CalculateSlope();
 
-            if (m_speed > ModSettings.MaxVelocity.FromKmph())
-            {
-                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph() - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
-            }
+            LimitVelocity();
 
             UpdateCameraRendering();
 
@@ -161,25 +168,72 @@ namespace IOperateIt
             m_collidersManager.DestroyColliders();
         }
 
-        private void OnCollisionEnter(Collision collision)
+        private void LimitVelocity()
         {
-            if (m_speed > MAX_COLLISION_V)
+            if (m_speed > ModSettings.MaxVelocity.FromKmph())
             {
-                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * MAX_COLLISION_V - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
+                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph() - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
             }
         }
 
-        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, m_vehicleInfo, Color.gray, false);
+        private void OnCollisionEnter(Collision collision)
+        {
+            LimitVelocity();
+
+            ColliderContainer container = collision.collider.gameObject.GetComponent<ColliderContainer>();
+            if (container.Type == ColliderContainer.ContainerType.TYPE_VEHICLE)
+            {
+                ref Vehicle otherVehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[container.ID];
+
+                ref Vector3 otherVelocity = ref (otherVehicle.m_lastFrame <= 1 ? 
+                    ref (otherVehicle.m_lastFrame == 0 ? ref otherVehicle.m_frame0.m_velocity : ref otherVehicle.m_frame1.m_velocity) : 
+                    ref (otherVehicle.m_lastFrame == 2 ? ref otherVehicle.m_frame2.m_velocity : ref otherVehicle.m_frame3.m_velocity));
+
+                float collisionOrientation = Vector3.Dot(Vector3.Normalize(m_vehicleRigidBody.position - collision.collider.transform.position), Vector3.Normalize(otherVelocity));
+
+                otherVelocity = otherVelocity * 0.8f * (0.5f + (-collisionOrientation + 1.0f) * 0.25f);
+            }
+        }
+
+        private void OnCollisionStay(Collision collision)
+        {
+            LimitVelocity();
+        }
+
+        private void OnCollisionExit(Collision collision)
+        {
+            LimitVelocity();
+        }
+
+        public void updateColor(Color color, bool enable)
+        {
+            m_vehicleColor = color; 
+            m_setColor = enable;
+        }
+
+        public void updateVehicleInfo(VehicleInfo info)
+        {
+            m_vehicleInfo = info; 
+        }
+
+        public bool isVehicleInfoSet()
+        {
+            return m_vehicleInfo != null;
+        }
+
+        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, m_vehicleInfo, m_vehicleColor, m_setColor);
         public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
         {
             enabled = true;
             m_setColor = setColor;
             m_vehicleColor = vehicleColor;
+            m_vehicleColor.a = 0; // Make sure blinking is not set.
             m_vehicleInfo = vehicleInfo;
             m_lightState = Vector4.zero;
             SpawnVehicle(position, rotation);
             FPSCamController.Instance.FPSCam = new DriveCam();
             FPSCamController.Instance.EnableCam(true);
+            m_renderMask = Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask;
         }
         private void SpawnVehicle(Vector3 position, Quaternion rotation)
         {
@@ -187,16 +241,17 @@ namespace IOperateIt
             gameObject.transform.rotation = rotation;
             var vehicleMesh = m_vehicleInfo.m_mesh;
             m_vehicleInfo.CalculateGeneratedInfo();
-            GetComponent<MeshFilter>().mesh = GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
-            GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
+            gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
+            gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
+            gameObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
 
-            MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
-            materialBlock.Clear();
             if (m_setColor)
             {
-                materialBlock.SetColor(VehicleManager.instance.ID_Color, m_vehicleColor);
+                MaterialPropertyBlock materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
+                materialBlock.Clear();
+                materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
+                gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
             }
-            GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
 
             gameObject.SetActive(true);
             m_vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
@@ -217,6 +272,10 @@ namespace IOperateIt
             StartCoroutine(m_collidersManager.DisableColliders());
             enabled = false;
             gameObject.SetActive(false);
+            Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask = m_renderMask;
+            m_vehicleInfo = null;
+            m_vehicleColor = default;
+            m_setColor = false;
         }
         private void CalculateSlope()
         {
@@ -255,7 +314,7 @@ namespace IOperateIt
             ToolBase.RaycastOutput output;
             Vector3 roadPos;
 
-            var height = FPSCamera.FPSCamera.Utils.MapUtils.GetMinHeightAt(position);
+            var height = MapUtils.GetMinHeightAt(position);
             height -= 2f; // Map Utils adds 2f
 
             input = MapUtils.RayCastTool.GetRaycastInput(position, ROAD_RAYCAST_LOWER, ROAD_RAYCAST_UPPER); // Configure raycast input parameters
@@ -295,19 +354,19 @@ namespace IOperateIt
                 if (output.m_netSegment != 0)
                 {
                     float offset = 0f;
-                    NetSegment segment = NetManager.instance.m_segments.m_buffer[output.m_netSegment];
+                    ref NetSegment segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[output.m_netSegment];
 
-                    if (GetClosestLanePositionDriveFiltered(segment, transform.position, out roadPos, out offset))
+                    if (GetClosestLanePositionDriveFiltered(ref segment, transform.position, out roadPos, out offset))
                     {
                         height = roadPos.y;
 
                         if (offset == 0f || offset == 1f)
                         {
-                            var node = NetManager.instance.m_nodes.m_buffer[offset == 0f ? segment.m_startNode : segment.m_endNode];
+                            var node = Singleton<NetManager>.instance.m_nodes.m_buffer[offset == 0f ? segment.m_startNode : segment.m_endNode];
                             if (node.CountSegments() == 2)
                             {
-                                segment = NetManager.instance.m_segments.m_buffer[node.GetAnotherSegment(output.m_netSegment)];
-                                if (GetClosestLanePositionDriveFiltered(segment, transform.position, out roadPos, out _))
+                                segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[node.GetAnotherSegment(output.m_netSegment)];
+                                if (GetClosestLanePositionDriveFiltered(ref segment, transform.position, out roadPos, out _))
                                 {
                                     height = Mathf.Min(roadPos.y, height);
                                 }
@@ -320,7 +379,7 @@ namespace IOperateIt
             return height;
         }
 
-        private bool GetClosestLanePositionDriveFiltered(NetSegment segmentIn, Vector3 posIn, out Vector3 posOut, out float offsetOut)
+        private bool GetClosestLanePositionDriveFiltered(ref NetSegment segmentIn, Vector3 posIn, out Vector3 posOut, out float offsetOut)
         {
             uint lane = segmentIn.m_lanes;
             float dist = 10000.0f;
@@ -337,7 +396,7 @@ namespace IOperateIt
 
                 if (type != NetInfo.LaneType.None)
                 {
-                    NetManager.instance.m_lanes.m_buffer[lane].GetClosestPosition(transform.position, out var posTmp, out var offsetTmp);
+                    Singleton<NetManager>.instance.m_lanes.m_buffer[lane].GetClosestPosition(transform.position, out var posTmp, out var offsetTmp);
                     if ((offsetTmp != 0f && offsetTmp != 1f) || ((type & NetInfo.LaneType.Pedestrian) == 0))
                     {
                         float distTmp = Vector3.Magnitude(posTmp - posIn);
@@ -350,7 +409,7 @@ namespace IOperateIt
                         }
                     }
                 }
-                lane = NetManager.instance.m_lanes.m_buffer[lane].m_nextLane;
+                lane = Singleton<NetManager>.instance.m_lanes.m_buffer[lane].m_nextLane;
                 index++;
             }
             return found;
@@ -489,8 +548,8 @@ namespace IOperateIt
             var scale = Vector3.one;
             var matrix = m_vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
             var area = new EffectInfo.SpawnArea(matrix, m_vehicleInfo.m_lodMeshData);
-            var listenerInfo = AudioManager.instance.CurrentListenerInfo;
-            var audioGroup = VehicleManager.instance.m_audioGroup;
+            var listenerInfo = Singleton<AudioManager>.instance.CurrentListenerInfo;
+            var audioGroup = Singleton<VehicleManager>.instance.m_audioGroup;
             RenderGroup.MeshData effectMeshData = m_vehicleInfo.m_vehicleAI.GetEffectMeshData();
             var area2 = new EffectInfo.SpawnArea(matrix, effectMeshData, m_vehicleInfo.m_generatedInfo.m_tyres, m_vehicleInfo.m_lightPositions);
 
@@ -501,13 +560,13 @@ namespace IOperateIt
             if (m_isLightEnabled)
                 foreach (var light in m_lightEffects)
                 {
-                    light.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
+                    light.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, Singleton<SimulationManager>.instance.m_simulationTimeDelta, Singleton<RenderManager>.instance.CurrentCameraInfo);
                 }
 
             if (m_isSirenEnabled)
                 foreach (var specialEffect in m_specialEffects)
                 {
-                    specialEffect.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
+                    specialEffect.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, Singleton<SimulationManager>.instance.m_simulationTimeDelta, Singleton<RenderManager>.instance.CurrentCameraInfo);
                     specialEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
                 }
         }
@@ -516,14 +575,23 @@ namespace IOperateIt
             var cameraTransform = GameCamController.Instance.MainCamera.transform;
 
             Vector3 vehiclePosition = m_vehicleRigidBody.transform.position;
-            Vector3 vehicleDirection = Vector3.Normalize(m_vehicleRigidBody.velocity);
-            if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
+            Vector3 vehicleDirection;
+            if (m_speed < 1.0)
             {
-                vehicleDirection = Vector3.Normalize(m_vehicleRigidBody.transform.InverseTransformDirection(Vector3.forward));
+                vehicleDirection = m_lastValidCameraVector;
             }
-            if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
+            else
             {
-                vehicleDirection = Vector3.forward;
+                vehicleDirection = Vector3.Normalize(m_vehicleRigidBody.velocity);
+                if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
+                {
+                    vehicleDirection = Vector3.Normalize(m_vehicleRigidBody.transform.InverseTransformDirection(Vector3.forward));
+                }
+                if (vehicleDirection.y > 0.999f || vehicleDirection.y < -0.999f)
+                {
+                    vehicleDirection = m_lastValidCameraVector;
+                }
+                m_lastValidCameraVector = vehicleDirection;
             }
             Quaternion targetRotation = Quaternion.identity;
             targetRotation.SetLookRotation(vehicleDirection);
@@ -552,11 +620,11 @@ namespace IOperateIt
             }
             if (Mathf.Min(terrainHeight, roadHeight) > cameraTransform.position.y)
             {
-                RenderManager.instance.CurrentCameraInfo.m_camera.cullingMask |= (1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
+                Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask |= (1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
             }
             else
             {
-                RenderManager.instance.CurrentCameraInfo.m_camera.cullingMask &= ~(1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
+                Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask &= ~(1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
             }
         }
     }

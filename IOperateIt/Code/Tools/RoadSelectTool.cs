@@ -17,7 +17,7 @@ namespace IOperateIt.Tools
 
                     if (netSegmentId != 0)
                     {
-                        var netSegment = NetManager.instance.m_segments.m_buffer[netSegmentId];
+                        var netSegment = Singleton<NetManager>.instance.m_segments.m_buffer[netSegmentId];
 
                         if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
                         {
@@ -40,7 +40,7 @@ namespace IOperateIt.Tools
 
                     if (netSegmentId != 0)
                     {
-                        var netSegment = NetManager.instance.m_segments.m_buffer[netSegmentId];
+                        var netSegment = Singleton<NetManager>.instance.m_segments.m_buffer[netSegmentId];
 
                         if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
                         {

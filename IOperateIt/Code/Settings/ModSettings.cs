@@ -25,12 +25,12 @@ namespace IOperateIt.Settings
         [XmlElement("AccelerationForce")]
         public float XMLAccelerationForce { get => AccelerationForce; set => AccelerationForce = value; }
         [XmlIgnore]
-        internal static float AccelerationForce = 100f;
+        internal static float AccelerationForce = 10000f;
 
         [XmlElement("BreakingForce")]
         public float XMLBreakingForce { get => BreakingForce; set => BreakingForce = value; }
         [XmlIgnore]
-        internal static float BreakingForce = 35f;
+        internal static float BreakingForce = 15000f;
 
         [XmlElement("Offset")]
         public Vector3 XMLOffset { get => Offset; set => Offset = value; }
