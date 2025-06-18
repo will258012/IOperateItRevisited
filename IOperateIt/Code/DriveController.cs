@@ -1,12 +1,10 @@
 ﻿extern alias FPSCamera;
 
-using AlgernonCommons;
 using ColossalFramework;
 using FPSCamera.FPSCamera.Cam.Controller;
 using FPSCamera.FPSCamera.Game;
 using FPSCamera.FPSCamera.Utils;
 using IOperateIt.Settings;
-using KianCommons;
 using System.Collections.Generic;
 using UnityEngine;
 using FPCModSettings = FPSCamera.FPSCamera.Settings.ModSettings;
@@ -117,7 +115,7 @@ namespace IOperateIt
 
             m_vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce * m_throttle, ForceMode.Force);
 
-            var lateralVel = transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
+            var lateralVel = m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
             lateralVel.z = 0.0f;
             lateralVel.y = 0.0f;
 
@@ -125,27 +123,29 @@ namespace IOperateIt
 
             m_vehicleRigidBody.AddRelativeForce(-lateralVel, ForceMode.VelocityChange);
 
-            var invert = Vector3.Dot(Vector3.forward, transform.InverseTransformDirection(m_vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
+            var invert = Vector3.Dot(Vector3.forward, m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
             var speedsteer = Mathf.Min(Mathf.Max(m_speed * 20f, 0f), 60f);
             speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
 
-            var angularTarget = 0.99f * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - transform.InverseTransformDirection(m_vehicleRigidBody.angularVelocity);
+            var angularTarget = 0.99f * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.angularVelocity);
 
             m_vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
 
-            m_collidersManager.UpdateColliders(transform);
+            m_collidersManager.UpdateColliders(m_vehicleRigidBody.transform);
 
-            m_terrainHeight = CalculateHeight(transform.position);
+            m_terrainHeight = CalculateHeight(m_vehicleRigidBody.transform.position);
 
-            if (transform.position.y < m_terrainHeight)
+            if (m_vehicleRigidBody.transform.position.y < m_terrainHeight)
             {
                 m_vehicleRigidBody.velocity = new Vector3(m_vehicleRigidBody.velocity.x, 0f, m_vehicleRigidBody.velocity.z);
-                transform.position = new Vector3(transform.position.x, 0.5f * m_terrainHeight + 0.5f * transform.position.y, transform.position.z);
+                m_vehicleRigidBody.transform.position = new Vector3(m_vehicleRigidBody.transform.position.x, 
+                                                                    0.5f * m_terrainHeight + 0.5f * m_vehicleRigidBody.transform.position.y, 
+                                                                    m_vehicleRigidBody.transform.position.z);
             }
 
-            if (transform.position.y + WALL_HEIGHT < m_terrainHeight)
+            if (m_vehicleRigidBody.transform.position.y + WALL_HEIGHT < m_terrainHeight)
             {
-                transform.position = m_prevPosition;
+                m_vehicleRigidBody.transform.position = m_prevPosition;
                 m_vehicleRigidBody.velocity = Vector3.zero;
             }
 
@@ -155,10 +155,10 @@ namespace IOperateIt
 
             UpdateCameraRendering();
 
-            m_distanceTravelled += invert * Vector3.Magnitude(transform.position - m_prevPosition);
+            m_distanceTravelled += invert * Vector3.Magnitude(m_vehicleRigidBody.transform.position - m_prevPosition);
 
             m_prevVelocity = m_vehicleRigidBody.velocity;
-            m_prevPosition = transform.position;
+            m_prevPosition = m_vehicleRigidBody.transform.position;
         }
         private void LateUpdate()
         {
@@ -237,8 +237,10 @@ namespace IOperateIt
         }
         private void SpawnVehicle(Vector3 position, Quaternion rotation)
         {
-            gameObject.transform.position = position;
-            gameObject.transform.rotation = rotation;
+            m_vehicleRigidBody.transform.position = position;
+            m_vehicleRigidBody.transform.rotation = rotation; 
+            m_vehicleRigidBody.velocity = Vector3.zero;
+            
             var vehicleMesh = m_vehicleInfo.m_mesh;
             m_vehicleInfo.CalculateGeneratedInfo();
             gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
@@ -258,7 +260,6 @@ namespace IOperateIt
             m_halfWidth = vehicleMesh.bounds.size.x;
             m_halfLength = vehicleMesh.bounds.size.z;
             m_rotationOffset = Quaternion.identity;
-            m_vehicleRigidBody.velocity = Vector3.zero;
 
             AddEffects();
         }
@@ -279,7 +280,7 @@ namespace IOperateIt
         }
         private void CalculateSlope()
         {
-            Vector3 diffVector = transform.position - m_prevPosition;
+            Vector3 diffVector = m_vehicleRigidBody.transform.position - m_prevPosition;
             Vector3 horizontalDirection = new Vector3(diffVector.x, 0f, diffVector.z);
             float heightDifference = diffVector.y;
 
@@ -288,19 +289,19 @@ namespace IOperateIt
                 float slopeAngle = Mathf.Atan2(heightDifference, horizontalDirection.magnitude) * Mathf.Rad2Deg;//+: upslope -: downslope
                 slopeAngle = Mathf.Clamp(slopeAngle, -90f, 90f);
 
-                bool isReversing = Vector3.Dot(diffVector.normalized, transform.forward) < 0;
+                bool isReversing = Vector3.Dot(diffVector.normalized, m_vehicleRigidBody.transform.forward) < 0;
 
                 if (isReversing)
                     slopeAngle = -slopeAngle;
 
                 var targetRotation = Quaternion.Euler(
                     -slopeAngle,
-                    transform.rotation.eulerAngles.y,
+                    m_vehicleRigidBody.transform.rotation.eulerAngles.y,
                     0f
                 );
 
-                transform.rotation = Quaternion.Slerp(
-                    transform.rotation,
+                m_vehicleRigidBody.transform.rotation = Quaternion.Slerp(
+                    m_vehicleRigidBody.transform.rotation,
                     targetRotation,
                     Time.deltaTime * 6f
                 );
@@ -356,20 +357,17 @@ namespace IOperateIt
                     float offset = 0f;
                     ref NetSegment segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[output.m_netSegment];
 
-                    if (GetClosestLanePositionDriveFiltered(ref segment, transform.position, out roadPos, out offset))
+                    if (GetClosestLanePositionFiltered(ref segment, m_vehicleRigidBody.transform.position, out roadPos, out offset))
                     {
                         height = roadPos.y;
 
                         if (offset == 0f || offset == 1f)
                         {
-                            var node = Singleton<NetManager>.instance.m_nodes.m_buffer[offset == 0f ? segment.m_startNode : segment.m_endNode];
-                            if (node.CountSegments() == 2)
+                            ref NetNode node = ref Singleton<NetManager>.instance.m_nodes.m_buffer[offset == 0f ? segment.m_startNode : segment.m_endNode];
+                            if (node.CountSegments() > 1)
                             {
-                                segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[node.GetAnotherSegment(output.m_netSegment)];
-                                if (GetClosestLanePositionDriveFiltered(ref segment, transform.position, out roadPos, out _))
-                                {
-                                    height = Mathf.Min(roadPos.y, height);
-                                }
+                                GetClosestLanePositionOnNodeFiltered(ref node, output.m_netSegment, ref roadPos);
+                                height = roadPos.y;
                             }
                         }
                     }
@@ -379,7 +377,39 @@ namespace IOperateIt
             return height;
         }
 
-        private bool GetClosestLanePositionDriveFiltered(ref NetSegment segmentIn, Vector3 posIn, out Vector3 posOut, out float offsetOut)
+        private void GetClosestLanePositionOnNodeFiltered(ref NetNode node, ushort currSegmentId, ref Vector3 currClosest)
+        {
+            int iter = 0;
+            float currClosestDist = Vector3.Magnitude(currClosest - m_vehicleRigidBody.transform.position);
+            while (iter < 8) // Cities only supports 8 segments per node.
+            {
+                ushort altSegmentId = node.GetSegment(iter);
+                if (altSegmentId != 0 && altSegmentId != currSegmentId)
+                {
+                    ref NetSegment tmpSegment = ref Singleton<NetManager>.instance.m_segments.m_buffer[altSegmentId];
+                    Vector3 roadPos;
+                    float offset;
+                    if (GetClosestLanePositionFiltered(ref tmpSegment, m_vehicleRigidBody.transform.position, out roadPos, out offset))
+                    {
+                        if (offset != 0 && offset != 1)
+                        {
+                            currClosest = roadPos;
+                            return;
+                        }
+
+                        float tmpDist = Vector3.Magnitude(roadPos - m_vehicleRigidBody.transform.position);
+                        if (tmpDist < currClosestDist)
+                        {
+                            currClosestDist = tmpDist;
+                            currClosest = roadPos;
+                        }
+                    }
+                }
+                iter++;
+            }
+        }
+
+        private bool GetClosestLanePositionFiltered(ref NetSegment segmentIn, Vector3 posIn, out Vector3 posOut, out float offsetOut)
         {
             uint lane = segmentIn.m_lanes;
             float dist = 10000.0f;
@@ -396,7 +426,7 @@ namespace IOperateIt
 
                 if (type != NetInfo.LaneType.None)
                 {
-                    Singleton<NetManager>.instance.m_lanes.m_buffer[lane].GetClosestPosition(transform.position, out var posTmp, out var offsetTmp);
+                    Singleton<NetManager>.instance.m_lanes.m_buffer[lane].GetClosestPosition(m_vehicleRigidBody.transform.position, out var posTmp, out var offsetTmp);
                     if ((offsetTmp != 0f && offsetTmp != 1f) || ((type & NetInfo.LaneType.Pedestrian) == 0))
                     {
                         float distTmp = Vector3.Magnitude(posTmp - posIn);
@@ -540,11 +570,11 @@ namespace IOperateIt
         }
         private void PlayEffects()
         {
-            var position = transform.position;
+            var position = m_vehicleRigidBody.transform.position;
             var velocity = m_vehicleRigidBody.velocity;
             var acceleration = ((m_vehicleRigidBody.velocity - m_prevVelocity) / Time.fixedDeltaTime).magnitude;
             var swayPosition = Vector3.zero;
-            var rotation = transform.rotation;
+            var rotation = m_vehicleRigidBody.transform.rotation;
             var scale = Vector3.one;
             var matrix = m_vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
             var area = new EffectInfo.SpawnArea(matrix, m_vehicleInfo.m_lodMeshData);
