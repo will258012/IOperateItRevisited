@@ -49,6 +49,7 @@ namespace IOperateIt
 
         private float m_steer = 0f;
         private float m_throttle = 0f;
+        private bool m_isBraking = false;
         internal float m_speed => m_vehicleRigidBody.velocity.magnitude;
         private void Awake()
         {
@@ -94,6 +95,7 @@ namespace IOperateIt
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
 
             m_lightState.x = m_isLightEnabled ? 1.0f : 0.0f;
+            m_lightState.y = m_isBraking ? 1.0f : 0.0f;
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_LightState, m_lightState);
             if (m_setColor)
             {
@@ -113,15 +115,25 @@ namespace IOperateIt
                 //vehicle.Info.m_lodRenderDistance = 100;
             }
 
-            m_vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce * m_throttle, ForceMode.Force);
+            var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
 
-            var lateralVel = m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
-            lateralVel.z = 0.0f;
-            lateralVel.y = 0.0f;
+            if (relativeVel.z == 0f || m_throttle * relativeVel.z < 0f)
+            {
+                m_isBraking = true;
+            }
+            else
+            {
+                m_isBraking = false;
+            }
 
-            lateralVel = Mathf.Min(Vector3.Magnitude(lateralVel) * 0.99f, GRIP * Time.fixedDeltaTime) * Vector3.Normalize(lateralVel);
+            m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? ModSettings.BreakingForce : ModSettings.AccelerationForce), ForceMode.Force);
 
-            m_vehicleRigidBody.AddRelativeForce(-lateralVel, ForceMode.VelocityChange);
+            relativeVel.z = 0.0f;
+            relativeVel.y = 0.0f;
+
+            relativeVel = Mathf.Min(Vector3.Magnitude(relativeVel) * 0.99f, GRIP * Time.fixedDeltaTime) * Vector3.Normalize(relativeVel);
+
+            m_vehicleRigidBody.AddRelativeForce(-relativeVel, ForceMode.VelocityChange);
 
             var invert = Vector3.Dot(Vector3.forward, m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
             var speedsteer = Mathf.Min(Mathf.Max(m_speed * 20f, 0f), 60f);

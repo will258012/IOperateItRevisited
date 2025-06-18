@@ -5,7 +5,7 @@
 "MOD_DESCRIPTION","Drive vehicles around your very own city!",""
 "SETTINGS_MAXVELOCITY","Maximum velocity",""
 "SETTINGS_ACCELERATIONFORCE","Acceleration force",""
-"SETTINGS_BREAKINGFORCE","Steering braking force",""
+"SETTINGS_BREAKINGFORCE","Braking force",""
 "SETTINGS_BUILDINGCOLLISION","Building collision",""
 "SETTINGS_VEHICLECOLLISION","Vehicle collision",""
 "SETTINGS_OFFSET","Camera offset",""
