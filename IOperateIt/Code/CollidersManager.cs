@@ -254,9 +254,10 @@ namespace IOperateIt
             ushort vehicleId = Singleton<VehicleManager>.instance.m_vehicleGrid[index];
             while (vehicleId != 0)
             {
-                if (m_VehicleToColliderMap.ContainsKey(vehicleId))
+                MapElem tmpElem;
+                if (m_VehicleToColliderMap.TryGetValue(vehicleId, out tmpElem))
                 {
-                    m_VehicleToColliderMap[vehicleId].updateId = m_updateId;
+                    tmpElem.updateId = m_updateId;
                 }
                 else
                 {

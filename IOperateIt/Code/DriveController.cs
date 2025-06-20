@@ -1,5 +1,6 @@
 ﻿extern alias FPSCamera;
 
+using AlgernonCommons;
 using ColossalFramework;
 using FPSCamera.FPSCamera.Cam.Controller;
 using FPSCamera.FPSCamera.Game;
@@ -19,11 +20,21 @@ namespace IOperateIt
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float WALL_HEIGHT = 0.5f;
         private const float GRIP = 23.0f;
+        private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
+        private const float LIGHT_BRAKELIGHT_INTENSITY = 0.5f;
 
-        private float m_halfLength = 0.0f;
-        private float m_halfWidth = 0.0f;
-        private float m_distanceTravelled = 0.0f;
-        
+        private struct NetInfoBackup
+        {
+            public NetInfoBackup(NetInfo.Node[] nodes, NetInfo.Segment[] segments)
+            {
+                this.nodes = nodes;
+                this.segments = segments;
+            }
+            
+            public NetInfo.Node[]      nodes;
+            public NetInfo.Segment[]   segments;
+        }
+
         public static DriveController instance { get; private set; }
 
         private Rigidbody       m_vehicleRigidBody;
@@ -36,8 +47,10 @@ namespace IOperateIt
         private List<EffectInfo>    m_regularEffects    = new List<EffectInfo>();
         private List<EffectInfo>    m_specialEffects    = new List<EffectInfo>();
 
+        private Dictionary<string, string> m_customTunnelMappings = new Dictionary<string, string>();
+        private Dictionary<NetInfo, NetInfoBackup> m_backupPrefabData = new Dictionary<NetInfo, NetInfoBackup>();
+
         private CollidersManager m_collidersManager = new CollidersManager();
-        private float   m_terrainHeight;
         private Vector3 m_prevPosition;
         private Vector3 m_prevVelocity;
         private Vector3 m_lastValidCameraVector = Vector3.forward;
@@ -45,11 +58,15 @@ namespace IOperateIt
         private Quaternion m_rotationOffset;
         private bool m_isSirenEnabled = true;
         private bool m_isLightEnabled = false;
+        private bool m_isBraking = false;
         private int m_renderMask = 0;
 
+        private float m_terrainHeight;
+        private float m_halfLength = 0.0f;
+        private float m_halfWidth = 0.0f;
+        private float m_distanceTravelled = 0.0f;
         private float m_steer = 0f;
         private float m_throttle = 0f;
-        private bool m_isBraking = false;
         internal float m_speed => m_vehicleRigidBody.velocity.magnitude;
         private void Awake()
         {
@@ -77,6 +94,16 @@ namespace IOperateIt
             StartCoroutine(m_collidersManager.InitializeColliders());
             gameObject.SetActive(false);
             enabled = false;
+
+            // Some tunnel names are atypical and need to be manually mapped.
+            m_customTunnelMappings["HighwayRamp Tunnel"]                        = "HighwayRampElevated";
+            m_customTunnelMappings["Metro Track"]                               = "Metro Track Elevated 01";
+            m_customTunnelMappings["Metro Station Track"]                       = "Metro Station Track Elevated 01";
+            m_customTunnelMappings["Large Oneway Road Tunnel"]                  = "Large Oneway Elevated";
+            m_customTunnelMappings["Metro Station Below Ground Bypass"]         = "Metro Station Track Elevated Bypass";
+            m_customTunnelMappings["Metro Station Below Ground Dual Island"]    = "Metro Station Track Elevated Dual Island";
+            m_customTunnelMappings["Metro Station Below Ground Island"]         = "Metro Station Track Elevated Island Platform";
+
         }
         private void Update()
         {
@@ -94,8 +121,8 @@ namespace IOperateIt
             tyrePosition.w = 0f;
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
 
-            m_lightState.x = m_isLightEnabled ? 1.0f : 0.0f;
-            m_lightState.y = m_isBraking ? 1.0f : 0.0f;
+            m_lightState.x = m_isLightEnabled ? LIGHT_HEADLIGHT_INTENSITY : 0.0f;
+            m_lightState.y = m_isBraking ? LIGHT_BRAKELIGHT_INTENSITY : 0.0f;
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_LightState, m_lightState);
             if (m_setColor)
             {
@@ -106,14 +133,6 @@ namespace IOperateIt
         private void FixedUpdate()
         {
             HandleInputOnFixedUpdate();
-
-            for (int iter = 0; iter < Singleton<VehicleManager>.instance.m_vehicleCount; iter++)
-            {
-                ref Vehicle vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[iter];
-                vehicle.Info.m_undergroundMaterial = vehicle.Info.m_material;
-                vehicle.Info.m_undergroundLodMaterial = vehicle.Info.m_lodMaterial;
-                //vehicle.Info.m_lodRenderDistance = 100;
-            }
 
             var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
 
@@ -237,18 +256,29 @@ namespace IOperateIt
         public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
         {
             enabled = true;
+            SpawnVehicle(position, rotation, vehicleInfo, vehicleColor, setColor);
+            OverridePrefabs();
+            FPSCamController.Instance.FPSCam = new DriveCam();
+            FPSCamController.Instance.EnableCam(true);
+            m_renderMask = Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask;
+        }
+        public void StopDriving()
+        {
+            StartCoroutine(m_collidersManager.DisableColliders());
+
+            Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask = m_renderMask;
+            RestorePrefabs();
+            DestroyVehicle();
+            enabled = false;
+        }
+        private void SpawnVehicle(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
+        {
             m_setColor = setColor;
             m_vehicleColor = vehicleColor;
             m_vehicleColor.a = 0; // Make sure blinking is not set.
             m_vehicleInfo = vehicleInfo;
             m_lightState = Vector4.zero;
-            SpawnVehicle(position, rotation);
-            FPSCamController.Instance.FPSCam = new DriveCam();
-            FPSCamController.Instance.EnableCam(true);
-            m_renderMask = Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask;
-        }
-        private void SpawnVehicle(Vector3 position, Quaternion rotation)
-        {
+
             m_vehicleRigidBody.transform.position = position;
             m_vehicleRigidBody.transform.rotation = rotation; 
             m_vehicleRigidBody.velocity = Vector3.zero;
@@ -268,27 +298,133 @@ namespace IOperateIt
             }
 
             gameObject.SetActive(true);
-            m_vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
+            m_vehicleCollider.size = vehicleMesh.bounds.size;
             m_halfWidth = vehicleMesh.bounds.size.x;
             m_halfLength = vehicleMesh.bounds.size.z;
             m_rotationOffset = Quaternion.identity;
 
             AddEffects();
         }
-
-        internal void DestroyVehicle()
+        private void DestroyVehicle()
         {
-            m_lightEffects.Clear();
-            m_regularEffects.Clear();
-            m_specialEffects.Clear();
-
-            StartCoroutine(m_collidersManager.DisableColliders());
-            enabled = false;
+            RemoveEffects();
             gameObject.SetActive(false);
-            Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask = m_renderMask;
-            m_vehicleInfo = null;
-            m_vehicleColor = default;
+
             m_setColor = false;
+            m_vehicleColor = default;
+            m_vehicleInfo = null;
+            m_lightState = Vector4.zero;
+            m_halfWidth = 0f;
+            m_halfLength = 0f;
+            m_rotationOffset = Quaternion.identity;
+        }
+
+        private void OverridePrefabs()
+        {
+            for (uint prefabIndex = 0; prefabIndex < PrefabCollection<VehicleInfo>.PrefabCount(); prefabIndex++)
+            {
+                VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(prefabIndex);
+                prefabVehicleInfo.m_undergroundMaterial = prefabVehicleInfo.m_material;
+                prefabVehicleInfo.m_undergroundLodMaterial = prefabVehicleInfo.m_lodMaterial;
+                foreach (VehicleInfo.MeshInfo submesh in prefabVehicleInfo.m_subMeshes)
+                {
+                    if (submesh.m_subInfo)
+                    {
+                        VehicleInfoSub subVehicleInfo = (VehicleInfoSub)submesh.m_subInfo;
+                        subVehicleInfo.m_undergroundMaterial = subVehicleInfo.m_material;
+                        subVehicleInfo.m_undergroundLodMaterial = subVehicleInfo.m_lodMaterialCombined;
+                    }
+                }
+            }
+
+            int prefabCount = PrefabCollection<NetInfo>.PrefabCount();
+            for (uint prefabIndex = 0; prefabIndex < prefabCount; prefabIndex++)
+            {
+                NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
+                NetInfo prefabReplaceInfo = null;
+
+                if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels)
+                {
+                    string replaceName;
+                    if (!m_customTunnelMappings.TryGetValue(prefabNetInfo.name, out replaceName))
+                    {
+                        replaceName = prefabNetInfo.name.Replace(" Tunnel", " Elevated");
+                    }
+
+                    // an alternative is to only replace the material with Canal3. This gives a more undeground look
+                    // replaceName = "Canal3";
+
+                    for (uint otherPrefabIndex = 0; otherPrefabIndex < prefabCount; otherPrefabIndex++)
+                    {
+                        NetInfo tmpInfo = PrefabCollection<NetInfo>.GetPrefab(otherPrefabIndex);
+                        if (tmpInfo.m_class.m_layer == ItemClass.Layer.Default && tmpInfo.name == replaceName)
+                        {
+                            prefabReplaceInfo = tmpInfo;
+                            break;
+                        }
+                    }
+
+                    if (prefabReplaceInfo != null)
+                    {
+                        m_backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
+                        prefabNetInfo.m_segments = prefabReplaceInfo.m_segments;
+                        prefabNetInfo.m_nodes = prefabReplaceInfo.m_nodes;
+
+                        //for (uint segmentIndex = 0; segmentIndex < prefabNetInfo.m_segments.Length; segmentIndex++)
+                        //{
+                        //    prefabNetInfo.m_segments[segmentIndex].m_segmentMesh = prefabReplaceInfo.m_segments[0].m_segmentMesh;
+                        //    prefabNetInfo.m_segments[segmentIndex].m_segmentMaterial = new Material(prefabReplaceInfo.m_segments[0].m_segmentMaterial);
+                        //}
+                        //for (uint nodeIndex = 0; nodeIndex < prefabNetInfo.m_nodes.Length; nodeIndex++)
+                        //{
+                        //    prefabNetInfo.m_nodes[nodeIndex].m_nodeMesh = prefabReplaceInfo.m_nodes[0].m_nodeMesh;
+                        //    prefabNetInfo.m_nodes[nodeIndex].m_nodeMaterial = new Material(prefabReplaceInfo.m_nodes[0].m_nodeMaterial);
+                        //}
+                    }
+                    else
+                    {
+                        Logging.Error("Failed to replace " + prefabNetInfo.name + " with " + replaceName);
+                    }
+                }
+            }
+        }
+
+        private void RestorePrefabs()
+        {
+            for (uint iter = 0; iter < PrefabCollection<VehicleInfo>.PrefabCount(); iter++)
+            {
+                VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(iter);
+                prefabVehicleInfo.m_undergroundMaterial = null;
+                prefabVehicleInfo.m_undergroundLodMaterial = null;
+                foreach (VehicleInfo.MeshInfo submesh in prefabVehicleInfo.m_subMeshes)
+                {
+                    if (submesh.m_subInfo)
+                    {
+                        VehicleInfoSub subVehicleInfo = (VehicleInfoSub)submesh.m_subInfo;
+                        subVehicleInfo.m_undergroundMaterial = null;
+                        subVehicleInfo.m_undergroundLodMaterial = null;
+                    }
+                }
+            }
+
+            int prefabCount = PrefabCollection<NetInfo>.PrefabCount();
+            for (uint prefabIndex = 0; prefabIndex < prefabCount; prefabIndex++)
+            {
+                NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
+
+                if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels)
+                {
+                    if (m_backupPrefabData.TryGetValue(prefabNetInfo, out NetInfoBackup backupData))
+                    {
+                        prefabNetInfo.m_segments = backupData.segments;
+                        prefabNetInfo.m_nodes = backupData.nodes;
+
+                        m_backupPrefabData.Remove(prefabNetInfo);
+                    }
+                }
+            }
+
+            m_backupPrefabData.Clear();
         }
         private void CalculateSlope()
         {
@@ -327,8 +463,7 @@ namespace IOperateIt
             ToolBase.RaycastOutput output;
             Vector3 roadPos;
 
-            var height = MapUtils.GetMinHeightAt(position);
-            height -= 2f; // Map Utils adds 2f
+            var height = Mathf.Max(MapUtils.GetTerrainLevel(position), Singleton<TerrainManager>.instance.WaterLevel(new Vector2(position.x, position.z)));
 
             input = MapUtils.RayCastTool.GetRaycastInput(position, ROAD_RAYCAST_LOWER, ROAD_RAYCAST_UPPER); // Configure raycast input parameters
             input.m_netService.m_service = ItemClass.Service.Road;
@@ -611,6 +746,13 @@ namespace IOperateIt
                     specialEffect.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, Singleton<SimulationManager>.instance.m_simulationTimeDelta, Singleton<RenderManager>.instance.CurrentCameraInfo);
                     specialEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
                 }
+        }
+
+        private void RemoveEffects()
+        {
+            m_lightEffects.Clear();
+            m_regularEffects.Clear();
+            m_specialEffects.Clear();
         }
         private void UpdateCameraPos()
         {

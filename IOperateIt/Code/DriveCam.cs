@@ -17,7 +17,7 @@ namespace IOperateIt
         public void DisableCam()
         {
             IsActivated = false;
-            DriveController.instance.DestroyVehicle();
+            DriveController.instance.StopDriving();
             UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.None;
         }
         public FPSCamera.FPSCamera.Utils.MathUtils.Positioning GetPositioning()
