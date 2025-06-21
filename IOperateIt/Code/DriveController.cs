@@ -19,6 +19,7 @@ namespace IOperateIt
         private const float ROAD_RAYCAST_UPPER = 2.0f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float WALL_HEIGHT = 0.5f;
+        private const float UNDERGROUND_RENDER_BIAS = 1.0f;
         private const float GRIP = 23.0f;
         private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
         private const float LIGHT_BRAKELIGHT_INTENSITY = 0.5f;
@@ -49,6 +50,7 @@ namespace IOperateIt
 
         private Dictionary<string, string> m_customTunnelMappings = new Dictionary<string, string>();
         private Dictionary<NetInfo, NetInfoBackup> m_backupPrefabData = new Dictionary<NetInfo, NetInfoBackup>();
+        private Material m_backupMaterial = null;
 
         private CollidersManager m_collidersManager = new CollidersManager();
         private Vector3 m_prevPosition;
@@ -321,11 +323,14 @@ namespace IOperateIt
 
         private void OverridePrefabs()
         {
+            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer
+            int roadLayer = LayerMask.NameToLayer("Road"); // road render layer
+
             for (uint prefabIndex = 0; prefabIndex < PrefabCollection<VehicleInfo>.PrefabCount(); prefabIndex++)
             {
                 VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(prefabIndex);
                 prefabVehicleInfo.m_undergroundMaterial = prefabVehicleInfo.m_material;
-                prefabVehicleInfo.m_undergroundLodMaterial = prefabVehicleInfo.m_lodMaterial;
+                prefabVehicleInfo.m_undergroundLodMaterial = prefabVehicleInfo.m_lodMaterialCombined;
                 foreach (VehicleInfo.MeshInfo submesh in prefabVehicleInfo.m_subMeshes)
                 {
                     if (submesh.m_subInfo)
@@ -338,6 +343,7 @@ namespace IOperateIt
             }
 
             int prefabCount = PrefabCollection<NetInfo>.PrefabCount();
+
             for (uint prefabIndex = 0; prefabIndex < prefabCount; prefabIndex++)
             {
                 NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
@@ -350,9 +356,6 @@ namespace IOperateIt
                     {
                         replaceName = prefabNetInfo.name.Replace(" Tunnel", " Elevated");
                     }
-
-                    // an alternative is to only replace the material with Canal3. This gives a more undeground look
-                    // replaceName = "Canal3";
 
                     for (uint otherPrefabIndex = 0; otherPrefabIndex < prefabCount; otherPrefabIndex++)
                     {
@@ -367,30 +370,92 @@ namespace IOperateIt
                     if (prefabReplaceInfo != null)
                     {
                         m_backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
-                        prefabNetInfo.m_segments = prefabReplaceInfo.m_segments;
-                        prefabNetInfo.m_nodes = prefabReplaceInfo.m_nodes;
 
-                        //for (uint segmentIndex = 0; segmentIndex < prefabNetInfo.m_segments.Length; segmentIndex++)
-                        //{
-                        //    prefabNetInfo.m_segments[segmentIndex].m_segmentMesh = prefabReplaceInfo.m_segments[0].m_segmentMesh;
-                        //    prefabNetInfo.m_segments[segmentIndex].m_segmentMaterial = new Material(prefabReplaceInfo.m_segments[0].m_segmentMaterial);
-                        //}
-                        //for (uint nodeIndex = 0; nodeIndex < prefabNetInfo.m_nodes.Length; nodeIndex++)
-                        //{
-                        //    prefabNetInfo.m_nodes[nodeIndex].m_nodeMesh = prefabReplaceInfo.m_nodes[0].m_nodeMesh;
-                        //    prefabNetInfo.m_nodes[nodeIndex].m_nodeMaterial = new Material(prefabReplaceInfo.m_nodes[0].m_nodeMaterial);
-                        //}
+                        NetInfo.Segment[] segments = new NetInfo.Segment[prefabReplaceInfo.m_segments.Length];
+
+                        for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
+                        {
+                            NetInfo.Segment newSegment = CopySegment(prefabReplaceInfo.m_segments[index]);
+                            newSegment.m_layer = undergroudLayer;
+                            segments[index] = newSegment;
+                        }
+
+                        NetInfo.Node[] nodes = new NetInfo.Node[prefabReplaceInfo.m_nodes.Length];
+
+                        for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
+                        {
+                            NetInfo.Node newNode = CopyNode(prefabReplaceInfo.m_nodes[index]);
+                            newNode.m_layer = undergroudLayer;
+                            newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
+                            nodes[index] = newNode;
+                        }
+
+                        prefabNetInfo.m_segments = segments;
+                        prefabNetInfo.m_nodes = nodes;
                     }
                     else
                     {
                         Logging.Error("Failed to replace " + prefabNetInfo.name + " with " + replaceName);
                     }
                 }
+                else if (prefabNetInfo.name.Contains("Slope")) // only slope components have underground transition elements
+                {
+                    m_backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
+
+                    NetInfo.Segment[] segments = new NetInfo.Segment[prefabNetInfo.m_segments.Length];
+
+                    for (int index = 0; index < prefabNetInfo.m_segments.Length; index++)
+                    {
+                        NetInfo.Segment currSegment = prefabNetInfo.m_segments[index];
+                        if (currSegment.m_layer == undergroudLayer)
+                        {
+                            // disable slope underground component from rendering.
+                            NetInfo.Segment newSegment = CopySegment(currSegment);
+                            newSegment.m_forwardForbidden = NetSegment.Flags.All;
+                            newSegment.m_forwardRequired = NetSegment.Flags.None;
+                            newSegment.m_backwardForbidden = NetSegment.Flags.All;
+                            newSegment.m_backwardRequired = NetSegment.Flags.None;
+                            segments[index] = newSegment;
+                        }
+                        else
+                        {
+                            segments[index] = currSegment;
+                        }
+                    }
+
+                    NetInfo.Node[] nodes = new NetInfo.Node[prefabNetInfo.m_nodes.Length];
+
+                    for (int index = 0; index < prefabNetInfo.m_nodes.Length; index++)
+                    {
+                        NetInfo.Node newNode = CopyNode(prefabNetInfo.m_nodes[index]);
+                        if (newNode.m_layer == undergroudLayer)
+                        {
+                            newNode.m_flagsForbidden = NetNode.Flags.All;
+                            newNode.m_flagsRequired = NetNode.Flags.None;
+                            nodes[index] = newNode;
+                        }
+                        else
+                        {
+                            newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
+                            nodes[index] = newNode;
+                        }
+                    }
+
+                    prefabNetInfo.m_segments = segments;
+                    prefabNetInfo.m_nodes = nodes;
+                }
             }
+
+            RenderManager rm = Singleton<RenderManager>.instance;
+            m_backupMaterial = rm.m_groupLayerMaterials[undergroudLayer];
+            rm.m_groupLayerMaterials[undergroudLayer] = rm.m_groupLayerMaterials[roadLayer];
+            rm.UpdateGroups(undergroudLayer);
         }
 
         private void RestorePrefabs()
         {
+            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer
+
             for (uint iter = 0; iter < PrefabCollection<VehicleInfo>.PrefabCount(); iter++)
             {
                 VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(iter);
@@ -412,7 +477,7 @@ namespace IOperateIt
             {
                 NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
 
-                if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels)
+                if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels || prefabNetInfo.name.Contains("Slope"))
                 {
                     if (m_backupPrefabData.TryGetValue(prefabNetInfo, out NetInfoBackup backupData))
                     {
@@ -425,14 +490,98 @@ namespace IOperateIt
             }
 
             m_backupPrefabData.Clear();
+
+            RenderManager rm = Singleton<RenderManager>.instance;
+            rm.m_groupLayerMaterials[undergroudLayer] = m_backupMaterial;
+            m_backupMaterial = null;
+            rm.UpdateGroups(undergroudLayer);
         }
+
+        private static NetInfo.Node CopyNode(NetInfo.Node node)
+        {
+            NetInfo.Node retval = new NetInfo.Node();
+            retval.m_mesh = node.m_mesh;
+            retval.m_lodMesh = node.m_lodMesh;
+            retval.m_material = node.m_material;
+            retval.m_lodMaterial = node.m_lodMaterial;
+            retval.m_flagsRequired = node.m_flagsRequired;
+            retval.m_flagsRequired2 = node.m_flagsRequired2;
+            retval.m_flagsForbidden = node.m_flagsForbidden;
+            retval.m_flagsForbidden2 = node.m_flagsForbidden2;
+            retval.m_connectGroup = node.m_connectGroup;
+            retval.m_directConnect = node.m_directConnect;
+            retval.m_emptyTransparent = node.m_emptyTransparent;
+            retval.m_tagsRequired = node.m_tagsRequired;
+            retval.m_nodeTagsRequired = node.m_nodeTagsRequired;
+            retval.m_tagsForbidden = node.m_tagsForbidden;
+            retval.m_nodeTagsForbidden = node.m_nodeTagsForbidden;
+            retval.m_forbidAnyTags = node.m_forbidAnyTags;
+            retval.m_minSameTags = node.m_minSameTags;
+            retval.m_maxSameTags = node.m_maxSameTags;
+            retval.m_minOtherTags = node.m_minOtherTags;
+            retval.m_maxOtherTags = node.m_maxOtherTags;
+            retval.m_nodeMesh = node.m_nodeMesh;
+            retval.m_nodeMaterial = node.m_nodeMaterial;
+            retval.m_combinedLod = node.m_combinedLod;
+            retval.m_lodRenderDistance = node.m_lodRenderDistance;
+            retval.m_requireSurfaceMaps = node.m_requireSurfaceMaps;
+            retval.m_requireWindSpeed = node.m_requireWindSpeed;
+            retval.m_preserveUVs = node.m_preserveUVs;
+            retval.m_generateTangents = node.m_generateTangents;
+            retval.m_layer = node.m_layer;
+
+            return retval;
+        }
+
+        private static NetInfo.Segment CopySegment(NetInfo.Segment segment)
+        {
+            NetInfo.Segment retval = new NetInfo.Segment();
+            retval.m_mesh = segment.m_mesh;
+            retval.m_lodMesh = segment.m_lodMesh;
+            retval.m_material = segment.m_material;
+            retval.m_lodMaterial = segment.m_lodMaterial;
+            retval.m_forwardRequired = segment.m_forwardRequired;
+            retval.m_forwardForbidden = segment.m_forwardForbidden;
+            retval.m_backwardRequired = segment.m_backwardRequired;
+            retval.m_backwardForbidden = segment.m_backwardForbidden;
+            retval.m_emptyTransparent = segment.m_emptyTransparent;
+            retval.m_disableBendNodes = segment.m_disableBendNodes;
+            retval.m_segmentMesh = segment.m_segmentMesh;
+            retval.m_segmentMaterial = segment.m_segmentMaterial;
+            retval.m_combinedLod = segment.m_combinedLod;
+            retval.m_lodRenderDistance = segment.m_lodRenderDistance;
+            retval.m_requireSurfaceMaps = segment.m_requireSurfaceMaps;
+            retval.m_requireHeightMap = segment.m_requireHeightMap;
+            retval.m_requireWindSpeed = segment.m_requireWindSpeed;
+            retval.m_preserveUVs = segment.m_preserveUVs;
+            retval.m_generateTangents = segment.m_generateTangents;
+            retval.m_layer = segment.m_layer;
+
+            return retval;
+        }
+
+        //private static NetInfo.LodValue CopyLodValue(NetInfo.LodValue value)
+        //{
+        //    NetInfo.LodValue retval = new NetInfo.LodValue();
+        //    retval.m_key = value.m_key;
+        //    retval.m_material = value.m_material;
+        //    retval.m_lodMin = value.m_lodMin;
+        //    retval.m_lodMax = value.m_lodMax;
+        //    retval.m_surfaceTexA = value.m_surfaceTexA;
+        //    retval.m_surfaceTexB = value.m_surfaceTexB;
+        //    retval.m_surfaceMapping = value.m_surfaceMapping;
+        //    retval.m_heightMap = value.m_heightMap;
+        //    retval.m_heightMapping = value.m_heightMapping;
+
+        //    return retval;
+        //}
         private void CalculateSlope()
         {
             Vector3 diffVector = m_vehicleRigidBody.transform.position - m_prevPosition;
             Vector3 horizontalDirection = new Vector3(diffVector.x, 0f, diffVector.z);
             float heightDifference = diffVector.y;
 
-            if (horizontalDirection.sqrMagnitude > 0.01f)
+            if (horizontalDirection.sqrMagnitude > 0.001f)
             {
                 float slopeAngle = Mathf.Atan2(heightDifference, horizontalDirection.magnitude) * Mathf.Rad2Deg;//+: upslope -: downslope
                 slopeAngle = Mathf.Clamp(slopeAngle, -90f, 90f);
@@ -802,7 +951,7 @@ namespace IOperateIt
             if (!roadFound || roadHeight < terrainHeight + ROAD_RAYCAST_LOWER) {
                 roadHeight = terrainHeight;
             }
-            if (Mathf.Min(terrainHeight, roadHeight) > cameraTransform.position.y)
+            if (Mathf.Min(terrainHeight, roadHeight) + UNDERGROUND_RENDER_BIAS > cameraTransform.position.y)
             {
                 Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask |= (1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
             }
