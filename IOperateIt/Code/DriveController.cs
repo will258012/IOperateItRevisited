@@ -36,21 +36,36 @@ namespace IOperateIt
             public NetInfo.Segment[]   segments;
         }
 
+        private class Wheel : MonoBehaviour
+        {
+            //public TrailRenderer skidTrail;
+
+            public Wheel(Vector3 origin)
+            {
+                localPosition = origin;
+            }
+
+            public Vector3 localPosition;
+        }
+
         public static DriveController instance { get; private set; }
 
+        private GameObject      m_meshRenderObject;
         private Rigidbody       m_vehicleRigidBody;
         private BoxCollider     m_vehicleCollider;
         private Color           m_vehicleColor;
         private bool            m_setColor;
         private VehicleInfo     m_vehicleInfo;
 
+        private List<Wheel>         m_wheelObjects      = new List<Wheel>();
+
         private List<LightEffect>   m_lightEffects      = new List<LightEffect>();
         private List<EffectInfo>    m_regularEffects    = new List<EffectInfo>();
         private List<EffectInfo>    m_specialEffects    = new List<EffectInfo>();
 
-        private Dictionary<string, string> m_customTunnelMappings = new Dictionary<string, string>();
+        private Dictionary<string, string> m_customUndergroundMappings = new Dictionary<string, string>();
         private Dictionary<NetInfo, NetInfoBackup> m_backupPrefabData = new Dictionary<NetInfo, NetInfoBackup>();
-        private Material m_backupMaterial = null;
+        private Material m_backupUndergroundMaterial = null;
 
         private CollidersManager m_collidersManager = new CollidersManager();
         private Vector3 m_prevPosition;
@@ -64,18 +79,21 @@ namespace IOperateIt
         private int m_renderMask = 0;
 
         private float m_terrainHeight;
-        private float m_halfLength = 0.0f;
-        private float m_halfWidth = 0.0f;
         private float m_distanceTravelled = 0.0f;
-        private float m_steer = 0f;
-        private float m_throttle = 0f;
+        private float m_steer = 0.0f;
+        private float m_throttle = 0.0f;
+        private float m_rideHeight = 0.0f;
         internal float m_speed => m_vehicleRigidBody.velocity.magnitude;
         private void Awake()
         {
             instance = this;
-            gameObject.AddComponent<MeshFilter>();
-            gameObject.AddComponent<MeshRenderer>();
-            gameObject.GetComponent<MeshRenderer>().enabled = true;
+            m_meshRenderObject = new GameObject();
+            m_meshRenderObject.transform.SetParent(gameObject.transform);
+
+            m_meshRenderObject.AddComponent<MeshFilter>();
+            m_meshRenderObject.AddComponent<MeshRenderer>();
+            m_meshRenderObject.GetComponent<MeshRenderer>().enabled = true;
+
 
             m_vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             m_vehicleRigidBody.isKinematic = false;
@@ -98,13 +116,13 @@ namespace IOperateIt
             enabled = false;
 
             // Some tunnel names are atypical and need to be manually mapped.
-            m_customTunnelMappings["HighwayRamp Tunnel"]                        = "HighwayRampElevated";
-            m_customTunnelMappings["Metro Track"]                               = "Metro Track Elevated 01";
-            m_customTunnelMappings["Metro Station Track"]                       = "Metro Station Track Elevated 01";
-            m_customTunnelMappings["Large Oneway Road Tunnel"]                  = "Large Oneway Elevated";
-            m_customTunnelMappings["Metro Station Below Ground Bypass"]         = "Metro Station Track Elevated Bypass";
-            m_customTunnelMappings["Metro Station Below Ground Dual Island"]    = "Metro Station Track Elevated Dual Island";
-            m_customTunnelMappings["Metro Station Below Ground Island"]         = "Metro Station Track Elevated Island Platform";
+            m_customUndergroundMappings["HighwayRamp Tunnel"]                        = "HighwayRampElevated";
+            m_customUndergroundMappings["Metro Track"]                               = "Metro Track Elevated 01";
+            m_customUndergroundMappings["Metro Station Track"]                       = "Metro Station Track Elevated 01";
+            m_customUndergroundMappings["Large Oneway Road Tunnel"]                  = "Large Oneway Elevated";
+            m_customUndergroundMappings["Metro Station Below Ground Bypass"]         = "Metro Station Track Elevated Bypass";
+            m_customUndergroundMappings["Metro Station Below Ground Dual Island"]    = "Metro Station Track Elevated Dual Island";
+            m_customUndergroundMappings["Metro Station Below Ground Island"]         = "Metro Station Track Elevated Island Platform";
 
         }
         private void Update()
@@ -130,7 +148,7 @@ namespace IOperateIt
             {
                 materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
             }
-            gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+            m_meshRenderObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
         }
         private void FixedUpdate()
         {
@@ -278,31 +296,37 @@ namespace IOperateIt
             m_setColor = setColor;
             m_vehicleColor = vehicleColor;
             m_vehicleColor.a = 0; // Make sure blinking is not set.
-            m_vehicleInfo = vehicleInfo;
             m_lightState = Vector4.zero;
+            m_vehicleInfo = vehicleInfo;
+
+            m_vehicleInfo.CalculateGeneratedInfo();
+
+            m_rideHeight = m_vehicleInfo.m_generatedInfo.m_tyres[0].y;
+
+            Mesh vehicleMesh = m_vehicleInfo.m_mesh;
+            Vector3 adjustedBounds = vehicleMesh.bounds.size;
+            adjustedBounds.y -= m_rideHeight;
 
             m_vehicleRigidBody.transform.position = position;
-            m_vehicleRigidBody.transform.rotation = rotation; 
+            m_vehicleRigidBody.transform.rotation = rotation;
             m_vehicleRigidBody.velocity = Vector3.zero;
-            
-            var vehicleMesh = m_vehicleInfo.m_mesh;
-            m_vehicleInfo.CalculateGeneratedInfo();
-            gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
-            gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
-            gameObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
+
+            m_vehicleCollider.size = adjustedBounds;
+
+            m_meshRenderObject.transform.localPosition = new Vector3(0.0f, -m_rideHeight, 0.0f);
+            m_meshRenderObject.GetComponent<MeshFilter>().mesh = m_meshRenderObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
+            m_meshRenderObject.GetComponent<MeshRenderer>().material = m_meshRenderObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
+            m_meshRenderObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
 
             if (m_setColor)
             {
                 MaterialPropertyBlock materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
                 materialBlock.Clear();
                 materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
-                gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+                m_meshRenderObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
             }
 
             gameObject.SetActive(true);
-            m_vehicleCollider.size = vehicleMesh.bounds.size;
-            m_halfWidth = vehicleMesh.bounds.size.x;
-            m_halfLength = vehicleMesh.bounds.size.z;
             m_rotationOffset = Quaternion.identity;
 
             AddEffects();
@@ -316,15 +340,14 @@ namespace IOperateIt
             m_vehicleColor = default;
             m_vehicleInfo = null;
             m_lightState = Vector4.zero;
-            m_halfWidth = 0f;
-            m_halfLength = 0f;
             m_rotationOffset = Quaternion.identity;
+            m_rideHeight = 0.0f;
         }
 
         private void OverridePrefabs()
         {
-            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer
-            int roadLayer = LayerMask.NameToLayer("Road"); // road render layer
+            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer.
+            int roadLayer = LayerMask.NameToLayer("Road"); // road render layer.
 
             for (uint prefabIndex = 0; prefabIndex < PrefabCollection<VehicleInfo>.PrefabCount(); prefabIndex++)
             {
@@ -352,11 +375,13 @@ namespace IOperateIt
                 if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels)
                 {
                     string replaceName;
-                    if (!m_customTunnelMappings.TryGetValue(prefabNetInfo.name, out replaceName))
+                    // get underground to elvated mapping.
+                    if (!m_customUndergroundMappings.TryGetValue(prefabNetInfo.name, out replaceName))
                     {
                         replaceName = prefabNetInfo.name.Replace(" Tunnel", " Elevated");
                     }
 
+                    // find the elevated counterpart prefab to be used as a reference.
                     for (uint otherPrefabIndex = 0; otherPrefabIndex < prefabCount; otherPrefabIndex++)
                     {
                         NetInfo tmpInfo = PrefabCollection<NetInfo>.GetPrefab(otherPrefabIndex);
@@ -367,6 +392,7 @@ namespace IOperateIt
                         }
                     }
 
+                    // replace all underground segments and nodes with the elevated couterparts.
                     if (prefabReplaceInfo != null)
                     {
                         m_backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
@@ -398,7 +424,7 @@ namespace IOperateIt
                         Logging.Error("Failed to replace " + prefabNetInfo.name + " with " + replaceName);
                     }
                 }
-                else if (prefabNetInfo.name.Contains("Slope")) // only slope components have underground transition elements
+                else if (prefabNetInfo.name.Contains("Slope")) // only slope components have underground transition elements.
                 {
                     m_backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
 
@@ -407,9 +433,8 @@ namespace IOperateIt
                     for (int index = 0; index < prefabNetInfo.m_segments.Length; index++)
                     {
                         NetInfo.Segment currSegment = prefabNetInfo.m_segments[index];
-                        if (currSegment.m_layer == undergroudLayer)
+                        if (currSegment.m_layer == undergroudLayer) // disable slope underground component from rendering.
                         {
-                            // disable slope underground component from rendering.
                             NetInfo.Segment newSegment = CopySegment(currSegment);
                             newSegment.m_forwardForbidden = NetSegment.Flags.All;
                             newSegment.m_forwardRequired = NetSegment.Flags.None;
@@ -428,13 +453,13 @@ namespace IOperateIt
                     for (int index = 0; index < prefabNetInfo.m_nodes.Length; index++)
                     {
                         NetInfo.Node newNode = CopyNode(prefabNetInfo.m_nodes[index]);
-                        if (newNode.m_layer == undergroudLayer)
+                        if (newNode.m_layer == undergroudLayer) // disable node underground component from rendering.
                         {
                             newNode.m_flagsForbidden = NetNode.Flags.All;
                             newNode.m_flagsRequired = NetNode.Flags.None;
                             nodes[index] = newNode;
                         }
-                        else
+                        else // allow the surface node to be rendered underground.
                         {
                             newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
                             nodes[index] = newNode;
@@ -446,16 +471,18 @@ namespace IOperateIt
                 }
             }
 
+            // replace the distant LOD material for underground and update LOD render groups.
             RenderManager rm = Singleton<RenderManager>.instance;
-            m_backupMaterial = rm.m_groupLayerMaterials[undergroudLayer];
+            m_backupUndergroundMaterial = rm.m_groupLayerMaterials[undergroudLayer];
             rm.m_groupLayerMaterials[undergroudLayer] = rm.m_groupLayerMaterials[roadLayer];
             rm.UpdateGroups(undergroudLayer);
         }
 
         private void RestorePrefabs()
         {
-            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer
+            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer.
 
+            // delete all underground vehicle materials. Cities will auto generate new ones.
             for (uint iter = 0; iter < PrefabCollection<VehicleInfo>.PrefabCount(); iter++)
             {
                 VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(iter);
@@ -472,6 +499,7 @@ namespace IOperateIt
                 }
             }
 
+            // restore road prefab segment and node data to before driving.
             int prefabCount = PrefabCollection<NetInfo>.PrefabCount();
             for (uint prefabIndex = 0; prefabIndex < prefabCount; prefabIndex++)
             {
@@ -491,9 +519,10 @@ namespace IOperateIt
 
             m_backupPrefabData.Clear();
 
+            // restore the distant LOD material for underground and update LOD render groups.
             RenderManager rm = Singleton<RenderManager>.instance;
-            rm.m_groupLayerMaterials[undergroudLayer] = m_backupMaterial;
-            m_backupMaterial = null;
+            rm.m_groupLayerMaterials[undergroudLayer] = m_backupUndergroundMaterial;
+            m_backupUndergroundMaterial = null;
             rm.UpdateGroups(undergroudLayer);
         }
 
@@ -560,6 +589,7 @@ namespace IOperateIt
             return retval;
         }
 
+        // there are problems with replacing LodValue. It needs to be registered with NodeManager and/or RenderManager or there will be null reference errors.
         //private static NetInfo.LodValue CopyLodValue(NetInfo.LodValue value)
         //{
         //    NetInfo.LodValue retval = new NetInfo.LodValue();
@@ -614,9 +644,9 @@ namespace IOperateIt
 
             var height = Mathf.Max(MapUtils.GetTerrainLevel(position), Singleton<TerrainManager>.instance.WaterLevel(new Vector2(position.x, position.z)));
 
-            input = MapUtils.RayCastTool.GetRaycastInput(position, ROAD_RAYCAST_LOWER, ROAD_RAYCAST_UPPER); // Configure raycast input parameters
+            input = MapUtils.RayCastTool.GetRaycastInput(position, ROAD_RAYCAST_LOWER, ROAD_RAYCAST_UPPER); // Configure raycast input parameters.
             input.m_netService.m_service = ItemClass.Service.Road;
-            input.m_netService.m_itemLayers = ItemClass.Layer.Default |// ItemClass.Layer.PublicTransport is sonly for TransportLine, not for Road.
+            input.m_netService.m_itemLayers = ItemClass.Layer.Default |// ItemClass.Layer.PublicTransport is only for TransportLine, not for Road.
                                               ItemClass.Layer.MetroTunnels;
             input.m_netService2.m_service = ItemClass.Service.Beautification; // For paths
 
