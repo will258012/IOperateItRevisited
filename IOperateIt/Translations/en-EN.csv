@@ -12,7 +12,7 @@ SETTINGS_OFFSET,Camera offset
 SETTINGS_KEYUUITOGGLE,Toggle main panel (requires UUI mod)
 SETTINGS_KEYLIGHTTOGGLE,Toggle head light
 SETTINGS_KEYSIRENTOGGLE,Toggle siren for special vehicles
-MAINPANELBTN_TOOLTIP,IOperateIt Revisited
+MAINPANELBTN_TOOLTIP,IOperateIt+
 DRIVEBTN_TOOLTIP,Start driving
 SPAWNBTN_TEXT,Spawn vehicle
 ROAD_SELECT,Select a road segment to start driving

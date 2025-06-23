@@ -20,11 +20,12 @@ namespace IOperateIt
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float WALL_HEIGHT = 0.75f;
         private const float UNDERGROUND_RENDER_BIAS = 1.0f;
-        private const float GRIP = 23.0f;
+        private const float GRIP = 25.0f;
         private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
         private const float LIGHT_BRAKELIGHT_INTENSITY = 1.0f;
         private const float SPRING_DAMP = 6.0f;
         private const float SPRING_OFFSET = -0.075f;
+        private const float SPRING_MAX_COMPRESS = 0.2f;
 
         private struct NetInfoBackup
         {
@@ -154,50 +155,59 @@ namespace IOperateIt
         {
             HandleInputOnFixedUpdate();
 
-            var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
+            Vector3 vehiclePos = m_vehicleRigidBody.transform.position;
+            float invert = Vector3.Dot(Vector3.forward, m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
 
-            if (relativeVel.z == 0f || m_throttle * relativeVel.z < 0f)
+            m_terrainHeight = CalculateHeight(vehiclePos);
+
+
+            if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight)
             {
-                m_isBraking = true;
-            }
-            else
-            {
-                m_isBraking = false;
-            }
+                var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity);
 
-            m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? ModSettings.BreakingForce * 1000f : ModSettings.EnginePower * 1000f / (m_speed + 1.0f)), ForceMode.Force);
+                if (relativeVel.z == 0f || m_throttle * relativeVel.z < 0f)
+                {
+                    m_isBraking = true;
+                }
+                else
+                {
+                    m_isBraking = false;
+                }
 
-            relativeVel.z = 0.0f;
-            relativeVel.y = 0.0f;
+                m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? ModSettings.BreakingForce * 1000f : ModSettings.EnginePower * 1000f / (m_speed + 1.0f)), ForceMode.Force);
 
-            relativeVel = Mathf.Min(Vector3.Magnitude(relativeVel) * 0.99f, GRIP * Time.fixedDeltaTime) * Vector3.Normalize(relativeVel);
+                relativeVel.z = 0.0f;
+                relativeVel.y = 0.0f;
 
-            m_vehicleRigidBody.AddRelativeForce(-relativeVel, ForceMode.VelocityChange);
+                relativeVel = Mathf.Min(Vector3.Magnitude(relativeVel) * 0.99f, GRIP * Time.fixedDeltaTime) * Vector3.Normalize(relativeVel);
 
-            var invert = Vector3.Dot(Vector3.forward, m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.velocity)) > 0.0f ? 1.0f : -1.0f;
-            var speedsteer = Mathf.Min(Mathf.Max(m_speed * 20f, 0f), 60f);
-            speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
+                m_vehicleRigidBody.AddRelativeForce(-relativeVel, ForceMode.VelocityChange);
 
-            var angularTarget = 0.99f * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.angularVelocity);
+                float speedsteer = Mathf.Min(Mathf.Max(m_speed * 20f, 0f), 60f);
+                speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
 
-            m_vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
+                Vector3 angularTarget = 0.99f * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - m_vehicleRigidBody.transform.InverseTransformDirection(m_vehicleRigidBody.angularVelocity);
 
-            m_collidersManager.UpdateColliders(m_vehicleRigidBody.transform);
-
-            m_terrainHeight = CalculateHeight(m_vehicleRigidBody.transform.position);
-
-            if (m_vehicleRigidBody.transform.position.y + SPRING_OFFSET < m_terrainHeight)
-            {
-                float startX = m_vehicleRigidBody.transform.position.y + SPRING_OFFSET - m_terrainHeight;
-                float startV = m_vehicleRigidBody.GetRelativePointVelocity(Vector3.zero).y;
-                float finalVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (startX + startV * Time.fixedDeltaTime) + startV * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime);
-                m_vehicleRigidBody.AddRelativeForce(Vector3.up * (finalVel - startV), ForceMode.VelocityChange);
+                m_vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
             }
 
-            if (m_vehicleRigidBody.transform.position.y + WALL_HEIGHT < m_terrainHeight)
+            if (vehiclePos.y + WALL_HEIGHT < m_terrainHeight)
             {
                 m_vehicleRigidBody.transform.position = m_prevPosition;
                 m_vehicleRigidBody.velocity = Vector3.zero;
+            }
+            else if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight)
+            {
+                if (vehiclePos.y + SPRING_MAX_COMPRESS < m_terrainHeight)
+                {
+                    vehiclePos = new Vector3(vehiclePos.x, m_terrainHeight - SPRING_MAX_COMPRESS, vehiclePos.z);
+                    m_vehicleRigidBody.transform.position = vehiclePos;
+                }
+
+                float startX = vehiclePos.y + SPRING_OFFSET - m_terrainHeight;
+                float startV = m_vehicleRigidBody.GetRelativePointVelocity(Vector3.zero).y;
+                float finalVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (startX + startV * Time.fixedDeltaTime) + startV * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime);
+                m_vehicleRigidBody.AddRelativeForce(Vector3.up * (finalVel - startV), ForceMode.VelocityChange);
             }
 
             CalculateSlope();
@@ -205,6 +215,8 @@ namespace IOperateIt
             LimitVelocity();
 
             UpdateCameraRendering();
+
+            m_collidersManager.UpdateColliders(m_vehicleRigidBody.transform);
 
             m_distanceTravelled += invert * Vector3.Magnitude(m_vehicleRigidBody.transform.position - m_prevPosition);
 
@@ -713,6 +725,7 @@ namespace IOperateIt
         {
             int iter = 0;
             float currClosestDist = Vector3.Magnitude(currClosest - m_vehicleRigidBody.transform.position);
+
             while (iter < 8) // Cities only supports 8 segments per node.
             {
                 ushort altSegmentId = node.GetSegment(iter);
@@ -721,16 +734,21 @@ namespace IOperateIt
                     ref NetSegment tmpSegment = ref Singleton<NetManager>.instance.m_segments.m_buffer[altSegmentId];
                     Vector3 roadPos;
                     float offset;
-                    if (GetClosestLanePositionFiltered(ref tmpSegment, m_vehicleRigidBody.transform.position, out roadPos, out offset, out _))
+                    int lane;
+                    if (GetClosestLanePositionFiltered(ref tmpSegment, m_vehicleRigidBody.transform.position, out roadPos, out offset, out lane))
                     {
+                        Vector3 horzOffset = m_vehicleRigidBody.transform.position - roadPos;
+                        horzOffset.y = 0;
+                        float tmpDist = Vector3.Magnitude(horzOffset);
                         if (offset != 0 && offset != 1)
                         {
-                            currClosest = roadPos;
-                            return;
+                            if (tmpDist < tmpSegment.Info.m_lanes[lane].m_width)
+                            {
+                                currClosest = roadPos;
+                                return;
+                            }
                         }
-
-                        float tmpDist = Vector3.Magnitude(roadPos - m_vehicleRigidBody.transform.position);
-                        if (tmpDist < currClosestDist)
+                        else if (tmpDist < currClosestDist)
                         {
                             currClosestDist = tmpDist;
                             currClosest = roadPos;
@@ -763,7 +781,9 @@ namespace IOperateIt
                     if ((offsetTmp != 0f && offsetTmp != 1f) || ((type & NetInfo.LaneType.Pedestrian) == 0))
                     {
                         float distTmp = Vector3.Magnitude(posTmp - posIn);
-                        if (distTmp < dist && distTmp < segmentIn.Info.m_lanes[index].m_width) // double width as buffer zone
+                        Vector3 dist2D = posTmp - posIn;
+                        dist2D.y = 0;
+                        if (distTmp < dist)
                         {
                             dist = distTmp;
                             posOut = posTmp;

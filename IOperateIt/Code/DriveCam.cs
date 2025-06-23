@@ -10,7 +10,7 @@ namespace IOperateIt
         public DriveCam()
         {
             IsActivated = true;
-            //UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.Locked;
+            UnityEngine.Cursor.lockState = UnityEngine.CursorLockMode.Locked;
             Logging.KeyMessage("Drive cam started");
         }
         public bool IsActivated { get; private set; }

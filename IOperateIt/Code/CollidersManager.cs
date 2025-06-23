@@ -1,5 +1,6 @@
 ﻿using AlgernonCommons;
 using ColossalFramework;
+using IOperateIt.Code.Utils;
 using IOperateIt.Settings;
 using System.Collections;
 using System.Collections.Generic;
@@ -152,7 +153,18 @@ namespace IOperateIt
                 UpdateParkedVehicleColliders(transform);
             }
 
-            m_updateId++;
+            //foreach (var v in m_VehicleColliders)
+            //{
+            //    if (v.isActiveAndEnabled) 
+            //        DebugHelper.drawDebugMarker(v.BoxCollider.size.y + 0.5f, v.transform.position, Color.magenta);
+            //}
+            //foreach (var v in m_ParkedVehicleColliders)
+            //{
+            //    if (v.isActiveAndEnabled)
+            //        DebugHelper.drawDebugMarker(v.BoxCollider.size.y + 0.5f, v.transform.position, Color.magenta);
+            //}
+
+                m_updateId++;
         }
         private void UpdateBuildingColliders(Transform transform)
         {
