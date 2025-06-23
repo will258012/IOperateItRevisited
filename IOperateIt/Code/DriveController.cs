@@ -18,11 +18,13 @@ namespace IOperateIt
         private const float STEER_MAX = 30.0f * Mathf.PI / 180.0f;
         private const float ROAD_RAYCAST_UPPER = 2.0f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
-        private const float WALL_HEIGHT = 0.5f;
+        private const float WALL_HEIGHT = 0.75f;
         private const float UNDERGROUND_RENDER_BIAS = 1.0f;
         private const float GRIP = 23.0f;
         private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
-        private const float LIGHT_BRAKELIGHT_INTENSITY = 0.5f;
+        private const float LIGHT_BRAKELIGHT_INTENSITY = 1.0f;
+        private const float SPRING_DAMP = 6.0f;
+        private const float SPRING_OFFSET = -0.075f;
 
         private struct NetInfoBackup
         {
@@ -36,21 +38,22 @@ namespace IOperateIt
             public NetInfo.Segment[]   segments;
         }
 
-        private class Wheel : MonoBehaviour
+        private class Wheel
         {
             //public TrailRenderer skidTrail;
+            public GameObject gameObject;
+            public float radius;
 
-            public Wheel(Vector3 origin)
+            public Wheel(Transform parent, Vector3 localpos, float radius)
             {
-                localPosition = origin;
+                gameObject = new GameObject();
+                gameObject.transform.SetParent(parent);
+                gameObject.transform.localPosition = localpos;
             }
-
-            public Vector3 localPosition;
         }
 
         public static DriveController instance { get; private set; }
 
-        private GameObject      m_meshRenderObject;
         private Rigidbody       m_vehicleRigidBody;
         private BoxCollider     m_vehicleCollider;
         private Color           m_vehicleColor;
@@ -87,13 +90,10 @@ namespace IOperateIt
         private void Awake()
         {
             instance = this;
-            m_meshRenderObject = new GameObject();
-            m_meshRenderObject.transform.SetParent(gameObject.transform);
 
-            m_meshRenderObject.AddComponent<MeshFilter>();
-            m_meshRenderObject.AddComponent<MeshRenderer>();
-            m_meshRenderObject.GetComponent<MeshRenderer>().enabled = true;
-
+            gameObject.AddComponent<MeshFilter>();
+            gameObject.AddComponent<MeshRenderer>();
+            gameObject.GetComponent<MeshRenderer>().enabled = true;
 
             m_vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             m_vehicleRigidBody.isKinematic = false;
@@ -148,7 +148,7 @@ namespace IOperateIt
             {
                 materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
             }
-            m_meshRenderObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+            gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
         }
         private void FixedUpdate()
         {
@@ -165,7 +165,7 @@ namespace IOperateIt
                 m_isBraking = false;
             }
 
-            m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? ModSettings.BreakingForce : ModSettings.AccelerationForce), ForceMode.Force);
+            m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? ModSettings.BreakingForce * 1000f : ModSettings.EnginePower * 1000f / (m_speed + 1.0f)), ForceMode.Force);
 
             relativeVel.z = 0.0f;
             relativeVel.y = 0.0f;
@@ -186,12 +186,12 @@ namespace IOperateIt
 
             m_terrainHeight = CalculateHeight(m_vehicleRigidBody.transform.position);
 
-            if (m_vehicleRigidBody.transform.position.y < m_terrainHeight)
+            if (m_vehicleRigidBody.transform.position.y + SPRING_OFFSET < m_terrainHeight)
             {
-                m_vehicleRigidBody.velocity = new Vector3(m_vehicleRigidBody.velocity.x, 0f, m_vehicleRigidBody.velocity.z);
-                m_vehicleRigidBody.transform.position = new Vector3(m_vehicleRigidBody.transform.position.x, 
-                                                                    0.5f * m_terrainHeight + 0.5f * m_vehicleRigidBody.transform.position.y, 
-                                                                    m_vehicleRigidBody.transform.position.z);
+                float startX = m_vehicleRigidBody.transform.position.y + SPRING_OFFSET - m_terrainHeight;
+                float startV = m_vehicleRigidBody.GetRelativePointVelocity(Vector3.zero).y;
+                float finalVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (startX + startV * Time.fixedDeltaTime) + startV * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime);
+                m_vehicleRigidBody.AddRelativeForce(Vector3.up * (finalVel - startV), ForceMode.VelocityChange);
             }
 
             if (m_vehicleRigidBody.transform.position.y + WALL_HEIGHT < m_terrainHeight)
@@ -303,27 +303,33 @@ namespace IOperateIt
 
             m_rideHeight = m_vehicleInfo.m_generatedInfo.m_tyres[0].y;
 
+            foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
+            {
+                m_wheelObjects.Add(new Wheel(gameObject.transform, tirepos, m_rideHeight));
+            }
+
             Mesh vehicleMesh = m_vehicleInfo.m_mesh;
             Vector3 adjustedBounds = vehicleMesh.bounds.size;
             adjustedBounds.y -= m_rideHeight;
 
             m_vehicleRigidBody.transform.position = position;
             m_vehicleRigidBody.transform.rotation = rotation;
+            m_vehicleRigidBody.centerOfMass = new Vector3(0.0f, m_rideHeight, 0.0f);
             m_vehicleRigidBody.velocity = Vector3.zero;
 
             m_vehicleCollider.size = adjustedBounds;
+            m_vehicleCollider.center = new Vector3(0.0f, m_vehicleCollider.center.y + m_rideHeight, 0.0f);
 
-            m_meshRenderObject.transform.localPosition = new Vector3(0.0f, -m_rideHeight, 0.0f);
-            m_meshRenderObject.GetComponent<MeshFilter>().mesh = m_meshRenderObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
-            m_meshRenderObject.GetComponent<MeshRenderer>().material = m_meshRenderObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
-            m_meshRenderObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
+            gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
+            gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
+            gameObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
 
             if (m_setColor)
             {
                 MaterialPropertyBlock materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
                 materialBlock.Clear();
                 materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
-                m_meshRenderObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+                gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
             }
 
             gameObject.SetActive(true);
@@ -683,7 +689,7 @@ namespace IOperateIt
                     float offset = 0f;
                     ref NetSegment segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[output.m_netSegment];
 
-                    if (GetClosestLanePositionFiltered(ref segment, m_vehicleRigidBody.transform.position, out roadPos, out offset))
+                    if (GetClosestLanePositionFiltered(ref segment, m_vehicleRigidBody.transform.position, out roadPos, out offset, out _))
                     {
                         height = roadPos.y;
 
@@ -715,7 +721,7 @@ namespace IOperateIt
                     ref NetSegment tmpSegment = ref Singleton<NetManager>.instance.m_segments.m_buffer[altSegmentId];
                     Vector3 roadPos;
                     float offset;
-                    if (GetClosestLanePositionFiltered(ref tmpSegment, m_vehicleRigidBody.transform.position, out roadPos, out offset))
+                    if (GetClosestLanePositionFiltered(ref tmpSegment, m_vehicleRigidBody.transform.position, out roadPos, out offset, out _))
                     {
                         if (offset != 0 && offset != 1)
                         {
@@ -735,12 +741,13 @@ namespace IOperateIt
             }
         }
 
-        private bool GetClosestLanePositionFiltered(ref NetSegment segmentIn, Vector3 posIn, out Vector3 posOut, out float offsetOut)
+        private bool GetClosestLanePositionFiltered(ref NetSegment segmentIn, Vector3 posIn, out Vector3 posOut, out float offsetOut, out int laneIndex)
         {
             uint lane = segmentIn.m_lanes;
             float dist = 10000.0f;
             bool found = false;
             int index = 0;
+            laneIndex = -1;
             NetInfo.LaneType type;
 
             posOut = Vector3.zero;
@@ -756,11 +763,12 @@ namespace IOperateIt
                     if ((offsetTmp != 0f && offsetTmp != 1f) || ((type & NetInfo.LaneType.Pedestrian) == 0))
                     {
                         float distTmp = Vector3.Magnitude(posTmp - posIn);
-                        if (distTmp < dist)
+                        if (distTmp < dist && distTmp < segmentIn.Info.m_lanes[index].m_width) // double width as buffer zone
                         {
                             dist = distTmp;
                             posOut = posTmp;
                             offsetOut = offsetTmp;
+                            laneIndex = index;
                             found = true;
                         }
                     }

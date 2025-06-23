@@ -54,11 +54,11 @@ namespace IOperateIt
             maxVelocity_Slider.eventValueChanged += (_, value) => ModSettings.MaxVelocity = value;
             currentY += maxVelocity_Slider.height + SliderMargin;
 
-            var accelerationForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, LeftMargin, currentY, Translations.Translate("SETTINGS_ACCELERATIONFORCE"), 5000f, 25000f, 1f, ModSettings.AccelerationForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 100, numberFormat: "N0", suffix: "N"));
-            accelerationForce_Slider.eventValueChanged += (_, value) => ModSettings.AccelerationForce = value;
-            currentY += accelerationForce_Slider.height + SliderMargin;
+            var enginePower_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, LeftMargin, currentY, Translations.Translate("SETTINGS_ENGINEPOWER"), 50f, 750f, 1f, ModSettings.EnginePower, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 10, numberFormat: "N0", suffix: "KW"));
+            enginePower_Slider.eventValueChanged += (_, value) => ModSettings.EnginePower = value;
+            currentY += enginePower_Slider.height + SliderMargin;
 
-            var breakingForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, LeftMargin, currentY, Translations.Translate("SETTINGS_BREAKINGFORCE"), 5000f, 25000f, 1f, ModSettings.BreakingForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 100, numberFormat: "N0", suffix: "N"));
+            var breakingForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, LeftMargin, currentY, Translations.Translate("SETTINGS_BREAKINGFORCE"), 5f, 40f, 1f, ModSettings.BreakingForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: "KN"));
             breakingForce_Slider.eventValueChanged += (_, value) => ModSettings.BreakingForce = value;
             currentY += breakingForce_Slider.height + SliderMargin;
 

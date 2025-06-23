@@ -22,15 +22,15 @@ namespace IOperateIt.Settings
         [XmlIgnore]
         internal static float MaxVelocity = 125f;
 
-        [XmlElement("AccelerationForce")]
-        public float XMLAccelerationForce { get => AccelerationForce; set => AccelerationForce = value; }
+        [XmlElement("EnginePower")]
+        public float XMLEnginePower { get => EnginePower; set => EnginePower = value; }
         [XmlIgnore]
-        internal static float AccelerationForce = 10000f;
+        internal static float EnginePower = 150f;
 
         [XmlElement("BreakingForce")]
         public float XMLBreakingForce { get => BreakingForce; set => BreakingForce = value; }
         [XmlIgnore]
-        internal static float BreakingForce = 15000f;
+        internal static float BreakingForce = 15f;
 
         [XmlElement("Offset")]
         public Vector3 XMLOffset { get => Offset; set => Offset = value; }
