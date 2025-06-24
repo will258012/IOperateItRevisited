@@ -6,10 +6,10 @@ using UnityEngine;
 
 namespace IOperateIt
 {
-    public class IOperateItLoading : PatcherLoadingBase<OptionsPanel, PatcherBase>
+    public class IOperateItLoading : PatcherLoadingBase<SettingsPanel, PatcherBase>
     {
         protected override List<AppMode> PermittedModes => new List<AppMode> { AppMode.Game, AppMode.MapEditor };
-        protected override bool CreatedChecksPassed() => FPSCameraAPI.Helper.IsFPSCameraInstalledAndEnabled;
+        protected override bool CreatedChecksPassed() { return true; }
         public override void OnLevelUnloading()
         {
             if (gameObject != null)
@@ -26,6 +26,7 @@ namespace IOperateIt
             gameObject.AddComponent<MainPanel>();
             gameObject.AddComponent<DriveButtons>();
             gameObject.AddComponent<DriveController>();
+            gameObject.AddComponent<DriveCam>();
         }
         private GameObject gameObject = null;
     }

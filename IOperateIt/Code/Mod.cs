@@ -7,7 +7,7 @@ using IOperateIt.Settings;
 
 namespace IOperateIt
 {
-    public sealed class IOperateItMod : PatcherMod<OptionsPanel, PatcherBase>, IUserMod
+    public sealed class IOperateItMod : PatcherMod<SettingsPanel, PatcherBase>, IUserMod
     {
         public override string BaseName => "IOperateIt+";
         public override string HarmonyID => "bradleyq.IOperateIt";
@@ -22,7 +22,7 @@ namespace IOperateIt
                 MessagesAreKeys = true,
                 Messages = new string[]
                 {
-                   "WHATSNEW_L1",
+                    "WHATSNEW_L1",
                     "WHATSNEW_L2",
                     "WHATSNEW_L3"
                 }
@@ -31,7 +31,6 @@ namespace IOperateIt
         public override void OnEnabled()
         {
             base.OnEnabled();
-            FPSCameraAPI.Helper.CheckFPSCamera();
         }
     }
 }

@@ -87,7 +87,7 @@ namespace IOperateIt.Utils
         }
         internal class UnsavedInputKey : UnifiedUI.Helpers.UnsavedInputKey
         {
-            public UnsavedInputKey(string keyName, Keybinding inputKey) : base(keyName, "FPSCamera", inputKey.Encode()) { }
+            public UnsavedInputKey(string keyName, Keybinding inputKey) : base(keyName, "IOperateIt", inputKey.Encode()) { }
             /// <summary>
             /// Used for setting saving.
             /// </summary>

@@ -9,16 +9,13 @@
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\FPSCamera-Continued\FPSCamera.API\FPSCamera.API.csproj" />
-    <ProjectReference Include="..\..\FPSCamera-Continued\FPSCamera\FPSCamera.csproj">
-      <Aliases>FPSCamera</Aliases>
-      <Private>False</Private>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <None Update="Translations\*.csv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Content Include="..\thirdparty\AlgernonCommons\Translations\*.csv">
+      <Link>\Translations\Core\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Resources\IOperateItIcon.png">
@@ -26,21 +23,28 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="CitiesHarmony.API" Version="2.2.0" />
+  </ItemGroup>
+  <ItemGroup>
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\Cities_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="ColossalManaged">
       <HintPath>..\..\Cities_Data\Managed\ColossalManaged.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="ICities">
       <HintPath>..\..\Cities_Data\Managed\ICities.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnifiedUILib">
       <HintPath>..\..\..\..\workshop\content\255710\2966990700\UnifiedUILib.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>..\..\Cities_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
-  <Import Project="..\..\FPSCamera-Continued\AlgernonCommons\AlgernonCommonsPatchingShared.projitems" Label="Shared" />
+  <Import Project="..\thirdparty\AlgernonCommons\AlgernonCommonsPatchingShared.projitems" Label="Shared" />
 </Project> 

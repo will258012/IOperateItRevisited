@@ -2,12 +2,11 @@
 // Copyright (c) algernon (K. Algernon A. Sheppard). All rights reserved.
 // Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.
 // </copyright>
+using ColossalFramework.UI;
+using UnityEngine;
 
 namespace IOperateIt.UI
 {
-    using ColossalFramework.UI;
-    using UnityEngine;
-
     /// <summary>
     /// Panel that contains the building preview image.
     /// </summary>

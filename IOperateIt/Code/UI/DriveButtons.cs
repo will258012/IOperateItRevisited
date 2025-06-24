@@ -1,8 +1,6 @@
-﻿extern alias FPSCamera;
-using AlgernonCommons.Translation;
+﻿using AlgernonCommons.Translation;
 using ColossalFramework;
 using ColossalFramework.UI;
-using FPSCamera.FPSCamera.Cam.Controller;
 using UnityEngine;
 
 namespace IOperateIt.UI
@@ -15,8 +13,6 @@ namespace IOperateIt.UI
             citizenVehicleInfo_Button = Initialize(ref citizenVehicleInfo_Panel);
             cityServiceVehicleInfo_Button = Initialize(ref cityServiceVehicleInfo_Panel);
             publicTransportVehicleInfo_Button = Initialize(ref publicTransportVehicleInfo_Panel);
-            FPSCamController.OnCameraEnabled += SetDisable;
-            FPSCamController.OnCameraDisabled += SetEnable;
         }
 
         private void Update()
@@ -31,11 +27,9 @@ namespace IOperateIt.UI
             Destroy(citizenVehicleInfo_Button);
             Destroy(cityServiceVehicleInfo_Button);
             Destroy(publicTransportVehicleInfo_Button);
-            FPSCamController.OnCameraEnabled -= SetDisable;
-            FPSCamController.OnCameraDisabled -= SetEnable;
         }
 
-        private void SetEnable() => enabled = true;
+        private void SetEnable() => enabled = true; // TODO: figure out when to enable and disable
 
         private void SetDisable() => enabled = false;
 

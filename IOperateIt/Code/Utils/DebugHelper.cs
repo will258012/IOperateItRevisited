@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
-namespace IOperateIt.Code.Utils
+namespace IOperateIt.Utils
 {
     internal class DebugHelper
     {

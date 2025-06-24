@@ -1,11 +1,7 @@
-﻿extern alias FPSCamera;
-
-using AlgernonCommons;
-using AlgernonCommons.Translation;
+﻿using AlgernonCommons.Translation;
 using AlgernonCommons.UI;
 using AlgernonCommons.Utils;
 using ColossalFramework.UI;
-using FPSCamera.FPSCamera.Utils;
 using IOperateIt.Settings;
 using IOperateIt.Tools;
 using IOperateIt.Utils;
