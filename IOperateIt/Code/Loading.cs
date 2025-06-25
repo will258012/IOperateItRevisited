@@ -1,6 +1,7 @@
 ﻿using AlgernonCommons.Patching;
 using ICities;
 using IOperateIt.UI;
+using IOperateIt.Utils;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -19,6 +20,7 @@ namespace IOperateIt
             }
             base.OnLevelUnloading();
         }
+
         protected override void LoadedActions(LoadMode mode)
         {
             base.LoadedActions(mode);
@@ -28,6 +30,13 @@ namespace IOperateIt
             gameObject.AddComponent<DriveController>();
             gameObject.AddComponent<DriveCam>();
         }
+
+        public override void OnCreated(ILoading loading)
+        {
+            base.OnCreated(loading);
+            ModSupport.Initialize();
+        }
+
         private GameObject gameObject = null;
     }
 }

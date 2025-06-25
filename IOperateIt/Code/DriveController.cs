@@ -1,5 +1,6 @@
 ﻿using AlgernonCommons;
 using ColossalFramework;
+using IOperateIt.UI;
 using System.Collections.Generic;
 using UnityEngine;
 using static PathUnit;
@@ -171,7 +172,7 @@ namespace IOperateIt
                     m_isBraking = false;
                 }
 
-                m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * 1000f : Settings.ModSettings.EnginePower * 1000f / (m_speed + 1.0f)), ForceMode.Force);
+                m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W / (m_speed + 1.0f)), ForceMode.Force);
 
                 relativeVel.z = 0.0f;
                 relativeVel.y = 0.0f;
@@ -294,12 +295,14 @@ namespace IOperateIt
             enabled = true;
             SpawnVehicle(position, rotation, vehicleInfo, vehicleColor, setColor);
             OverridePrefabs();
-            DriveCam.instance.EnableCam(m_vehicleRigidBody);
+            DriveCam.instance.EnableCam(m_vehicleRigidBody, 2.0f * m_vehicleCollider.size.z);
+            DriveButtons.instance.SetDisable();
         }
         public void StopDriving()
         {
             StartCoroutine(m_collidersManager.DisableColliders());
             DriveCam.instance.DisableCam();
+            DriveButtons.instance.SetEnable();
             RestorePrefabs();
             DestroyVehicle();
             enabled = false;

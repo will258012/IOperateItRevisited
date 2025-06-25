@@ -3,6 +3,7 @@ using ColossalFramework;
 using ColossalFramework.UI;
 using HarmonyLib;
 using ICities;
+using IOperateIt.Settings;
 using System.Reflection;
 using UnityEngine;
 
@@ -10,21 +11,29 @@ namespace IOperateIt
 {
     public class DriveCam : MonoBehaviour
     {
+        private const float ROTATE_KEY_SCALE = 100.0f;
+        private const float ROTATE_MOUSE_SCALE = 1.0f;
+        private const float ZOOM_KEY_SCALE = 10.0f;
+        private const float ZOOM_MOUSE_SCALE = 1.0f;
         private const float UNDERGROUND_RENDER_BIAS = 1.0f;
-        private const float NEAR_CLIP = 1.0f;
+        private const float LOOK_MAX_DIST = 100.0f;
+        private const float LOOK_RESET_TIME = 5.0f;
+        private const float NEAR_CLIP = 1.5f;
 
         public static DriveCam instance { get; private set; }
 
         private Rigidbody m_targetRigidBody;
-        private Vector3 m_targetDir;
         private Vector3 m_lastValidDir;
         private Quaternion m_rotation;
         private Quaternion m_rotationOffset;
-        private int m_renderMask;
-        private Rect m_cameraRect;
-        private float m_nearClip;
+        private float m_lastMovedTime;
+        private float m_followDistance;
 
         private Camera m_mainCamera;
+        private int m_cachedRenderMask;
+        private Rect m_cachedCameraRect;
+        private float m_cachedNearClip;
+        private float m_cachedFOV;
 
         private void Awake()
         {
@@ -33,7 +42,7 @@ namespace IOperateIt
             Logging.Message("Setting up the Camera");
         }
 
-        public void EnableCam(Rigidbody rigidBody)
+        public void EnableCam(Rigidbody rigidBody, float distance)
         {
             enabled = true;
             ConfigureCamera();
@@ -42,8 +51,8 @@ namespace IOperateIt
             Cursor.visible = false;
 
             m_targetRigidBody = rigidBody;
-            m_targetDir = m_mainCamera.transform.InverseTransformDirection(Vector3.forward);
-            m_lastValidDir = m_targetDir;
+            m_followDistance = Mathf.Clamp(distance, 0.0f, LOOK_MAX_DIST);
+            m_lastValidDir = m_mainCamera.transform.TransformDirection(Vector3.forward);
             m_rotation = m_mainCamera.transform.rotation;
             m_rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam enabled");
@@ -57,7 +66,6 @@ namespace IOperateIt
             Cursor.visible = true;
             
             m_targetRigidBody = null;
-            m_targetDir = Vector3.zero;
             m_lastValidDir = Vector3.zero;
             m_rotation = Quaternion.identity;
             m_rotationOffset = Quaternion.identity;
@@ -82,20 +90,24 @@ namespace IOperateIt
 
             m_mainCamera = Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera;
 
-            m_renderMask = m_mainCamera.cullingMask;
+            m_cachedRenderMask = m_mainCamera.cullingMask;
 
-            m_nearClip = m_mainCamera.nearClipPlane;
+            m_cachedFOV = m_mainCamera.fieldOfView;
+            m_mainCamera.fieldOfView = ModSettings.CamFieldOfView;
+
+            m_cachedNearClip = m_mainCamera.nearClipPlane;
             m_mainCamera.nearClipPlane = NEAR_CLIP;
 
-            m_cameraRect = Camera.main.rect;
+            m_cachedCameraRect = Camera.main.rect;
             Camera.main.rect = CameraController.kFullScreenRect;
         }
 
         private void RestoreCamera()
         {
-            Camera.main.rect = m_cameraRect;
-            m_mainCamera.nearClipPlane = m_nearClip;
-            m_mainCamera.cullingMask = m_renderMask;
+            Camera.main.rect = m_cachedCameraRect;
+            m_mainCamera.nearClipPlane = m_cachedNearClip;
+            m_mainCamera.fieldOfView = m_cachedFOV;
+            m_mainCamera.cullingMask = m_cachedRenderMask;
             SetUIVisibility(true);
             ToolsModifierControl.cameraController.enabled = true;
         }
@@ -110,39 +122,42 @@ namespace IOperateIt
         }
         public void UpdateCameraPos()
         {
-            Transform cameraTransform = m_mainCamera.transform;
+            Vector3 vehiclePosition = m_targetRigidBody.transform.TransformPoint(Settings.ModSettings.Offset);
 
-            Vector3 vehiclePosition = m_targetRigidBody.transform.position;
-            Vector3 vehicleVelocity = m_targetRigidBody.velocity;
-
-            if (Vector3.Magnitude(vehicleVelocity) < 1.0)
+            if (Time.time > m_lastMovedTime + LOOK_RESET_TIME)
             {
-                m_targetDir = m_lastValidDir;
+                Vector3 vehicleVelocity = m_targetRigidBody.velocity;
+                Vector3 vehicleDir = Vector3.Normalize(vehicleVelocity);
+
+                m_rotation = m_mainCamera.transform.rotation;
+
+                if (Vector3.Magnitude(vehicleVelocity) < 1.0 || vehicleDir.y > 0.99f || vehicleDir.y < -0.99f)
+                {
+                    vehicleDir = m_lastValidDir;
+                }
+                m_lastValidDir = vehicleDir;
+
+                Quaternion targetRotation = Quaternion.identity;
+                targetRotation.SetLookRotation(vehicleDir);
+
+                var eulerTmp = m_rotationOffset.eulerAngles;
+                eulerTmp.y = 0f;
+                eulerTmp.z = 0f;
+
+                m_rotationOffset = Quaternion.Euler(eulerTmp);
+
+                targetRotation = targetRotation * m_rotationOffset;
+
+                m_rotation = Quaternion.Slerp(m_rotation, targetRotation, Time.deltaTime / Mathf.Max(Time.deltaTime, ModSettings.CamSmoothing));
             }
             else
             {
-                m_targetDir = Vector3.Normalize(vehicleVelocity);
-                if (m_targetDir.y > 0.999f || m_targetDir.y < -0.999f)
-                {
-                    m_targetDir = Vector3.Normalize(m_targetRigidBody.transform.InverseTransformDirection(Vector3.forward));
-                }
-                if (m_targetDir.y > 0.999f || m_targetDir.y < -0.999f)
-                {
-                    m_targetDir = m_lastValidDir;
-                }
-                m_lastValidDir = m_targetDir;
+                m_rotation = m_rotationOffset;
             }
-            Quaternion targetRotation = Quaternion.identity;
-            targetRotation.SetLookRotation(m_targetDir);
-            targetRotation *= m_rotationOffset;
 
             // Apply the calculated position and rotation to the camera. Limit the camera's position to the allowed area.
-            targetRotation = Quaternion.Slerp(cameraTransform.rotation, targetRotation, Time.deltaTime);
-
-            cameraTransform.position = CameraController.ClampCameraPosition(vehiclePosition + targetRotation * Settings.ModSettings.Offset);
-            cameraTransform.rotation = targetRotation;
-
-
+            m_mainCamera.transform.rotation = m_rotation;
+            m_mainCamera.transform.position = CameraController.ClampCameraPosition(vehiclePosition + m_rotation * new Vector3(0.0f, 0.0f, -m_followDistance));
         }
 
         private void UpdateCameraRendering()
@@ -162,31 +177,52 @@ namespace IOperateIt
         private void HandleInputOnUpdate()
         {
             if (Input.GetKeyDown((KeyCode)Settings.ModSettings.KeyCamCursorToggle.Key))
+            {
                 Cursor.visible = !Cursor.visible;
+            }
 
             if (Input.GetMouseButtonDown(2) || // middle click
                 Input.GetKeyDown((KeyCode)Settings.ModSettings.KeyCamReset.Key))
             {
                 m_rotationOffset = Quaternion.identity;
+                m_lastMovedTime = 0f;
             }
+
+            // mouse zoom
+            m_followDistance = m_followDistance - ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
+
+            // key zoom
+            if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamZoomIn.Key)) m_followDistance -= ZOOM_KEY_SCALE * Time.deltaTime;
+            if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamZoomOut.Key)) m_followDistance += ZOOM_KEY_SCALE * Time.deltaTime;
+
+            m_followDistance = Mathf.Clamp(m_followDistance, 0.0f, LOOK_MAX_DIST);
+
             float yawDegree = 0f, pitchDegree = 0f;
-            { // key rotation
-                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateRight.Key)) yawDegree += Settings.ModSettings.CamKeyRotateSensitivity * Time.deltaTime;
-                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateLeft.Key)) yawDegree -= Settings.ModSettings.CamKeyRotateSensitivity * Time.deltaTime;
-                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateUp.Key)) pitchDegree -= Settings.ModSettings.CamKeyRotateSensitivity * Time.deltaTime;
-                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateDown.Key)) pitchDegree += Settings.ModSettings.CamKeyRotateSensitivity * Time.deltaTime;
+            {
+                // mouse rotation
+                yawDegree = Input.GetAxis("Mouse X") * ROTATE_MOUSE_SCALE * Settings.ModSettings.CamMouseRotateSensitivity;
+                pitchDegree = -Input.GetAxis("Mouse Y") * ROTATE_MOUSE_SCALE * Settings.ModSettings.CamMouseRotateSensitivity;
 
-                if (yawDegree == 0f && pitchDegree == 0f)
-                {
-                    // mouse rotation
-                    yawDegree = Input.GetAxis("Mouse X") * Settings.ModSettings.CamMouseRotateSensitivity;
-                    pitchDegree = Input.GetAxis("Mouse Y") * Mathf.Sign(Settings.ModSettings.Offset.z) * Settings.ModSettings.CamMouseRotateSensitivity;
-                }
+                // key rotation
+                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateRight.Key)) yawDegree += Settings.ModSettings.CamKeyRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
+                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateLeft.Key)) yawDegree -= Settings.ModSettings.CamKeyRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
+                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateUp.Key)) pitchDegree -= Settings.ModSettings.CamKeyRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
+                if (Input.GetKey((KeyCode)Settings.ModSettings.KeyCamRotateDown.Key)) pitchDegree += Settings.ModSettings.CamKeyRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
             }
 
-            var yawRotation = Quaternion.Euler(0f, yawDegree, 0f);
-            var pitchRotation = Quaternion.Euler(pitchDegree, 0f, 0f);
-            m_rotationOffset = yawRotation * m_rotationOffset * pitchRotation;
+            if (yawDegree != 0f || pitchDegree != 0f)
+            {
+                if (Time.time > m_lastMovedTime + LOOK_RESET_TIME)
+                {
+                    m_rotationOffset = m_rotation;
+                }
+
+                m_lastMovedTime = Time.time;
+
+                var yawRotation = Quaternion.Euler(0f, yawDegree, 0f);
+                var pitchRotation = Quaternion.Euler(pitchDegree, 0f, 0f);
+                m_rotationOffset = yawRotation * m_rotationOffset * pitchRotation;
+            }
 
             // Limit pitch
             var eulerAngles = m_rotationOffset.eulerAngles;

@@ -35,7 +35,32 @@ namespace IOperateIt.Settings
         [XmlElement("Offset")]
         public Vector3 XMLOffset { get => Offset; set => Offset = value; }
         [XmlIgnore]
-        internal static Vector3 Offset = new Vector3(0f, 2f, 2f);
+        internal static Vector3 Offset = new Vector3(0f, 2f, 0f);
+
+        [XmlElement("CamMouseRotateSensitivity")]
+        public float XMLCamMouseRotateSensitivity { get => CamMouseRotateSensitivity; set => CamMouseRotateSensitivity = value; }
+        [XmlIgnore]
+        internal static float CamMouseRotateSensitivity = 1f;
+
+        [XmlElement("CamKeyRotateSensitivity")]
+        public float XMLCamKeyRotateSensitivity { get => CamKeyRotateSensitivity; set => CamKeyRotateSensitivity = value; }
+        [XmlIgnore]
+        internal static float CamKeyRotateSensitivity = 1f;
+
+        [XmlElement("CamFieldOfView")]
+        public float XMLCamFieldOfView { get => CamFieldOfView; set => CamFieldOfView = value; }
+        [XmlIgnore]
+        internal static float CamFieldOfView = 45f;
+
+        [XmlElement("CamMaxPitchDeg")]
+        public float XMLCamMaxPitchDeg { get => CamMaxPitchDeg; set => CamMaxPitchDeg = value; }
+        [XmlIgnore]
+        internal static float CamMaxPitchDeg = 70f;
+
+        [XmlElement("CamSmoothing")]
+        public float XMLCamSmoothing { get => CamSmoothing; set => CamSmoothing = value; }
+        [XmlIgnore]
+        internal static float CamSmoothing = 1f;
 
         [XmlElement("BuildingCollision")]
         public bool XMLBuildingCollision { get => BuildingCollision; set => BuildingCollision = value; }
@@ -47,28 +72,18 @@ namespace IOperateIt.Settings
         [XmlIgnore]
         internal static bool VehicleCollision = true;
 
-        [XmlElement("CamMouseRotateSensitivity")]
-        public float XMLCamMouseRotateSensitivity { get => CamMouseRotateSensitivity; set => CamMouseRotateSensitivity = value; }
-        [XmlIgnore]
-        internal static float CamMouseRotateSensitivity = 1f;
-
-        [XmlElement("CamKeyRotateSensitivity")]
-        public float XMLCamKeyRotateSensitivity { get => CamKeyRotateSensitivity; set => CamKeyRotateSensitivity = value; }
-        [XmlIgnore]
-        internal static float CamKeyRotateSensitivity = 10f;
-
-        [XmlElement("CamMaxPitchDeg")]
-        public float XMLCamMaxPitchDeg { get => CamMaxPitchDeg; set => CamMaxPitchDeg = value; }
-        [XmlIgnore]
-        internal static float CamMaxPitchDeg = 70f;
-
-        [XmlElement("CamFieldOfView")]
-        public float XMLCamFieldOfView { get => CamFieldOfView; set => CamFieldOfView = value; }
-        [XmlIgnore]
-        internal static float CamFieldOfView = 70f;
-
         [XmlElement("KeyUUIToggle")]
         public Keybinding XMLKeyUUIToggle { get => Utils.UUISupport.UUIKey.Keybinding; set => Utils.UUISupport.UUIKey.Keybinding = value; }
+
+        [XmlElement("KeyLightToggle")]
+        public KeyOnlyBinding XMLKeyLightToggle { get => KeyLightToggle; set => KeyLightToggle = value; }
+        [XmlIgnore]
+        internal static KeyOnlyBinding KeyLightToggle = new KeyOnlyBinding(KeyCode.H);
+
+        [XmlElement("KeySirenToggle")]
+        public KeyOnlyBinding XMLKeySirenToggle { get => KeySirenToggle; set => KeySirenToggle = value; }
+        [XmlIgnore]
+        internal static KeyOnlyBinding KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
 
         [XmlElement("KeyMoveForward")]
         public KeyOnlyBinding XMLKeyMoveForward { get => KeyMoveForward; set => KeyMoveForward = value; }
@@ -90,10 +105,25 @@ namespace IOperateIt.Settings
         [XmlIgnore]
         internal static KeyOnlyBinding KeyMoveRight = new KeyOnlyBinding(KeyCode.D);
 
+        [XmlElement("KeyCamCursorToggle")]
+        public KeyOnlyBinding XMLKeyCamCursorToggle { get => KeyCamCursorToggle; set => KeyCamCursorToggle = value; }
+        [XmlIgnore]
+        internal static KeyOnlyBinding KeyCamCursorToggle = new KeyOnlyBinding(KeyCode.Tab);
+
         [XmlElement("KeyCamReset")]
         public KeyOnlyBinding XMLKeyCamReset { get => KeyCamReset; set => KeyCamReset = value; }
         [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamReset = new KeyOnlyBinding(KeyCode.Minus);
+        internal static KeyOnlyBinding KeyCamReset = new KeyOnlyBinding(KeyCode.Backslash);
+
+        [XmlElement("KeyCamZoomIn")]
+        public KeyOnlyBinding XMLKeyCamZoomIn { get => KeyCamZoomIn; set => KeyCamZoomIn = value; }
+        [XmlIgnore]
+        internal static KeyOnlyBinding KeyCamZoomIn = new KeyOnlyBinding(KeyCode.Equals);
+
+        [XmlElement("KeyCamZoomOut")]
+        public KeyOnlyBinding XMLKeyCamZoomOut { get => KeyCamZoomOut; set => KeyCamZoomOut = value; }
+        [XmlIgnore]
+        internal static KeyOnlyBinding KeyCamZoomOut = new KeyOnlyBinding(KeyCode.Minus);
 
         [XmlElement("KeyCamRotateLeft")]
         public KeyOnlyBinding XMLKeyCamRotateLeft { get => KeyCamRotateLeft; set => KeyCamRotateLeft = value; }
@@ -114,21 +144,6 @@ namespace IOperateIt.Settings
         public KeyOnlyBinding XMLKeyCamRotateDown { get => KeyCamRotateDown; set => KeyCamRotateDown = value; }
         [XmlIgnore]
         internal static KeyOnlyBinding KeyCamRotateDown = new KeyOnlyBinding(KeyCode.DownArrow);
-
-        [XmlElement("KeyCamCursorToggle")]
-        public KeyOnlyBinding XMLKeyCamCursorToggle { get => KeyCamCursorToggle; set => KeyCamCursorToggle = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamCursorToggle = new KeyOnlyBinding(KeyCode.Tab);
-
-        [XmlElement("KeyLightToggle")]
-        public KeyOnlyBinding XMLKeyLightToggle { get => KeyLightToggle; set => KeyLightToggle = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyLightToggle = new KeyOnlyBinding(KeyCode.H);
-
-        [XmlElement("KeySirenToggle")]
-        public KeyOnlyBinding XMLKeySirenToggle { get => KeySirenToggle; set => KeySirenToggle = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
 
         [XmlElement("MainButtonPos")]
         public Vector2 XMLMainButtonPos { get => MainButtonPos; set => MainButtonPos = value; }

@@ -26,6 +26,6 @@ namespace IOperateIt.Patches
         static bool Prefix6() => Patch();
         static bool Patch() =>
             // cancel calling <Escape> if IOperateIt consumes it
-            !DriveController.instance.OnEsc() && !MainPanel.Instance.OnEsc();
+            !DriveController.instance.OnEsc() && !MainPanel.instance.OnEsc();
     }
 }

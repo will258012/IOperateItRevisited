@@ -5,6 +5,7 @@ using ColossalFramework.UI;
 using IOperateIt.Settings;
 using IOperateIt.Tools;
 using IOperateIt.Utils;
+using System.Reflection;
 using UnifiedUI.GUI;
 using UnityEngine;
 
@@ -13,7 +14,7 @@ namespace IOperateIt.UI
     public class MainPanel : MonoBehaviour
     {
 
-        public static MainPanel Instance { get; private set; }
+        public static MainPanel instance { get; private set; }
         public UIPanel Panel { get; set; }
         public UIButton GetMainButton() => _mainBtn ?? UUISupport.UUIButton as UIButton;
 
@@ -28,7 +29,7 @@ namespace IOperateIt.UI
 
         private void Awake()
         {
-            Instance = this;
+            instance = this;
             #region Main Panel
             Panel = UIView.GetAView().AddUIComponent(typeof(UIPanel)) as UIPanel;
             Panel.autoLayout = false;
@@ -39,7 +40,7 @@ namespace IOperateIt.UI
             Panel.width = 800f;
 
             var currentY = Margin;
-            _vehicleList = UIList.AddUIList<MainPanelRow>(Panel, Margin, currentY, 400f, 300f, VehicleRowHeight);
+            _vehicleList = UIList.AddUIList<MainPanelRow>(Panel, Margin, currentY, 400f, 320f, VehicleRowHeight);
             var vehicleInfos = new FastList<object>();
 
             for (uint i = 0; i < PrefabCollection<VehicleInfo>.PrefabCount(); i++)
@@ -56,24 +57,15 @@ namespace IOperateIt.UI
             {
                 if (Panel.isVisible && obj is uint index)
                 {
-                    VehicleInfo selectedVehicle = PrefabCollection<VehicleInfo>.GetPrefab(index);
-                    if (selectedVehicle != null)
-                    {
-                        if (selectedVehicle.name == "Forest Forwarder 01") // The Forest Forwarder has blinking alpha set for some reason
-                        {
-                            Color adjustedColor = selectedVehicle.m_color0;
-                            adjustedColor.a = 0;
-                            _previewPanel.SetTarget(selectedVehicle, adjustedColor, true);
-                            DriveController.instance.updateColor(adjustedColor, true);
-                        }
-                        else
-                        {
-                            _previewPanel.SetTarget(selectedVehicle);
-                            DriveController.instance.updateColor(default, false);
-                        }
-                        DriveController.instance.updateVehicleInfo(selectedVehicle);
-                        _spawnBtn.isEnabled = true;
-                    }
+                    UpdateListEvent(index);
+                }
+            };
+
+            Panel.eventVisibilityChanged += (component, vis) =>
+            {
+                if ((bool)vis == true && _vehicleList.SelectedIndex >= 0)
+                {
+                    UpdateListEvent((uint)_vehicleList.SelectedItem);
                 }
             };
 
@@ -85,7 +77,7 @@ namespace IOperateIt.UI
             _spawnBtn = UIButtons.AddButton(Panel, (_vehicleList.width - 200f) / 2f, currentY, Translations.Translate("SPAWNBTN_TEXT"), 200f, 40f);
             _spawnBtn.isEnabled = false;
             _spawnBtn.playAudioEvents = true;
-            _spawnBtn.eventClick += SpawnBtn_eventClick;
+            _spawnBtn.eventClick += SpawnBtnClickEvent;
             Panel.height = currentY + _spawnBtn.height + Margin;
             Panel.Hide();
 
@@ -145,7 +137,7 @@ namespace IOperateIt.UI
 
         private void OnDestory()
         {
-            _spawnBtn.eventClick -= SpawnBtn_eventClick;
+            _spawnBtn.eventClick -= SpawnBtnClickEvent;
             Destroy(Panel);
             Destroy(GetMainButton());
             Destroy(_roadSelectTool);
@@ -163,7 +155,29 @@ namespace IOperateIt.UI
             }
             return false;
         }
-        private void SpawnBtn_eventClick(UIComponent component, UIMouseEventParameter eventParam)
+
+        private void UpdateListEvent(uint index)
+        {
+            VehicleInfo selectedVehicle = PrefabCollection<VehicleInfo>.GetPrefab(index);
+            if (selectedVehicle != null)
+            {
+                if (selectedVehicle.name == "Forest Forwarder 01") // The Forest Forwarder has blinking alpha set for some reason
+                {
+                    Color adjustedColor = selectedVehicle.m_color0;
+                    adjustedColor.a = 0;
+                    _previewPanel.SetTarget(selectedVehicle, adjustedColor, true);
+                    DriveController.instance.updateColor(adjustedColor, true);
+                }
+                else
+                {
+                    _previewPanel.SetTarget(selectedVehicle);
+                    DriveController.instance.updateColor(default, false);
+                }
+                DriveController.instance.updateVehicleInfo(selectedVehicle);
+                _spawnBtn.isEnabled = true;
+            }
+        }
+        private void SpawnBtnClickEvent(UIComponent component, UIMouseEventParameter eventParam)
         {
             if (DriveController.instance.isVehicleInfoSet())
             {
