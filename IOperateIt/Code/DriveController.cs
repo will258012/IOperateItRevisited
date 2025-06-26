@@ -3,6 +3,7 @@ using ColossalFramework;
 using IOperateIt.UI;
 using System.Collections.Generic;
 using UnityEngine;
+using IOperateIt.Utils;
 using static PathUnit;
 
 namespace IOperateIt
@@ -146,6 +147,9 @@ namespace IOperateIt
                 materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
             }
             gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+
+            DebugHelper.DrawDebugBox(m_vehicleCollider.size, m_vehicleCollider.transform.TransformPoint(m_vehicleCollider.center), m_vehicleCollider.transform.rotation, Color.magenta);
+
         }
         private void FixedUpdate()
         {
@@ -321,12 +325,12 @@ namespace IOperateIt
 
             foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
             {
-                m_wheelObjects.Add(new Wheel(gameObject.transform, tirepos, m_rideHeight));
+                m_wheelObjects.Add(new Wheel(gameObject.transform, tirepos, tirepos.w));
             }
 
             Mesh vehicleMesh = m_vehicleInfo.m_mesh;
             Vector3 adjustedBounds = vehicleMesh.bounds.size;
-            adjustedBounds.y = Mathf.Max(adjustedBounds.y - m_rideHeight, 2.0f);
+            adjustedBounds.y = adjustedBounds.y - m_rideHeight;//Mathf.Max(, 2.0f);
 
             m_vehicleRigidBody.transform.position = position;
             m_vehicleRigidBody.transform.rotation = rotation;
@@ -334,7 +338,7 @@ namespace IOperateIt
             m_vehicleRigidBody.velocity = Vector3.zero;
 
             m_vehicleCollider.size = adjustedBounds;
-            m_vehicleCollider.center = new Vector3(0.0f, m_vehicleCollider.center.y + m_rideHeight, 0.0f);
+            m_vehicleCollider.center = new Vector3(0.0f, 0.5f * adjustedBounds.y + m_rideHeight, 0.0f);
 
             gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
             gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;

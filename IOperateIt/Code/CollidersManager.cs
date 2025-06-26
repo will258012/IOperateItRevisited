@@ -110,15 +110,27 @@ namespace IOperateIt
         {
             Vector3 vehiclePosition;
             Quaternion vehicleRotation;
+
             if (isParked)
             {
                 ref var parkedVehicle = ref Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[vehicleId];
-                vehicleRotation = parkedVehicle.m_rotation;
-                vehiclePosition = parkedVehicle.m_position;
-                m_ParkedVehicleColliders[colliderIndex].gameObject.SetActive(true);
-                m_ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_mesh.bounds.size;
-                m_ParkedVehicleColliders[colliderIndex].gameObject.transform.position = vehiclePosition;
-                m_ParkedVehicleColliders[colliderIndex].gameObject.transform.rotation = vehicleRotation;
+                if (((VehicleParked.Flags) parkedVehicle.m_flags & VehicleParked.Flags.Parking) == 0)
+                {
+                    vehicleRotation = parkedVehicle.m_rotation;
+                    vehiclePosition = parkedVehicle.m_position;
+                    m_ParkedVehicleColliders[colliderIndex].gameObject.SetActive(true);
+                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_mesh.bounds.size;
+                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * parkedVehicle.Info.m_mesh.bounds.size.y, 0.0f);
+                    m_ParkedVehicleColliders[colliderIndex].gameObject.transform.position = vehiclePosition;
+                    m_ParkedVehicleColliders[colliderIndex].gameObject.transform.rotation = vehicleRotation;
+
+                    BoxCollider bc = m_ParkedVehicleColliders[colliderIndex].BoxCollider;
+                    DebugHelper.DrawDebugBox(bc.size, bc.transform.TransformPoint(bc.center), bc.transform.rotation, Color.red);
+                }
+                else
+                {
+                    m_ParkedVehicleColliders[colliderIndex].gameObject.SetActive(false);
+                }
             }
             else
             {
@@ -139,9 +151,12 @@ namespace IOperateIt
 
                 m_VehicleColliders[colliderIndex].gameObject.SetActive(true);
                 m_VehicleColliders[colliderIndex].ID = vehicleId;
-                m_VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_lodMesh.bounds.size;
-            }
+                m_VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_mesh.bounds.size;
+                m_VehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * vehicle.Info.m_mesh.bounds.size.y, 0.0f);
 
+                BoxCollider bc = m_VehicleColliders[colliderIndex].BoxCollider;
+                DebugHelper.DrawDebugBox(bc.size, bc.transform.TransformPoint(bc.center), bc.transform.rotation, Color.green);
+            }
         }
         public void UpdateColliders(Transform transform)
         {

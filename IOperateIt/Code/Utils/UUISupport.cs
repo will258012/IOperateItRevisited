@@ -37,7 +37,7 @@ namespace IOperateIt.Utils
                     name: "MainPanelBtn",
                     groupName: null,
                     tooltip: Translations.Translate("MAINPANELBTN_TOOLTIP"),
-                    texture: UUIHelpers.LoadTexture(Path.Combine(AssemblyUtils.AssemblyPath, "Resources/IOperateItIcon.png")),
+                    texture: UUIHelpers.LoadTexture(Path.Combine(AssemblyUtils.AssemblyPath, "Resources/Textures/IOperateItIcon.png")),
                     onToggle: (value) =>
                     {
                         if (value)

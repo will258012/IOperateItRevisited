@@ -2,10 +2,8 @@
 using AlgernonCommons.UI;
 using AlgernonCommons.Utils;
 using ColossalFramework.UI;
-using IOperateIt.Settings;
-using IOperateIt.Tools;
 using IOperateIt.Utils;
-using System.Reflection;
+using IOperateIt.Settings;
 using UnifiedUI.GUI;
 using UnityEngine;
 

@@ -2,7 +2,7 @@
 using ColossalFramework;
 using UnityEngine;
 
-namespace IOperateIt.Tools
+namespace IOperateIt.Utils
 {
     public class RoadSelectTool : ToolBase
     {
