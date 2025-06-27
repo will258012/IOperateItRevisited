@@ -1,10 +1,7 @@
 ﻿using AlgernonCommons;
 using ColossalFramework;
 using ColossalFramework.UI;
-using HarmonyLib;
-using ICities;
 using IOperateIt.Settings;
-using System.Reflection;
 using UnityEngine;
 
 namespace IOperateIt
@@ -34,6 +31,7 @@ namespace IOperateIt
         private Rect m_cachedCameraRect;
         private float m_cachedNearClip;
         private float m_cachedFOV;
+        private CameraController.SavedCameraView m_savedView;
 
         private void Awake()
         {
@@ -88,6 +86,8 @@ namespace IOperateIt
             ToolsModifierControl.cameraController.enabled = false;
             SetUIVisibility(false);
 
+            m_savedView = new CameraController.SavedCameraView(ToolsModifierControl.cameraController);
+
             m_mainCamera = Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera;
 
             m_cachedRenderMask = m_mainCamera.cullingMask;
@@ -109,6 +109,27 @@ namespace IOperateIt
             m_mainCamera.fieldOfView = m_cachedFOV;
             m_mainCamera.cullingMask = m_cachedRenderMask;
             SetUIVisibility(true);
+
+            m_savedView.m_position = m_mainCamera.transform.position;
+            m_savedView.m_height = m_savedView.m_position.y + 5.0f;
+            m_savedView.m_size = ToolsModifierControl.cameraController.m_minDistance;
+            Vector2 convertedAngle = new Vector3(m_mainCamera.transform.rotation.eulerAngles.y, m_mainCamera.transform.rotation.eulerAngles.x);
+            convertedAngle.y = Mathf.Repeat(convertedAngle.y + 180f, 360f) - 180f;
+            if (convertedAngle.y < -90f)
+            {
+                convertedAngle.y = -convertedAngle.y - 180f;
+                convertedAngle.x += 180f;
+            }
+            else if (convertedAngle.y > 90f)
+            {
+                convertedAngle.y = -convertedAngle.y + 180f;
+                convertedAngle.x += 180f;
+            }
+            convertedAngle.y = Mathf.Clamp(convertedAngle.y, 0f, 90f);
+            convertedAngle.x = Mathf.Repeat(convertedAngle.x + 180f, 360f) - 180f;
+            m_savedView.m_angle = convertedAngle;
+
+            ToolsModifierControl.cameraController.Reset(Vector3.zero, (SimulationManager.UpdateMode)m_savedView.m_mode, m_savedView);
             ToolsModifierControl.cameraController.enabled = true;
         }
         private void Update()

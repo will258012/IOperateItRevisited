@@ -4,14 +4,13 @@ using IOperateIt.UI;
 using System.Collections.Generic;
 using UnityEngine;
 using IOperateIt.Utils;
-using static PathUnit;
 
 namespace IOperateIt
 {
     public class DriveController : MonoBehaviour
     {
         private const float THROTTLE_RESP = 0.5f;
-        private const float STEER_RESP = 0.25f;
+        private const float STEER_RESP = 0.4f;
         private const float STEER_MAX = 30.0f * Mathf.PI / 180.0f;
         private const float ROAD_RAYCAST_UPPER = 2.0f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
@@ -19,7 +18,8 @@ namespace IOperateIt
         private const float WALL_HEIGHT = 0.75f;
         private const float GRIP = 23.0f;
         private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
-        private const float LIGHT_BRAKELIGHT_INTENSITY = 1.0f;
+        private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
+        private const float LIGHT_REARLIGHT_INTENSITY = 0.5f;
         private const float SPRING_DAMP = 4.0f;
         private const float SPRING_OFFSET = -0.05f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
@@ -140,7 +140,7 @@ namespace IOperateIt
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
 
             m_lightState.x = m_isLightEnabled ? LIGHT_HEADLIGHT_INTENSITY : 0.0f;
-            m_lightState.y = m_isBraking ? LIGHT_BRAKELIGHT_INTENSITY : 0.0f;
+            m_lightState.y = m_isBraking ? LIGHT_BRAKELIGHT_INTENSITY : (m_isLightEnabled ? LIGHT_REARLIGHT_INTENSITY : 0.0f);
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_LightState, m_lightState);
             if (m_setColor)
             {

@@ -2,7 +2,6 @@
 using ColossalFramework;
 using System;
 using System.Collections.Generic;
-using System.Drawing.Drawing2D;
 using System.IO;
 using UnityEngine;
 
@@ -143,6 +142,8 @@ namespace IOperateIt.Utils
         
         public static void DrawDebugMarker(float size, Vector3 position, Color color = default)
         {
+            if (!Logging.DetailLogging) return;
+
             Initialize();
 
             Material debugMat = m_debugMaterial;
@@ -157,6 +158,8 @@ namespace IOperateIt.Utils
 
         public static void DrawDebugBox(Vector3 size, Vector3 center, Quaternion rotation, Color color = default)
         {
+            if (!Logging.DetailLogging) return;
+
             Initialize();
 
             Material debugMat;

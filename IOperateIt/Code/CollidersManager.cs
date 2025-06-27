@@ -25,7 +25,7 @@ namespace IOperateIt
     public class CollidersManager
     {
         private const int NUM_BUILDING_COLLIDERS = 36;
-        private const int NUM_VEHICLE_COLLIDERS = 32;
+        private const int NUM_VEHICLE_COLLIDERS = 48;
         private const int NUM_PARKED_VEHICLE_COLLIDERS = 32;
         private const float SCAN_DISTANCE = 50f;
         private const float COLLIDER_JUMP_DISTANCE = 10f;
@@ -156,6 +156,7 @@ namespace IOperateIt
 
                 BoxCollider bc = m_VehicleColliders[colliderIndex].BoxCollider;
                 DebugHelper.DrawDebugBox(bc.size, bc.transform.TransformPoint(bc.center), bc.transform.rotation, Color.green);
+                DebugHelper.DrawDebugMarker(5f, vehicle.GetLastFramePosition(), Color.green);
             }
         }
         public void UpdateColliders(Transform transform)
@@ -168,18 +169,7 @@ namespace IOperateIt
                 UpdateParkedVehicleColliders(transform);
             }
 
-            //foreach (var v in m_VehicleColliders)
-            //{
-            //    if (v.isActiveAndEnabled) 
-            //        DebugHelper.drawDebugMarker(v.BoxCollider.size.y + 0.5f, v.transform.position, Color.magenta);
-            //}
-            //foreach (var v in m_ParkedVehicleColliders)
-            //{
-            //    if (v.isActiveAndEnabled)
-            //        DebugHelper.drawDebugMarker(v.BoxCollider.size.y + 0.5f, v.transform.position, Color.magenta);
-            //}
-
-                m_updateId++;
+            m_updateId++;
         }
         private void UpdateBuildingColliders(Transform transform)
         {
@@ -228,13 +218,16 @@ namespace IOperateIt
         {
             int gridX = Mathf.Clamp((int)(transform.position.x / 32f + 270f), 0, 539);
             int gridZ = Mathf.Clamp((int)(transform.position.z / 32f + 270f), 0, 539);
-            int offsetX = (transform.position.x / 32f + 270f) - (int)(transform.position.x / 32f + 270f) > 0.5 ? 1 : -1;
-            int offsetZ = (transform.position.z / 32f + 270f) - (int)(transform.position.z / 32f + 270f) > 0.5 ? 1 : -1;
            
             UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX);
-            UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX + offsetX);
-            UpdateVehicleCollidersInGridSpace((gridZ + offsetZ) * 540 + gridX);
-            UpdateVehicleCollidersInGridSpace((gridZ + offsetZ) * 540 + gridX + offsetX);
+            UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX - 1);
+            UpdateVehicleCollidersInGridSpace((gridZ - 1) * 540 + gridX);
+            UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX + 1);
+            UpdateVehicleCollidersInGridSpace((gridZ + 1) * 540 + gridX);
+            UpdateVehicleCollidersInGridSpace((gridZ - 1) * 540 + gridX - 1);
+            UpdateVehicleCollidersInGridSpace((gridZ + 1) * 540 + gridX + 1);
+            UpdateVehicleCollidersInGridSpace((gridZ - 1) * 540 + gridX + 1);
+            UpdateVehicleCollidersInGridSpace((gridZ + 1) * 540 + gridX - 1);
 
             var tmpMap = new Dictionary<ushort, MapElem>(m_VehicleToColliderMap);
             foreach (var pair in tmpMap)
