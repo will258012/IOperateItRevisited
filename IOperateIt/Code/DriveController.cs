@@ -20,10 +20,11 @@ namespace IOperateIt
         private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
         private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
         private const float LIGHT_REARLIGHT_INTENSITY = 0.5f;
-        private const float SPRING_DAMP = 4.0f;
-        private const float SPRING_OFFSET = -0.05f;
+        private const float SPRING_DAMP = 4.5f;
+        private const float SPRING_OFFSET = -0.1f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         const float SPEED_TO_KMPH = 5f / 3f;
+        const float MS_TO_KMPH = 3.6f;
         const float SPEED_TO_MPH = SPEED_TO_KMPH * .621371f;
         const float KN_TO_N = 1000f;
         const float KW_TO_W = 1000f;
@@ -85,7 +86,7 @@ namespace IOperateIt
         private float m_steer = 0.0f;
         private float m_throttle = 0.0f;
         private float m_rideHeight = 0.0f;
-        internal float m_speed => m_vehicleRigidBody.velocity.magnitude;
+        private float m_roofHeight = 0.0f;
         private void Awake()
         {
             instance = this;
@@ -96,7 +97,7 @@ namespace IOperateIt
 
             m_vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             m_vehicleRigidBody.isKinematic = false;
-            m_vehicleRigidBody.useGravity = true;
+            m_vehicleRigidBody.useGravity = false;
             m_vehicleRigidBody.freezeRotation = false;
             m_vehicleRigidBody.drag = 0.1f;
             m_vehicleRigidBody.angularDrag = 0.1f;
@@ -162,8 +163,9 @@ namespace IOperateIt
 
             m_terrainHeight = CalculateHeight(vehiclePos);
 
+            m_vehicleRigidBody.AddForce(Vector3.down * 10f * MS_TO_KMPH / SPEED_TO_KMPH, ForceMode.Acceleration);
 
-            if (vehiclePos.y + 2.0f * SPRING_OFFSET < m_terrainHeight)
+            if (vehiclePos.y + 1.1f * SPRING_OFFSET < m_terrainHeight)
             {
                 var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
 
@@ -176,7 +178,7 @@ namespace IOperateIt
                     m_isBraking = false;
                 }
 
-                m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W / (m_speed + 1.0f)), ForceMode.Force);
+                m_vehicleRigidBody.AddRelativeForce(Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W / (vehicleVel.magnitude + 1.0f)), ForceMode.Force);
 
                 relativeVel.z = 0.0f;
                 relativeVel.y = 0.0f;
@@ -185,7 +187,7 @@ namespace IOperateIt
 
                 m_vehicleRigidBody.AddRelativeForce(-relativeVel, ForceMode.VelocityChange);
 
-                float speedsteer = Mathf.Min(Mathf.Max(m_speed * 20f, 0f), 60f);
+                float speedsteer = Mathf.Min(Mathf.Max(vehicleVel.magnitude * 20f, 0f), 60f);
                 speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
 
                 Vector3 angularTarget = 0.99f * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - m_vehicleRigidBody.transform.InverseTransformDirection(vehicleAngularVel);
@@ -195,8 +197,10 @@ namespace IOperateIt
 
             if (vehiclePos.y + WALL_HEIGHT < m_terrainHeight)
             {
-                m_vehicleRigidBody.transform.position = m_prevPosition;
-                m_vehicleRigidBody.velocity = Vector3.zero;
+                vehiclePos = m_prevPosition;
+                vehicleVel = Vector3.zero;
+                m_vehicleRigidBody.transform.position = vehiclePos;
+                m_vehicleRigidBody.velocity = vehicleVel;
             }
             else if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight)
             {
@@ -212,7 +216,7 @@ namespace IOperateIt
                 m_vehicleRigidBody.AddRelativeForce(Vector3.up * (finalVel - startV), ForceMode.VelocityChange);
             }
 
-            CalculateSlope();
+            CalculateSlope(vehiclePos);
 
             LimitVelocity();
 
@@ -242,7 +246,7 @@ namespace IOperateIt
 
         private void LimitVelocity()
         {
-            if (m_speed > Settings.ModSettings.MaxVelocity / SPEED_TO_KMPH)
+            if (m_vehicleRigidBody.velocity.magnitude > Settings.ModSettings.MaxVelocity / SPEED_TO_KMPH)
             {
                 m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * Settings.ModSettings.MaxVelocity / SPEED_TO_KMPH - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
             }
@@ -329,8 +333,11 @@ namespace IOperateIt
             }
 
             Mesh vehicleMesh = m_vehicleInfo.m_mesh;
-            Vector3 adjustedBounds = vehicleMesh.bounds.size;
-            adjustedBounds.y = adjustedBounds.y - m_rideHeight;//Mathf.Max(, 2.0f);
+            Vector3 adjustedBounds = m_vehicleInfo.m_lodMesh.bounds.size;
+
+            m_roofHeight = adjustedBounds.y;
+
+            adjustedBounds.y = adjustedBounds.y - m_rideHeight;
 
             m_vehicleRigidBody.transform.position = position;
             m_vehicleRigidBody.transform.rotation = rotation;
@@ -629,9 +636,9 @@ namespace IOperateIt
 
         //    return retval;
         //}
-        private void CalculateSlope()
+        private void CalculateSlope(Vector3 position)
         {
-            Vector3 diffVector = m_vehicleRigidBody.transform.position - m_prevPosition;
+            Vector3 diffVector = position - m_prevPosition;
             Vector3 horizontalDirection = new Vector3(diffVector.x, 0f, diffVector.z);
             float heightDifference = diffVector.y;
 
@@ -668,7 +675,7 @@ namespace IOperateIt
 
             var height = Mathf.Max(Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(position), Singleton<TerrainManager>.instance.WaterLevel(new Vector2(position.x, position.z)));
 
-            input = Utils.MapUtils.GetRaycastInput(position, ROAD_RAYCAST_LOWER, ROAD_RAYCAST_UPPER); // Configure raycast input parameters.
+            input = Utils.MapUtils.GetRaycastInput(position, ROAD_RAYCAST_LOWER, m_roofHeight + ROAD_RAYCAST_UPPER); // Configure raycast input parameters.
             input.m_netService.m_service = ItemClass.Service.Road;
             input.m_netService.m_itemLayers = ItemClass.Layer.Default |// ItemClass.Layer.PublicTransport is only for TransportLine, not for Road.
                                               ItemClass.Layer.MetroTunnels;
@@ -707,7 +714,7 @@ namespace IOperateIt
                     float offset = 0f;
                     ref NetSegment segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[output.m_netSegment];
 
-                    if (GetClosestLanePositionFiltered(ref segment, m_vehicleRigidBody.transform.position, out roadPos, out offset, out _))
+                    if (GetClosestLanePositionFiltered(ref segment, position, out roadPos, out offset, out _))
                     {
                         height = roadPos.y;
 
@@ -716,7 +723,7 @@ namespace IOperateIt
                             ref NetNode node = ref Singleton<NetManager>.instance.m_nodes.m_buffer[offset == 0f ? segment.m_startNode : segment.m_endNode];
                             if (node.CountSegments() > 1)
                             {
-                                GetClosestLanePositionOnNodeFiltered(ref node, output.m_netSegment, ref roadPos);
+                                GetClosestLanePositionOnNodeFiltered(ref node, output.m_netSegment, position, ref roadPos);
                                 height = roadPos.y;
                             }
                         }
@@ -727,10 +734,10 @@ namespace IOperateIt
             return height;
         }
 
-        private void GetClosestLanePositionOnNodeFiltered(ref NetNode node, ushort currSegmentId, ref Vector3 currClosest)
+        private void GetClosestLanePositionOnNodeFiltered(ref NetNode node, ushort currSegmentId, Vector3 inPos, ref Vector3 currClosest)
         {
             int iter = 0;
-            float currClosestDist = Vector3.Magnitude(currClosest - m_vehicleRigidBody.transform.position);
+            float currClosestDist = Vector3.Magnitude(currClosest - inPos);
 
             while (iter < 8) // Cities only supports 8 segments per node.
             {
@@ -741,9 +748,9 @@ namespace IOperateIt
                     Vector3 roadPos;
                     float offset;
                     int lane;
-                    if (GetClosestLanePositionFiltered(ref tmpSegment, m_vehicleRigidBody.transform.position, out roadPos, out offset, out lane))
+                    if (GetClosestLanePositionFiltered(ref tmpSegment, inPos, out roadPos, out offset, out lane))
                     {
-                        Vector3 horzOffset = m_vehicleRigidBody.transform.position - roadPos;
+                        Vector3 horzOffset = inPos - roadPos;
                         horzOffset.y = 0;
                         float tmpDist = Vector3.Magnitude(horzOffset);
                         if (offset != 0 && offset != 1)
@@ -783,7 +790,7 @@ namespace IOperateIt
 
                 if (type != NetInfo.LaneType.None)
                 {
-                    Singleton<NetManager>.instance.m_lanes.m_buffer[lane].GetClosestPosition(m_vehicleRigidBody.transform.position, out var posTmp, out var offsetTmp);
+                    Singleton<NetManager>.instance.m_lanes.m_buffer[lane].GetClosestPosition(posIn, out var posTmp, out var offsetTmp);
                     if ((offsetTmp != 0f && offsetTmp != 1f) || ((type & NetInfo.LaneType.Pedestrian) == 0))
                     {
                         float distTmp = Vector3.Magnitude(posTmp - posIn);

@@ -119,8 +119,8 @@ namespace IOperateIt
                     vehicleRotation = parkedVehicle.m_rotation;
                     vehiclePosition = parkedVehicle.m_position;
                     m_ParkedVehicleColliders[colliderIndex].gameObject.SetActive(true);
-                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_mesh.bounds.size;
-                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * parkedVehicle.Info.m_mesh.bounds.size.y, 0.0f);
+                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_lodMesh.bounds.size;
+                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * parkedVehicle.Info.m_lodMesh.bounds.size.y, 0.0f);
                     m_ParkedVehicleColliders[colliderIndex].gameObject.transform.position = vehiclePosition;
                     m_ParkedVehicleColliders[colliderIndex].gameObject.transform.rotation = vehicleRotation;
 
@@ -137,6 +137,11 @@ namespace IOperateIt
                 ref var vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[vehicleId];
                 vehicle.GetSmoothPosition(vehicleId, out vehiclePosition, out vehicleRotation);
 
+                if ((vehicle.m_flags & Vehicle.Flags.Inverted) > 0) // rotate 180 for inverted train cars
+                {
+                    vehicleRotation = new Quaternion(0, 1, 0, 0) * vehicleRotation;
+                }
+
                 if (vehicleId == m_VehicleColliders[colliderIndex].ID 
                     && Vector3.Magnitude(vehiclePosition - m_VehicleColliders[colliderIndex].Rigidbody.transform.position) < COLLIDER_JUMP_DISTANCE)
                 {
@@ -151,8 +156,8 @@ namespace IOperateIt
 
                 m_VehicleColliders[colliderIndex].gameObject.SetActive(true);
                 m_VehicleColliders[colliderIndex].ID = vehicleId;
-                m_VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_mesh.bounds.size;
-                m_VehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * vehicle.Info.m_mesh.bounds.size.y, 0.0f);
+                m_VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_lodMesh.bounds.size;
+                m_VehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * vehicle.Info.m_lodMesh.bounds.size.y, 0.0f);
 
                 BoxCollider bc = m_VehicleColliders[colliderIndex].BoxCollider;
                 DebugHelper.DrawDebugBox(bc.size, bc.transform.TransformPoint(bc.center), bc.transform.rotation, Color.green);

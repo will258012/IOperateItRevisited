@@ -18,12 +18,6 @@ namespace IOperateIt.Utils
                 {
                     switch (assembly.GetName().Name)
                     {
-                        case "FPSCamera":
-                            if (assembly.GetType("FPSCamera.FPSCamera") != null)
-                                conflictModNames.Add("First Person Camera: Updated");
-                            else if (assembly.GetType("FPSCamera.Controller") != null)
-                                conflictModNames.Add("First Person Camera v2.x");
-                            break;
                         case "EnhancedZoom":
                             conflictModNames.Add("Enhanced Zoom Continued");
                             break;

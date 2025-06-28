@@ -27,6 +27,7 @@ namespace IOperateIt
         private float m_followDistance;
 
         private Camera m_mainCamera;
+        private Camera m_uiCamera;
         private int m_cachedRenderMask;
         private Rect m_cachedCameraRect;
         private float m_cachedNearClip;
@@ -45,8 +46,7 @@ namespace IOperateIt
             enabled = true;
             ConfigureCamera();
 
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            SetCursorVisibility(false);
 
             m_targetRigidBody = rigidBody;
             m_followDistance = Mathf.Clamp(distance, 0.0f, LOOK_MAX_DIST);
@@ -59,9 +59,7 @@ namespace IOperateIt
         {
             enabled = false;
             RestoreCamera();
-
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            SetCursorVisibility(true);
             
             m_targetRigidBody = null;
             m_lastValidDir = Vector3.zero;
@@ -69,7 +67,7 @@ namespace IOperateIt
             m_rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam disabled");
         }
-        private static void SetUIVisibility(bool visibility)
+        private void SetUIVisibility(bool visibility)
         {
             Singleton<NotificationManager>.instance.NotificationsVisible = visibility;
             Singleton<GameAreaManager>.instance.BordersVisible = visibility;
@@ -78,17 +76,30 @@ namespace IOperateIt
             Singleton<GuideManager>.instance.TutorialDisabled = !visibility;
             Singleton<DisasterManager>.instance.MarkersVisible = visibility;
             Singleton<NetManager>.instance.RoadNamesVisible = visibility;
-            UIView.Show(visibility);
+            m_uiCamera.enabled = visibility;
+        }
+
+        private void SetCursorVisibility(bool visibility)
+        {
+            Cursor.visible = visibility;
+            if (!visibility)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.None;
+            }
         }
 
         private void ConfigureCamera()
         {
             ToolsModifierControl.cameraController.enabled = false;
-            SetUIVisibility(false);
-
             m_savedView = new CameraController.SavedCameraView(ToolsModifierControl.cameraController);
 
             m_mainCamera = Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera;
+
+            m_uiCamera = UIView.GetView("").uiCamera;
 
             m_cachedRenderMask = m_mainCamera.cullingMask;
 
@@ -100,6 +111,8 @@ namespace IOperateIt
 
             m_cachedCameraRect = Camera.main.rect;
             Camera.main.rect = CameraController.kFullScreenRect;
+
+            SetUIVisibility(false);
         }
 
         private void RestoreCamera()
@@ -199,7 +212,9 @@ namespace IOperateIt
         {
             if (Input.GetKeyDown((KeyCode)Settings.ModSettings.KeyCamCursorToggle.Key))
             {
-                Cursor.visible = !Cursor.visible;
+                bool visUpdate = !Cursor.visible;
+                SetUIVisibility(visUpdate); 
+                SetCursorVisibility(visUpdate);
             }
 
             if (Input.GetMouseButtonDown(2) || // middle click
