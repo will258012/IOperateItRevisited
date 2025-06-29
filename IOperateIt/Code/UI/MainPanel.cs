@@ -17,16 +17,16 @@ namespace IOperateIt.UI
 
         public static MainPanel Instance { get; private set; }
         public UIPanel Panel { get; set; }
-        public UIButton GetMainButton() => _mainBtn ?? UUISupport.UUIButton as UIButton;
+        public UIButton GetMainButton() => mainBtn ?? UUISupport.UUIButton as UIButton;
 
         private const float Margin = 10f;
         private const float VehicleRowHeight = 40f;
 
-        private UIButton _mainBtn;
-        private RoadSelectTool _roadSelectTool;
-        private UIButton _spawnBtn;
-        internal UIList _vehicleList;
-        private PreviewPanel _previewPanel;
+        private UIButton mainBtn;
+        private UIButton spawnBtn;
+        private UIButton modSettingsBtn;
+        internal UIList vehicleList;
+        private PreviewPanel previewPanel;
 
         private void Awake()
         {
@@ -41,7 +41,7 @@ namespace IOperateIt.UI
             Panel.width = 800f;
 
             var currentY = Margin;
-            _vehicleList = UIList.AddUIList<MainPanelRow>(Panel, Margin, currentY, 400f, 300f, VehicleRowHeight);
+            vehicleList = UIList.AddUIList<MainPanelRow>(Panel, Margin, currentY, 400f, 300f, VehicleRowHeight);
             var vehicleInfos = new FastList<object>();
 
             for (uint i = 0; i < PrefabCollection<VehicleInfo>.PrefabCount(); i++)
@@ -53,31 +53,33 @@ namespace IOperateIt.UI
                     vehicleInfos.Add(i);
                 }
             }
-            _vehicleList.Data = vehicleInfos;
-            _vehicleList.EventSelectionChanged += (component, obj) =>
+            vehicleList.Data = vehicleInfos;
+            vehicleList.EventSelectionChanged += (component, obj) =>
             {
                 if (obj is uint index)
                 {
                     VehicleInfo selectedVehicle = PrefabCollection<VehicleInfo>.GetPrefab(index);
                     if (selectedVehicle != null)
                     {
-                        _previewPanel.SetTarget(selectedVehicle);
+                        previewPanel.SetTarget(selectedVehicle);
                         DriveController.Instance.vehicleInfo = selectedVehicle;
-                        _spawnBtn.isEnabled = true;
+                        spawnBtn.isEnabled = true;
                     }
                 }
             };
 
-            _previewPanel = Panel.AddUIComponent<PreviewPanel>();
-            _previewPanel.relativePosition = new Vector2(Margin + _vehicleList.width + Margin, currentY);
+            previewPanel = Panel.AddUIComponent<PreviewPanel>();
+            previewPanel.relativePosition = UILayout.PositionRightOf(vehicleList);
 
-            currentY += _vehicleList.height + Margin;
+            currentY += vehicleList.height + Margin;
 
-            _spawnBtn = UIButtons.AddButton(Panel, (_vehicleList.width - 200f) / 2f, currentY, Translations.Translate("SPAWNBTN_TEXT"), 200f, 40f);
-            _spawnBtn.isEnabled = false;
-            _spawnBtn.playAudioEvents = true;
-            _spawnBtn.eventClick += SpawnBtn_eventClick;
-            Panel.height = currentY + _spawnBtn.height + Margin;
+            spawnBtn = UIButtons.AddButton(Panel, (vehicleList.width - 200f) / 2f, currentY, Translations.Translate("SPAWNBTN_TEXT"), 200f, 40f);
+            spawnBtn.isEnabled = false;
+            spawnBtn.playAudioEvents = true;
+            spawnBtn.eventClick += SpawnBtn_eventClick;
+            modSettingsBtn = UIButtons.AddButton(Panel, previewPanel.relativePosition.x + (previewPanel.width - 200f) / 2f, currentY, Translations.Translate("MODSETTINGSBTN_TEXT"));
+            modSettingsBtn.eventClick += (_, e) => FPSCamera.FPSCamera.UI.MainPanel.OpenSettingsPanel(Mod.Instance.Name);
+            Panel.height = currentY + spawnBtn.height + Margin;
             Panel.Hide();
 
             if (ModSupport.FoundUUI)
@@ -97,49 +99,48 @@ namespace IOperateIt.UI
 
                 ModSettings.MainButtonPos = new Vector2(x, y);
             }
-            _mainBtn = UIView.GetAView().AddUIComponent(typeof(UIButton)) as UIButton;
-            _mainBtn.name = "MainButton";
-            _mainBtn.tooltip = Translations.Translate("MAINPANELBTN_TOOLTIP");
-            _mainBtn.absolutePosition = new Vector3(x, y);
-            _mainBtn.size = new Vector2(40f, 40f);
-            _mainBtn.scaleFactor = .8f;
-            _mainBtn.pressedBgSprite = "OptionBasePressed";
-            _mainBtn.normalBgSprite = "OptionBase";
-            _mainBtn.hoveredBgSprite = "OptionBaseHovered";
-            _mainBtn.disabledBgSprite = "OptionBaseDisabled";
-            _mainBtn.normalFgSprite = "InfoIconTrafficCongestion";
-            _mainBtn.textColor = new Color32(255, 255, 255, 255);
-            _mainBtn.disabledTextColor = new Color32(7, 7, 7, 255);
-            _mainBtn.hoveredTextColor = new Color32(255, 255, 255, 255);
-            _mainBtn.focusedTextColor = new Color32(255, 255, 255, 255);
-            _mainBtn.pressedTextColor = new Color32(30, 30, 44, 255);
-            _mainBtn.eventClick += (_, m) =>
+            mainBtn = UIView.GetAView().AddUIComponent(typeof(UIButton)) as UIButton;
+            mainBtn.name = "MainButton";
+            mainBtn.tooltip = Translations.Translate("MAINPANELBTN_TOOLTIP");
+            mainBtn.absolutePosition = new Vector3(x, y);
+            mainBtn.size = new Vector2(40f, 40f);
+            mainBtn.scaleFactor = .8f;
+            mainBtn.pressedBgSprite = "OptionBasePressed";
+            mainBtn.normalBgSprite = "OptionBase";
+            mainBtn.hoveredBgSprite = "OptionBaseHovered";
+            mainBtn.disabledBgSprite = "OptionBaseDisabled";
+            mainBtn.normalFgSprite = "InfoIconTrafficCongestion";
+            mainBtn.textColor = new Color32(255, 255, 255, 255);
+            mainBtn.disabledTextColor = new Color32(7, 7, 7, 255);
+            mainBtn.hoveredTextColor = new Color32(255, 255, 255, 255);
+            mainBtn.focusedTextColor = new Color32(255, 255, 255, 255);
+            mainBtn.pressedTextColor = new Color32(30, 30, 44, 255);
+            mainBtn.eventClick += (_, m) =>
             {
-                Panel.absolutePosition = new Vector3(_mainBtn.absolutePosition.x +
-                    (_mainBtn.absolutePosition.x < Screen.height / 2f ? _mainBtn.width - 10f : -Panel.width + 10f),
-                                                           _mainBtn.absolutePosition.y +
-                (_mainBtn.absolutePosition.y < Screen.height / 2f ? _mainBtn.height - 15f : -Panel.height + 15f));
+                Panel.absolutePosition = new Vector3(mainBtn.absolutePosition.x +
+                    (mainBtn.absolutePosition.x < Screen.width / 2f ? mainBtn.width - 10f : -Panel.width + 10f),
+                                                           mainBtn.absolutePosition.y +
+                (mainBtn.absolutePosition.y < Screen.height / 2f ? mainBtn.height - 15f : -Panel.height + 15f));
                 Panel.isVisible = !Panel.isVisible;
             };
 
             //drag
-            var mainBtn_drag = _mainBtn.AddUIComponent<UIDragHandle>();
-            mainBtn_drag.name = _mainBtn.name + "_drag";
-            mainBtn_drag.size = _mainBtn.size;
+            var mainBtn_drag = mainBtn.AddUIComponent<UIDragHandle>();
+            mainBtn_drag.name = mainBtn.name + "_drag";
+            mainBtn_drag.size = mainBtn.size;
             mainBtn_drag.relativePosition = Vector3.zero;
-            mainBtn_drag.target = _mainBtn;
-            mainBtn_drag.transform.parent = _mainBtn.transform;
+            mainBtn_drag.target = mainBtn;
+            mainBtn_drag.transform.parent = mainBtn.transform;
             mainBtn_drag.eventMouseDown += (_, p) => Panel.isVisible = false;
-            mainBtn_drag.eventMouseUp += (_, p) => { ModSettings.MainButtonPos = _mainBtn.absolutePosition; ModSettings.Save(); };
+            mainBtn_drag.eventMouseUp += (_, p) => { ModSettings.MainButtonPos = mainBtn.absolutePosition; ModSettings.Save(); };
             #endregion
         }
 
         private void OnDestory()
         {
-            _spawnBtn.eventClick -= SpawnBtn_eventClick;
+            spawnBtn.eventClick -= SpawnBtn_eventClick;
             Destroy(Panel);
             Destroy(GetMainButton());
-            Destroy(_roadSelectTool);
         }
         public bool OnEsc()
         {
@@ -158,26 +159,18 @@ namespace IOperateIt.UI
         {
             if (DriveController.Instance?.vehicleInfo != null)
             {
-                if (_roadSelectTool == null)
+                if (ToolsModifierControl.GetCurrentTool<RoadSelectTool>() == null)
                 {
-                    if (!ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>())
-                    {
-                        ToolsModifierControl.toolController.gameObject.AddComponent<RoadSelectTool>();
-                    }
-                    _roadSelectTool = ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>();
-                    ToolsModifierControl.toolController.CurrentTool = _roadSelectTool;
+                    ToolsModifierControl.toolController.CurrentTool = RoadSelectTool.Instance;
                     ToolsModifierControl.SetTool<RoadSelectTool>();
                 }
                 else
                 {
-                    ToolsModifierControl.toolController.CurrentTool = ToolsModifierControl.GetTool<DefaultTool>();
                     ToolsModifierControl.SetTool<DefaultTool>();
-                    Destroy(_roadSelectTool);
-                    _roadSelectTool = null;
                 }
                 OnEsc();
             }
-            else _spawnBtn.isEnabled = false;
+            else spawnBtn.isEnabled = false;
         }
         public void LocaleChanged()
         {
@@ -185,10 +178,6 @@ namespace IOperateIt.UI
             Awake();
         }
 
-        // <copyright file="VehicleSelectionRow.cs" company="algernon (K. Algernon A. Sheppard)">
-        // Copyright (c) algernon (K. Algernon A. Sheppard). All rights reserved.
-        // Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.
-        // </copyright>
         /// <summary>
         /// UIList row item for vehicle prefabs.
         /// </summary>

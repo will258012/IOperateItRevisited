@@ -6,6 +6,7 @@ namespace IOperateIt.Tools
 {
     public class RoadSelectTool : ToolBase
     {
+        public static RoadSelectTool Instance => ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>() ?? ToolsModifierControl.toolController.gameObject.AddComponent<RoadSelectTool>();
         public override void RenderOverlay(RenderManager.CameraInfo cameraInfo)
         {
             base.RenderOverlay(cameraInfo);
@@ -50,7 +51,6 @@ namespace IOperateIt.Tools
                                 var rotation = Quaternion.LookRotation(dir);
                                 DriveController.Instance.StartDriving(netSegment.m_middlePosition, rotation);
                                 ShowToolInfo(false, null, Vector3.zero);
-                                ToolsModifierControl.SetTool<DefaultTool>();
                             }
                             else
                             {
@@ -65,7 +65,6 @@ namespace IOperateIt.Tools
                 ShowToolInfo(false, null, new Vector3());
             }
         }
-
         private bool RaycastRoad(out RaycastOutput raycastOutput)
         {
             RaycastInput raycastInput = new RaycastInput(Camera.main.ScreenPointToRay(Input.mousePosition), Camera.main.farClipPlane);
