@@ -1,11 +1,15 @@
 ﻿extern alias FPSCamera;
+using AlgernonCommons;
+using AlgernonCommons.UI;
 using ColossalFramework;
 using FPSCamera.FPSCamera.Cam.Controller;
 using FPSCamera.FPSCamera.Game;
 using FPSCamera.FPSCamera.Utils;
 using IOperateIt.Settings;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using static FPSCamera.FPSCamera.Utils.MathUtils;
 using FPCModSettings = FPSCamera.FPSCamera.Settings.ModSettings;
 namespace IOperateIt
 {
@@ -17,15 +21,15 @@ namespace IOperateIt
         private BoxCollider vehicleCollider;
         internal VehicleInfo vehicleInfo;
 
-        private List<LightEffect> lightEffects = new List<LightEffect>();
-        private List<EffectInfo> regularEffects = new List<EffectInfo>();
-        private List<EffectInfo> specialEffects = new List<EffectInfo>();
+        private readonly List<LightEffect> lightEffects = new List<LightEffect>();
+        private readonly List<EffectInfo> regularEffects = new List<EffectInfo>();
+        private readonly List<EffectInfo> specialEffects = new List<EffectInfo>();
 
-        private CollidersManager collidersManager = new CollidersManager();
+        private readonly CollidersManager collidersManager = new CollidersManager();
         private float terrainHeight;
+        private Positioning offset;
         private Vector3 prevPosition;
         private Vector3 prevVelocity;
-        private Quaternion rotationOffset;
         private bool isSirenEnabled = true;
         private bool isLightEnabled = false;
         internal float Speed => vehicleRigidBody.velocity.magnitude;
@@ -38,7 +42,7 @@ namespace IOperateIt
 
             vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             vehicleRigidBody.isKinematic = false;
-            vehicleRigidBody.useGravity = true;
+            vehicleRigidBody.useGravity = false;
             vehicleRigidBody.freezeRotation = true;
             vehicleRigidBody.drag = 2f;
             vehicleRigidBody.angularDrag = 2.5f;
@@ -54,33 +58,55 @@ namespace IOperateIt
         }
         private void Update()
         {
-            HandleInputOnUpdate();
-            UpdateCameraPos();
-            PlayEffects();
+            try
+            {
+                HandleInputOnUpdate();
+                UpdateCameraPos();
+                PlayEffects();
+            }
+            catch (Exception e)
+            {
+                FPSCamController.Instance.FPSCam = null;
+                Logging.LogException(e);
+                DestroyVehicle();
+            }
         }
         private void FixedUpdate()
         {
-            HandleInputOnFixedUpdate();
-            CalculateSlope();
-            collidersManager.UpdateColliders(transform);
-
-            terrainHeight = MapUtils.GetMinHeightAt(transform.position);
-            if (MapUtils.GetClosestSegmentLevel(transform.position, out var newHeight))
-                terrainHeight = newHeight;
-            terrainHeight -= 2f;
-
-            if (transform.position.y - 1f < terrainHeight)
+            try
             {
-                vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0, vehicleRigidBody.velocity.z);
-                transform.position = new Vector3(transform.position.x, terrainHeight, transform.position.z);
-            }
+                HandleInputOnFixedUpdate();
+                CalculateSlope();
+                collidersManager.UpdateColliders(transform);
 
-            if (Speed > ModSettings.MaxVelocity.FromKmph())
+                terrainHeight = MapUtils.GetMinHeightAt(transform.position);
+                if (MapUtils.GetClosestSegmentLevel(transform.position, out var newHeight))
+                    terrainHeight = newHeight;
+                terrainHeight -= 2f;
+
+                if (transform.position.y - 1f < terrainHeight)
+                {
+                    vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0, vehicleRigidBody.velocity.z);
+                    transform.position = new Vector3(transform.position.x, terrainHeight, transform.position.z);
+                }
+                else
+                {
+                    vehicleRigidBody.AddRelativeForce(Physics.gravity * 6f, ForceMode.Acceleration);
+                }
+
+                if (Speed > ModSettings.MaxVelocity.FromKmph())
+                {
+                    vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
+                }
+
+                prevVelocity = vehicleRigidBody.velocity;
+            }
+            catch (Exception e)
             {
-                vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
+                FPSCamController.Instance.FPSCam = null;
+                Logging.LogException(e);
+                DestroyVehicle();
             }
-
-            prevVelocity = vehicleRigidBody.velocity;
         }
         private void LateUpdate()
         {
@@ -97,10 +123,12 @@ namespace IOperateIt
         public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo)
         {
             enabled = true;
+            offset.pos = ModSettings.Offset;
+            offset.rotation = Quaternion.identity;
+
             this.vehicleInfo = vehicleInfo;
             SpawnVehicle(position, rotation);
             FPSCamController.Instance.FPSCam = new DriveCam();
-            FPSCamController.Instance.EnableCam(true);
         }
         private void SpawnVehicle(Vector3 position, Quaternion rotation)
         {
@@ -111,7 +139,6 @@ namespace IOperateIt
             GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
             gameObject.SetActive(true);
             vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
-            rotationOffset = Quaternion.identity;
             vehicleRigidBody.velocity = Vector3.zero;
 
             AddEffects();
@@ -122,6 +149,11 @@ namespace IOperateIt
             lightEffects.Clear();
             regularEffects.Clear();
             specialEffects.Clear();
+
+            ModSettings.Offset = offset.pos;
+            ModSettings.Save();
+            OptionsPanelManager<OptionsPanel>.LocaleChanged();
+            UI.MainPanel.Instance?.LocaleChanged();
 
             StartCoroutine(collidersManager.DisableColliders());
             enabled = false;
@@ -194,20 +226,39 @@ namespace IOperateIt
              FPCModSettings.Instance.XMLKeyCursorToggle.IsPressed() ^ (FPCModSettings.Instance.XMLShowCursorFollow);
             InputManager.ToggleCursor(cursorVisible);
 
-            if (InputManager.MouseTriggered(InputManager.MouseButton.Middle) ||
-                InputManager.KeyTriggered(FPCModSettings.Instance.XMLKeyCamReset))
+            if (InputManager.MouseButton.Middle.MouseTriggered() ||
+                FPCModSettings.Instance.XMLKeyCamReset.KeyTriggered())
             {
-                rotationOffset = Quaternion.identity;
+                offset.rotation = Quaternion.identity;
             }
+            { // key movement
+                var movementFactor = ((FPCModSettings.Instance.XMLKeySpeedUp.IsPressed() ? FPCModSettings.Instance.XMLSpeedUpFactor : 1f)
+                                     * FPCModSettings.Instance.XMLMovementSpeed * Time.deltaTime).FromKmph();
+
+                var movement = Vector3.zero;
+                if (!(KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed()))
+                {
+                    if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) movement += Vector3.forward * movementFactor;
+                    if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) movement += Vector3.back * movementFactor;
+                    if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) movement += Vector3.right * movementFactor;
+                    if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) movement += Vector3.left * movementFactor;
+                }
+                if (FPCModSettings.Instance.XMLKeyMoveUp.IsPressed()) movement += Vector3.up * movementFactor;
+                if (FPCModSettings.Instance.XMLKeyMoveDown.IsPressed()) movement += Vector3.down * movementFactor;
+
+                offset.pos += offset.pos.z < -1f ? movement : offset.rotation * movement;
+            }
+
             float yawDegree = 0f, pitchDegree = 0f;
             { // key rotation
                 var rotateFactor = FPCModSettings.Instance.XMLRotateKeyFactor * Time.deltaTime;
-
-                if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) yawDegree += 1f * rotateFactor;
-                if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) yawDegree -= 1f * rotateFactor;
-                if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) pitchDegree -= 1f * rotateFactor;
-                if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) pitchDegree += 1f * rotateFactor;
-
+                if (KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed())
+                {
+                    if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) yawDegree += 1f * rotateFactor;
+                    if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) yawDegree -= 1f * rotateFactor;
+                    if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) pitchDegree -= 1f * rotateFactor;
+                    if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) pitchDegree += 1f * rotateFactor;
+                }
                 if (yawDegree == 0f && pitchDegree == 0f)
                 {
                     // mouse rotation
@@ -221,14 +272,14 @@ namespace IOperateIt
 
             var yawRotation = Quaternion.Euler(0f, yawDegree, 0f);
             var pitchRotation = Quaternion.Euler(pitchDegree, 0f, 0f);
-            rotationOffset = yawRotation * rotationOffset * pitchRotation;
+            offset.rotation = yawRotation * offset.rotation * pitchRotation;
 
             // Limit pitch
-            var eulerAngles = rotationOffset.eulerAngles;
+            var eulerAngles = offset.rotation.eulerAngles;
             if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
-            eulerAngles.x = eulerAngles.x.Clamp(ModSettings.Offset.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
+            eulerAngles.x = eulerAngles.x.Clamp(offset.pos.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
             eulerAngles.z = 0f;
-            rotationOffset = Quaternion.Euler(eulerAngles);
+            offset.rotation = Quaternion.Euler(eulerAngles);
         }
         private void AddEffects()
         {
@@ -258,13 +309,13 @@ namespace IOperateIt
         }
         private void PlayEffects()
         {
-            var position = transform.position;
+            var pos = transform.position;
             var velocity = vehicleRigidBody.velocity;
             var acceleration = ((vehicleRigidBody.velocity - prevVelocity) / Time.fixedDeltaTime).magnitude;
-            var swayPosition = Vector3.zero;
+            var swayPos = Vector3.zero;
             var rotation = transform.rotation;
             var scale = Vector3.one;
-            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
+            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref pos, ref rotation, ref scale, ref swayPos);
             var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
             var listenerInfo = AudioManager.instance.CurrentListenerInfo;
             var audioGroup = VehicleManager.instance.m_audioGroup;
@@ -288,14 +339,46 @@ namespace IOperateIt
                     specialEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
                 }
         }
+
+        /* private void DrawTyre()
+         {
+             Vector3 currentVelocity = vehicleRigidBody.velocity;
+             Vector3 horizontalForward = new Vector3(transform.forward.x, 0, transform.forward.z);
+             Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
+             var pos = transform.position;
+             float steerAngle = SignedAngle(horizontalForward, horizontalVelocity, Vector3.up);
+             float travelDist = (pos - prevPosition).magnitude;
+
+             Vector4 tyrePos;
+             tyrePos.x = steerAngle;
+             tyrePos.y = travelDist;
+             tyrePos.z = 0f;
+             tyrePos.w = 0f;
+
+             var swayPos = Vector3.zero;
+             var rotation = transform.rotation;
+             var scale = Vector3.one;
+             var matrixBody = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref pos, ref rotation, ref scale, ref swayPos);
+             var matrixTyre = vehicleInfo.m_vehicleAI.CalculateTyreMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref pos, ref rotation, ref scale, ref matrixBody);
+
+             MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
+             materialBlock.Clear();
+             materialBlock.SetMatrix(VehicleManager.instance.ID_TyreMatrix, matrixTyre);
+             materialBlock.SetVector(VehicleManager.instance.ID_TyrePosition, Vector3.zero);
+             materialBlock.SetVector(VehicleManager.instance.ID_LightState, Vector3.zero);
+             VehicleManager.instance.m_drawCallData.m_defaultCalls = VehicleManager.instance.m_drawCallData.m_defaultCalls + 1;
+
+             vehicleInfo.m_material.SetVectorArray(VehicleManager.instance.ID_TyreLocation, vehicleInfo.m_generatedInfo.m_tyres);
+             Graphics.DrawMesh(vehicleInfo.m_mesh, matrixBody, vehicleInfo.m_material, 0, null, 0, materialBlock);
+         }*/
         private void UpdateCameraPos()
         {
             var cameraTransform = GameCamController.Instance.MainCamera.transform;
 
-            var instanceRotation = transform.rotation * rotationOffset;
+            var instanceRotation = transform.rotation * offset.rotation;
             var instancePos = transform.position +
-                ((ModSettings.Offset.z > -1f ? transform.rotation /*rotate with the offset position*/ :
-                instanceRotation  /*rotate with the vehicle position*/) * ModSettings.Offset);
+                ((offset.pos.z > -1f ? transform.rotation /*rotate with the offset position*/ :
+                instanceRotation  /*rotate with the vehicle position*/) * offset.pos);
 
             // Limit the camera's position to the allowed area.
             instancePos = CameraController.ClampCameraPosition(instancePos);
