@@ -35,7 +35,7 @@ namespace IOperateIt.Settings
         [XmlElement("Offset")]
         public Vector3 XMLOffset { get => Offset; set => Offset = value; }
         [XmlIgnore]
-        internal static Vector3 Offset = new Vector3(0f, 2f, 2f);
+        internal static Vector3 Offset = new Vector3(0f, 2f, -5f);
 
         [XmlElement("BuildingCollision")]
         public bool XMLBuildingCollision { get => BuildingCollision; set => BuildingCollision = value; }
