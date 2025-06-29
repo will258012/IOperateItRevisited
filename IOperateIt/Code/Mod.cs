@@ -1,13 +1,15 @@
-﻿using AlgernonCommons;
+﻿extern alias FPSCamera;
+using AlgernonCommons;
 using AlgernonCommons.Notifications;
 using AlgernonCommons.Patching;
 using AlgernonCommons.Translation;
+using FPSCamera.FPSCamera.UI;
 using ICities;
 using IOperateIt.Settings;
 
 namespace IOperateIt
 {
-    public sealed class IOperateItMod : PatcherMod<OptionsPanel, PatcherBase>, IUserMod
+    public sealed class Mod : PatcherMod<OptionsPanel, PatcherBase>, IUserMod
     {
         public override string BaseName => "IOperateIt Revisited";
         public override string HarmonyID => "Will258012.IOperateIt";
@@ -31,6 +33,7 @@ namespace IOperateIt
         public override void OnEnabled()
         {
             base.OnEnabled();
+            Logging.EventExceptionOccured += (message) => ErrorNotification.ShowNotification(Name, 3371685709, message);
             FPSCameraAPI.Helper.CheckFPSCamera();
         }
     }
