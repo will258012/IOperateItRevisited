@@ -38,13 +38,13 @@ namespace IOperateIt.UI
 
         private void SetDisable() => enabled = false;
 
-        private UIButton Initialize<T>(ref T panel) where T : WorldInfoPanel
+        private static UIButton Initialize<T>(ref T panel) where T : WorldInfoPanel
         {
             panel = UIView.library.Get<T>(typeof(T).Name);
             return CreateDriveButton(panel);
         }
 
-        private UIButton CreateDriveButton<T>(T panel) where T : WorldInfoPanel
+        private static UIButton CreateDriveButton<T>(T panel) where T : WorldInfoPanel
         {
             var button = panel.component.AddUIComponent<UIButton>();
             button.name = panel.component.name + "_Drive";
@@ -68,13 +68,13 @@ namespace IOperateIt.UI
                 {
                     var vehicle = VehicleManager.instance.m_vehicles.m_buffer[instanceID.Vehicle];
                     DriveController.Instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info);
-                    MainPanel.Instance._vehicleList.FindItem<uint>(vehicle.m_infoIndex);
+                    MainPanel.Instance.vehicleList.FindItem<uint>(vehicle.m_infoIndex);
                 }
                 else if (instanceID.Type == InstanceType.ParkedVehicle)
                 {
                     var vehicleParked = VehicleManager.instance.m_parkedVehicles.m_buffer[instanceID.ParkedVehicle];
                     DriveController.Instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info);
-                    MainPanel.Instance._vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
+                    MainPanel.Instance.vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
                 }
                 panel.component.isVisible = false;
             };
@@ -85,7 +85,7 @@ namespace IOperateIt.UI
                 button.relativePosition.y - 60f/*Prevent conflict with FPC's button*/);
             return button;
         }
-        private void UpdateButtonVisibility<T>(T panel, UIButton button) where T : WorldInfoPanel
+        private static void UpdateButtonVisibility<T>(T panel, UIButton button) where T : WorldInfoPanel
         {
             if (panel.component.isVisible)
             {

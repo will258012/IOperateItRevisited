@@ -8,6 +8,6 @@ namespace IOperateIt.Patches
     internal class EscHandler
     {
         [HarmonyPrefix]
-        public static bool ESCPatch() => !MainPanel.Instance.OnEsc();
+        public static bool ESCPatch() => !(MainPanel.Instance?.OnEsc() ?? false);
     }
 }

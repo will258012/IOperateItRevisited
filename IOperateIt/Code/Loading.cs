@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace IOperateIt
 {
-    public class IOperateItLoading : PatcherLoadingBase<OptionsPanel, PatcherBase>
+    public class Loading : PatcherLoadingBase<OptionsPanel, PatcherBase>
     {
         protected override List<AppMode> PermittedModes => new List<AppMode> { AppMode.Game, AppMode.MapEditor };
         protected override bool CreatedChecksPassed() => FPSCameraAPI.Helper.IsFPSCameraInstalledAndEnabled;

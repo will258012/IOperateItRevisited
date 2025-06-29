@@ -50,11 +50,7 @@ namespace IOperateIt.Tools
                                 var rotation = Quaternion.LookRotation(dir);
                                 DriveController.Instance.StartDriving(netSegment.m_middlePosition, rotation);
                                 ShowToolInfo(false, null, Vector3.zero);
-
-                                //unset self as tool
-                                ToolsModifierControl.toolController.CurrentTool = ToolsModifierControl.GetTool<DefaultTool>();
                                 ToolsModifierControl.SetTool<DefaultTool>();
-                                Destroy(this);
                             }
                             else
                             {

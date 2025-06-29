@@ -18,7 +18,6 @@ namespace IOperateIt
         private const int NUM_VEHICLE_COLLIDERS = 160;
         private const int NUM_PARKED_VEHICLE_COLLIDERS = 80;
         private const float SCAN_DISTANCE = 250f;
-
         private ColliderContainer[] _BuildingColliders;
         private ColliderContainer[] _VehicleColliders;
         private ColliderContainer[] _ParkedVehicleColliders;
@@ -109,12 +108,8 @@ namespace IOperateIt
         {
             Vector3 segmentVector;
             Segment3 circularScanSegment;
-            ushort buildingIndex;
-            var hitPos = Vector3.zero;
             HashSet<ushort> hitBuildings = new HashSet<ushort>();
             Building building;
-            Vector3 buildingPosition;
-            Quaternion buildingRotation;
 
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
@@ -124,14 +119,14 @@ namespace IOperateIt
                 circularScanSegment = new Segment3(transform.position,
                                                    transform.position + segmentVector);
 
-                BuildingManager.instance.RayCast(circularScanSegment, ItemClass.Service.None, ItemClass.SubService.None, ItemClass.Layer.Default, Building.Flags.None, out hitPos, out buildingIndex);
+                BuildingManager.instance.RayCast(circularScanSegment, ItemClass.Service.None, ItemClass.SubService.None, ItemClass.Layer.Default, Building.Flags.None, out var hitPos, out ushort buildingIndex);
                 if (hitPos != Vector3.zero)
                 {
                     building = BuildingManager.instance.m_buildings.m_buffer[buildingIndex];
                     if (!hitBuildings.Contains(buildingIndex) && building.Info.m_class.m_service != ItemClass.Service.Road &&
                         building.Info.name != "478820060.CableStay32m_Data" && building.Info.name != "BridgePillar.CableStay32m_Data")
                     {
-                        building.CalculateMeshPosition(out buildingPosition, out buildingRotation);
+                        building.CalculateMeshPosition(out var buildingPosition, out var buildingRotation);
                         _BuildingColliders[i].ColliderOwner.SetActive(true);
                         _BuildingColliders[i].MeshCollider.sharedMesh = building.Info.m_mesh;
                         _BuildingColliders[i].ColliderOwner.transform.position = buildingPosition;

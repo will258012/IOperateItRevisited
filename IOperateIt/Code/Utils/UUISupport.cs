@@ -81,13 +81,12 @@ namespace IOperateIt.Utils
             }
             catch (System.Exception e)
             {
-                Logging.Error("UUISupport: \n");
-                Logging.LogException(e);
+                Logging.LogException(e, "Failed to register UUI button");
             }
         }
         internal class UnsavedInputKey : UnifiedUI.Helpers.UnsavedInputKey
         {
-            public UnsavedInputKey(string keyName, Keybinding inputKey) : base(keyName, "FPSCamera", inputKey.Encode()) { }
+            public UnsavedInputKey(string keyName, Keybinding inputKey) : base(keyName, "IOperateIt", inputKey.Encode()) { }
             /// <summary>
             /// Used for setting saving.
             /// </summary>
