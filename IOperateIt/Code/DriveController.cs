@@ -9,6 +9,7 @@ namespace IOperateIt
 {
     public class DriveController : MonoBehaviour
     {
+        private const float FLOAT_ERROR = 0.01f;
         private const float THROTTLE_RESP = 0.5f;
         private const float STEER_RESP = 0.4f;
         private const float STEER_MAX = 30.0f * Mathf.PI / 180.0f;
@@ -21,7 +22,7 @@ namespace IOperateIt
         private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
         private const float LIGHT_REARLIGHT_INTENSITY = 0.5f;
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
-        private const float SPRING_DAMP = 4.5f;
+        private const float SPRING_DAMP = 5.0f;
         private const float SPRING_OFFSET = -0.1f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         const float SPEED_TO_KMPH = 5f / 3f;
@@ -42,27 +43,52 @@ namespace IOperateIt
             public NetInfo.Segment[]   segments;
         }
 
-        private class Wheel
+        private class Wheel : MonoBehaviour
         {
             //public TrailRenderer skidTrail;
             public Wheel xWheel = null;
             public Wheel zWheel = null;
-            public GameObject gameObject;
             public Vector3 heightSample;
-            public Vector3 roadNormal;
             public Vector3 origin;
             public float radius;
+            public float power;
+            public float brakeForce;
             public bool onGround;
-            public bool simulated;
+            public bool isSimulated;
+            public bool isPowered;
+            public bool isSteerable;
+            public bool isInvertedSteer;
 
-            public Wheel(Transform parent, Vector3 localpos, float radius, bool simulated = true)
+            public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float radius, bool isSimulated = true, bool isPowered = true, float power = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
             {
-                this.radius = radius;
-                this.origin = localpos;
-                this.simulated = simulated;
-                gameObject = new GameObject();
-                gameObject.transform.SetParent(parent);
-                gameObject.transform.localPosition = localpos;
+                GameObject go = new GameObject();
+                Wheel w = go.AddComponent<Wheel>();
+                go.transform.SetParent(parent);
+                go.transform.localPosition = localpos;
+                w.origin = localpos;
+                w.radius = radius;
+                w.isSimulated = isSimulated;
+                w.isPowered = isPowered;
+                w.isSteerable = isSteerable;
+                w.isInvertedSteer = isInvertedSteer;
+
+                return w;
+            }
+
+            public Vector3 RoadNormal(Vector3 upVec)
+            {
+                Vector3 retVal = Vector3.Normalize(Vector3.Cross(xWheel.origin - this.origin, zWheel.origin - this.origin));
+                float dotUp = Vector3.Dot(retVal, upVec);
+                if (dotUp < FLOAT_ERROR)
+                {
+                    retVal = upVec;
+                }
+                else if (dotUp < 0.0f)
+                {
+                    retVal = -retVal;
+                }
+
+                return retVal;
             }
         }
 
@@ -70,6 +96,7 @@ namespace IOperateIt
 
         private Rigidbody       m_vehicleRigidBody;
         private BoxCollider     m_vehicleCollider;
+        private SphereCollider  m_suspensionCollider;
         private Color           m_vehicleColor;
         private bool            m_setColor;
         private VehicleInfo     m_vehicleInfo;
@@ -92,6 +119,7 @@ namespace IOperateIt
         private bool m_isLightEnabled = false;
         private bool m_physicsFallaback = false;
         private bool m_isBraking = false;
+        private bool m_onCollider = false;
 
         private float m_terrainHeight;
         private float m_distanceTravelled = 0.0f;
@@ -99,6 +127,8 @@ namespace IOperateIt
         private float m_throttle = 0.0f;
         private float m_rideHeight = 0.0f;
         private float m_roofHeight = 0.0f;
+        private float m_prevCompression = 0.0f;
+        private float m_onColliderHeight = 0.0f;
         private void Awake()
         {
             instance = this;
@@ -122,6 +152,9 @@ namespace IOperateIt
 
             m_vehicleCollider = gameObject.AddComponent<BoxCollider>();
             m_vehicleCollider.material = material;
+
+            m_suspensionCollider = gameObject.AddComponent<SphereCollider>();
+            m_suspensionCollider.enabled = false;
 
             StartCoroutine(m_collidersManager.InitializeColliders());
             gameObject.SetActive(false);
@@ -178,7 +211,7 @@ namespace IOperateIt
 
             m_vehicleRigidBody.AddForce(Vector3.down * 10f * MS_TO_KMPH / SPEED_TO_KMPH, ForceMode.Acceleration);
 
-            if (m_physicsFallaback || true)
+            if (m_physicsFallaback)
             {
                 FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, invert);
             }
@@ -200,6 +233,15 @@ namespace IOperateIt
         private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
         {
             m_terrainHeight = CalculateHeight(vehiclePos);
+            
+            if (m_onCollider && m_terrainHeight < m_onColliderHeight)
+            {
+                m_terrainHeight = Mathf.Max(m_onColliderHeight, m_terrainHeight);
+            }
+            else
+            {
+                m_onCollider = false;
+            }
 
             if (vehiclePos.y + 1.1f * SPRING_OFFSET < m_terrainHeight)
             {
@@ -239,7 +281,7 @@ namespace IOperateIt
                 m_vehicleRigidBody.transform.position = vehiclePos;
                 m_vehicleRigidBody.velocity = vehicleVel;
             }
-            else if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight)
+            else if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight && !m_onCollider)
             {
                 if (vehiclePos.y + SPRING_MAX_COMPRESS < m_terrainHeight)
                 {
@@ -248,15 +290,28 @@ namespace IOperateIt
                 }
 
                 float startX = vehiclePos.y + SPRING_OFFSET - m_terrainHeight;
-                float startV = m_vehicleRigidBody.GetRelativePointVelocity(Vector3.zero).y;
+                float startV = (startX - m_prevCompression) / Time.fixedDeltaTime;
                 float finalVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (startX + startV * Time.fixedDeltaTime) + startV * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime);
                 m_vehicleRigidBody.AddRelativeForce(Vector3.up * (finalVel - startV), ForceMode.VelocityChange);
             }
+
+            m_prevCompression = Mathf.Min(vehiclePos.y + SPRING_OFFSET - m_terrainHeight, 0.0f);
+            m_onCollider = false;
         }
 
         private void WheelPhysics()
         {
+            foreach (Wheel w in m_wheelObjects)
+            {
+                Vector3 wheelPos = w.gameObject.transform.position;
+                w.heightSample = wheelPos;
+                w.heightSample.y = CalculateHeight(wheelPos);
+            }
 
+            foreach(Wheel w in m_wheelObjects)
+            {
+                
+            }
         }
         private void LateUpdate()
         {
@@ -306,6 +361,14 @@ namespace IOperateIt
         private void OnCollisionStay(Collision collision)
         {
             LimitVelocity();
+            foreach (var contact in collision.contacts)
+            {
+                if (Vector3.Dot(contact.normal, m_vehicleRigidBody.transform.TransformDirection(Vector3.up)) > 0.7)
+                {
+                    m_onCollider = true;
+                    m_onColliderHeight = Mathf.Max(contact.point.y);
+                }
+            }
         }
 
         private void OnCollisionExit(Collision collision)
@@ -361,9 +424,12 @@ namespace IOperateIt
             {
                 m_rideHeight = m_vehicleInfo.m_generatedInfo.m_tyres[0].y;
 
+                int wheelCount = m_vehicleInfo.m_generatedInfo.m_tyres.Length;
+
                 foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
                 {
-                    m_wheelObjects.Add(new Wheel(gameObject.transform, tirepos, tirepos.w));
+                    m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, tirepos, tirepos.w, true, true, 
+                        Settings.ModSettings.EnginePower * KW_TO_W / wheelCount, Settings.ModSettings.BrakingForce * KN_TO_N / wheelCount, tirepos.z > 0.0f));
                 }
 
                 m_physicsFallaback = false;
@@ -400,6 +466,8 @@ namespace IOperateIt
                 m_rideHeight = 0;
             }
 
+            m_physicsFallaback = true;
+
             Mesh vehicleMesh = m_vehicleInfo.m_mesh;
             Vector3 adjustedBounds = m_vehicleInfo.m_lodMesh.bounds.size;
 
@@ -414,6 +482,10 @@ namespace IOperateIt
 
             m_vehicleCollider.size = adjustedBounds;
             m_vehicleCollider.center = new Vector3(0.0f, 0.5f * adjustedBounds.y + m_rideHeight, 0.0f);
+
+            m_suspensionCollider.enabled = m_physicsFallaback;
+            m_suspensionCollider.radius = 0.5f * Mathf.Min(Mathf.Min(adjustedBounds.x, adjustedBounds.y), adjustedBounds.z);
+            m_suspensionCollider.center = new Vector3(0.0f, m_suspensionCollider.radius, 0.0f);
 
             gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
             gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
