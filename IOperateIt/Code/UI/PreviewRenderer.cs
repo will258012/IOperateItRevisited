@@ -115,7 +115,15 @@ namespace IOperateIt.UI
 
             instance.m_drawCallData.m_defaultCalls = instance.m_drawCallData.m_defaultCalls + 1;
 
-            info.m_material.SetVectorArray(instance.ID_TyreLocation, info.m_generatedInfo.m_tyres);
+            if (info.m_generatedInfo.m_tyres != null)
+            {
+                info.m_material.SetVectorArray(instance.ID_TyreLocation, info.m_generatedInfo.m_tyres);
+            }
+            else
+            {
+                info.m_material.SetVectorArray(instance.ID_TyreLocation, new Vector4[1] { Vector4.one });
+            }
+                
             Graphics.DrawMesh(info.m_mesh, matrixBody, info.m_material, 0, m_camera, 0, materialBlock, true, true);
 
             m_camera.RenderWithShader(info.m_material.shader, "");

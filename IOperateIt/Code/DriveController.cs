@@ -11,9 +11,9 @@ namespace IOperateIt
     {
         private const float FLOAT_ERROR = 0.01f;
         private const float THROTTLE_RESP = 0.5f;
-        private const float STEER_RESP = 0.4f;
-        private const float STEER_MAX = 30.0f * Mathf.PI / 180.0f;
-        private const float ROAD_RAYCAST_UPPER = 2.0f;
+        private const float STEER_RESP = 0.3f;
+        private const float STEER_MAX = 37.0f;
+        private const float ROAD_RAYCAST_UPPER = 1.5f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float ROAD_VALID_LANE_DIST_MULT = 1.25f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
@@ -25,12 +25,14 @@ namespace IOperateIt
         private const float SPRING_OFFSET = -0.1f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         private const float MASS_FACTOR = 100.0f;
+        private const float MASS_COM_HEIGHT = 0.25f;
         private const float VALID_INCLINE = 0.5f;
-        private const float GRIP_COEFF = 1.0f;
-        private const float ACCEL_G = 10f * MS_TO_KMPH / SPEED_TO_KMPH;
-        const float SPEED_TO_KMPH = 5f / 3f;
+        private const float GRIP_COEFF = 0.7f;
+        private const float ACCEL_G = 10f * M_TO_UNIT;
         const float MS_TO_KMPH = 3.6f;
-        const float SPEED_TO_MPH = SPEED_TO_KMPH * .621371f;
+        const float UNIT_TO_M = 25.0f / 54.0f;
+        const float M_TO_UNIT = 54.0f / 25.0f;
+        const float UNIT_TO_MPH = UNIT_TO_M * 2.23694f;
         const float KN_TO_N = 1000f;
         const float KW_TO_W = 1000f;
 
@@ -55,11 +57,15 @@ namespace IOperateIt
 
             public Wheel xWheel;
             public Wheel zWheel;
+            public Vector3 tangent;
+            public Vector3 binormal;
+            public Vector3 normal;
             public Vector3 heightSample;
             public Vector3 origin;
             public float radius;
             public float power;
             public float brakeForce;
+            public float normalImpulse;
             public float compression;
             public bool onGround;
             public bool isSimulated     { get => simulated; private set => simulated = value; }
@@ -79,22 +85,21 @@ namespace IOperateIt
                 go.transform.localPosition = localpos;
                 w.xWheel = null;
                 w.zWheel = null;
+                w.tangent = Vector3.zero;
+                w.binormal = Vector3.zero;
+                w.normal = Vector3.zero;   
                 w.heightSample = Vector3.zero;
                 w.origin = localpos;
                 w.radius = radius;
                 w.power = power;
                 w.brakeForce = brakeForce;
+                w.normalImpulse = 0.0f;
                 w.compression = 0.0f;
                 w.onGround = false;
                 w.isSimulated = isSimulated;
                 w.isPowered = isPowered;
                 w.isSteerable = isSteerable;
                 w.isInvertedSteer = isInvertedSteer;
-
-                if (isSimulated)
-                {
-                    wheelCount++;
-                }
 
                 return w;
             }
@@ -115,20 +120,22 @@ namespace IOperateIt
                 }
             }
 
-            public Vector3 RoadNormal(Vector3 upVec)
+            public void CalcRoadTBN()
             {
-                Vector3 retVal = Vector3.Normalize(Vector3.Cross(xWheel.origin - this.origin, zWheel.origin - this.origin));
-                float dotUp = Vector3.Dot(retVal, upVec);
-                if (dotUp < FLOAT_ERROR)
+                Vector3 tmp = Vector3.Normalize(Vector3.Cross(xWheel.heightSample - this.heightSample, zWheel.heightSample - this.heightSample));
+                float dotUp = Vector3.Dot(tmp, Vector3.up);
+                if (dotUp < -FLOAT_ERROR)
                 {
-                    retVal = upVec;
+                    tmp = -tmp;
                 }
-                else if (dotUp < 0.0f)
+                else if (dotUp < FLOAT_ERROR)
                 {
-                    retVal = -retVal;
+                    tmp = Vector3.up;
                 }
 
-                return retVal;
+                    this.normal = tmp;
+                this.binormal = Vector3.Normalize(Vector3.Cross(this.gameObject.transform.TransformDirection(Vector3.forward), this.normal));
+                this.tangent = Vector3.Normalize(Vector3.Cross(this.normal, this.binormal));
             }
         }
 
@@ -216,7 +223,7 @@ namespace IOperateIt
             materialBlock.Clear();
             //materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, value);
             Vector4 tyrePosition = default;
-            tyrePosition.x = m_steer * Mathf.PI / 6.0f;
+            tyrePosition.x = m_steer * STEER_MAX / 180.0f * Mathf.PI;
             tyrePosition.y = m_distanceTravelled;
             tyrePosition.z = 0f;
             tyrePosition.w = 0f;
@@ -251,13 +258,13 @@ namespace IOperateIt
             if (m_physicsFallaback)
             {
                 FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, invert);
+                CalculateSlope(vehiclePos);
             }
             else
             {
-                WheelPhysics();
+                WheelPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel);
             }
             
-            CalculateSlope(vehiclePos);
             LimitVelocity();
 
             m_collidersManager.UpdateColliders(m_vehicleRigidBody.transform);
@@ -347,7 +354,7 @@ namespace IOperateIt
                 {
                     m_isBraking = false;
                 }
-                Vector3 force = Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W *  / (vehicleVel.magnitude + 1.0f));
+                Vector3 force = Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f));
                 force = m_vehicleRigidBody.transform.TransformDirection(force);
                 m_vehicleRigidBody.AddForceAtPosition(force, vehiclePos, ForceMode.Force);
 
@@ -391,47 +398,111 @@ namespace IOperateIt
             m_onCollider = false;
         }
 
-        private void WheelPhysics()
+        private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
         {
-            foreach (Wheel w in m_wheelObjects)
+            Vector3 relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
+            Vector3 upVec = m_vehicleRigidBody.transform.TransformDirection(Vector3.up);
+
+            if (relativeVel.z == 0f || m_throttle * relativeVel.z < 0f)
+            {
+                m_isBraking = true;
+            }
+            else
+            {
+                m_isBraking = false;
+            }
+
+            foreach (Wheel w in m_wheelObjects) // first calculate the heights at each wheel to prep for road normal calcs
             {
                 Vector3 wheelPos = w.gameObject.transform.position;
                 w.heightSample = wheelPos;
                 w.heightSample.y = CalculateHeight(wheelPos);
             }
 
-            Vector3 upVec = m_vehicleRigidBody.transform.TransformDirection(Vector3.up);
-
-            foreach(Wheel w in m_wheelObjects)
+            foreach (Wheel w in m_wheelObjects) // calculate the road normals and normal impulses. Update wheel suspension position.
             {
-                Vector3 roadNormal = w.RoadNormal(upVec);
-                float normDotUp = Vector3.Dot(roadNormal, upVec);
+                if (w.isSteerable)
+                {
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.isInvertedSteer ? -1.0f : 1.0f) * STEER_MAX * m_steer, 0);
+                }
+                else
+                {
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, 0, 0);
+                }
+
+                w.CalcRoadTBN();
+                w.onGround = false;
+                w.normalImpulse = 0.0f;
+                float normDotUp = Vector3.Dot(w.normal, upVec);
                 if (normDotUp > VALID_INCLINE)
                 {
-                    Vector3 finalImpulse = Vector3.zero;
-                    Vector3 pivot = m_vehicleRigidBody.transform.TransformPoint(w.origin);
-                    float compression = Mathf.Clamp((Vector3.Dot(pivot, roadNormal) - Vector3.Dot(w.heightSample, roadNormal)) / normDotUp, 0.0f, SPRING_OFFSET + SPRING_MAX_COMPRESS);
+                    Vector3 originWheelBottom = m_vehicleRigidBody.transform.TransformPoint(w.origin + Vector3.down * w.radius);
+                    float compression = Mathf.Clamp((Vector3.Dot(w.heightSample, w.normal) - Vector3.Dot(originWheelBottom, w.normal)) / normDotUp, 0.0f, SPRING_MAX_COMPRESS - SPRING_OFFSET);
                     float springVel = (compression - w.compression) / Time.fixedDeltaTime;
-                    float finalVel = SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (compression + springVel * Time.fixedDeltaTime) - compression * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime);
+                    float deltaVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (compression + springVel * Time.fixedDeltaTime) + springVel * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) - springVel;
 
-                    finalImpulse += m_vehicleRigidBody.mass * finalVel / (Wheel.wheelCount * normDotUp) * roadNormal;
+                    if (deltaVel < 0.0f)
+                    {
+                        w.onGround = true;
+                        w.normalImpulse = m_vehicleRigidBody.mass * (-deltaVel) / (Wheel.wheelCount * normDotUp);
+                    }
 
-                    //TODO: continue wheel physics
-
+                    w.gameObject.transform.localPosition = new Vector3(w.origin.x, w.origin.y + compression, w.origin.z);
                     w.compression = compression;
                 }
                 else
                 {
                     w.compression = 0.0f;
+                    w.gameObject.transform.localPosition = w.origin;
+                }
+            }
+
+            foreach(Wheel w in m_wheelObjects) // calculate the lateral and longitudinal forces. Apply all forces.
+            {
+                if (w.onGround)
+                {
+                    Vector3 netImpulse = Vector3.zero;
+                    Vector3 worldContact = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));                
+                    Vector3 worldVelocity = m_vehicleRigidBody.GetPointVelocity(worldContact);
+
+                    float lateralFract = 0.0f;
+                    foreach(Wheel wAlt in m_wheelObjects)
+                    {
+                        lateralFract += Vector3.Dot(w.binormal, wAlt.binormal) * wAlt.normalImpulse;
+                    }
+                    lateralFract = w.normalImpulse / lateralFract;
+
+                    float lateralComponent = lateralFract * m_vehicleRigidBody.mass * Vector3.Dot(worldVelocity, w.binormal);
+                    netImpulse -= lateralComponent * w.binormal;
+
+                    if (w.isPowered)
+                    {
+                        float longComponent = 0.0f;
+                        if (m_isBraking)
+                        {
+                            longComponent = w.brakeForce * Time.fixedDeltaTime;
+                        }
+                        else
+                        {
+                            longComponent = w.power / (Mathf.Abs(Vector3.Dot(worldVelocity, w.tangent)) + 1.0f) * Time.fixedDeltaTime;
+                        }
+                        netImpulse += w.tangent * m_throttle * longComponent;
+                    }
+
+                    netImpulse = Vector3.Normalize(netImpulse) * Mathf.Min(w.normalImpulse * GRIP_COEFF, netImpulse.magnitude);
+
+                    netImpulse += w.normalImpulse * w.normal;
+
+                    m_vehicleRigidBody.AddForceAtPosition(netImpulse, worldContact, ForceMode.Impulse);
                 }
             }
         }
 
         private void LimitVelocity()
         {
-            if (m_vehicleRigidBody.velocity.magnitude > Settings.ModSettings.MaxVelocity / SPEED_TO_KMPH)
+            if (m_vehicleRigidBody.velocity.magnitude > Settings.ModSettings.MaxVelocity / MS_TO_KMPH * M_TO_UNIT)
             {
-                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * Settings.ModSettings.MaxVelocity / SPEED_TO_KMPH - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
+                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * Settings.ModSettings.MaxVelocity / MS_TO_KMPH * M_TO_UNIT - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
             }
         }
 
@@ -455,7 +526,7 @@ namespace IOperateIt
         public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
         {
             enabled = true;
-            SpawnVehicle(position, rotation, vehicleInfo, vehicleColor, setColor);
+            SpawnVehicle(position + new Vector3(0.0f, -SPRING_OFFSET, 0.0f), rotation, vehicleInfo, vehicleColor, setColor);
             OverridePrefabs();
             DriveCam.instance.EnableCam(m_vehicleRigidBody, 2.0f * m_vehicleCollider.size.z);
             DriveButtons.instance.SetDisable();
@@ -525,8 +596,6 @@ namespace IOperateIt
                 m_rideHeight = 0;
             }
 
-            m_physicsFallaback = true;
-
             Mesh vehicleMesh = m_vehicleInfo.m_mesh;
             Vector3 adjustedBounds = m_vehicleInfo.m_lodMesh.bounds.size;
 
@@ -535,12 +604,14 @@ namespace IOperateIt
             adjustedBounds.y = adjustedBounds.y - m_rideHeight;
 
             float halfSA = (adjustedBounds.x * adjustedBounds.y + adjustedBounds.x * adjustedBounds.z + adjustedBounds.y * adjustedBounds.z);
-            m_vehicleRigidBody.drag = adjustedBounds.x * adjustedBounds.y / halfSA;
-            m_vehicleRigidBody.angularDrag = adjustedBounds.y * adjustedBounds.z / halfSA;
+            m_vehicleRigidBody.drag = adjustedBounds.x * adjustedBounds.y / (2.0f * halfSA);
+            m_vehicleRigidBody.angularDrag = adjustedBounds.y * adjustedBounds.z / (2.0f * halfSA);
             m_vehicleRigidBody.mass = halfSA * MASS_FACTOR;
             m_vehicleRigidBody.transform.position = position;
             m_vehicleRigidBody.transform.rotation = rotation;
-            m_vehicleRigidBody.centerOfMass = new Vector3(0.0f, m_rideHeight, 0.0f);
+            m_vehicleRigidBody.centerOfMass = new Vector3(0.0f, m_rideHeight + adjustedBounds.y * MASS_COM_HEIGHT, 0.0f);
+            Vector3 squares = new Vector3(adjustedBounds.x * adjustedBounds.x, adjustedBounds.y * adjustedBounds.y, adjustedBounds.z * adjustedBounds.z);
+            m_vehicleRigidBody.inertiaTensor = 1.0f / 12.0f * m_vehicleRigidBody.mass * new Vector3(squares.y + squares.z, squares.x + squares.z, squares.x + squares.y);
             m_vehicleRigidBody.velocity = Vector3.zero;
 
             m_vehicleCollider.size = adjustedBounds;
@@ -571,7 +642,7 @@ namespace IOperateIt
             RemoveEffects();
             foreach (Wheel w in m_wheelObjects)
             {
-                Object.Destroy(w.gameObject);
+                Object.DestroyImmediate(w.gameObject);
             }
             m_wheelObjects.Clear();
             gameObject.SetActive(false);

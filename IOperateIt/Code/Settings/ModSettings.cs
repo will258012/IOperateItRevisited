@@ -25,12 +25,12 @@ namespace IOperateIt.Settings
         [XmlElement("EnginePower")]
         public float XMLEnginePower { get => EnginePower; set => EnginePower = value; }
         [XmlIgnore]
-        internal static float EnginePower = 150f;
+        internal static float EnginePower = 225f;
 
         [XmlElement("BrakingForce")]
         public float XMLBrakingForce { get => BrakingForce; set => BrakingForce = value; }
         [XmlIgnore]
-        internal static float BrakingForce = 20f;
+        internal static float BrakingForce = 30f;
 
         [XmlElement("Offset")]
         public Vector3 XMLOffset { get => Offset; set => Offset = value; }
