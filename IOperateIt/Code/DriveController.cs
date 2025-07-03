@@ -13,6 +13,7 @@ namespace IOperateIt
         private const float THROTTLE_RESP = 0.5f;
         private const float STEER_RESP = 0.3f;
         private const float STEER_MAX = 37.0f;
+        private const float STEER_DECAY = 0.005f;
         private const float ROAD_RAYCAST_UPPER = 1.5f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float ROAD_VALID_LANE_DIST_MULT = 1.25f;
@@ -21,13 +22,17 @@ namespace IOperateIt
         private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
         private const float LIGHT_REARLIGHT_INTENSITY = 0.5f;
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
-        private const float SPRING_DAMP = 5.0f;
+        private const float SPRING_DAMP = 7.0f;
         private const float SPRING_OFFSET = -0.1f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         private const float MASS_FACTOR = 100.0f;
         private const float MASS_COM_HEIGHT = 0.25f;
+        private const float MASS_COM_BIAS = 0.6f;
+        private const float DOWN_FORCE = 5.0f;
+        private const float DRIVE_BIAS = 0.4f; 
+        private const float BRAKE_BIAS = 0.6f;
         private const float VALID_INCLINE = 0.5f;
-        private const float GRIP_COEFF = 0.7f;
+        private const float GRIP_COEFF = 0.95f;
         private const float ACCEL_G = 10f * M_TO_UNIT;
         const float MS_TO_KMPH = 3.6f;
         const float UNIT_TO_M = 25.0f / 54.0f;
@@ -237,7 +242,14 @@ namespace IOperateIt
                 materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
             }
 
-            materialBlock.SetMatrix(Singleton < VehicleManager >.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0.0f, Mathf.Clamp(m_terrainHeight - m_vehicleRigidBody.transform.position.y, SPRING_OFFSET, 0.0f), 0.0f), Quaternion.identity, Vector3.one));
+            if (m_physicsFallaback)
+            {
+                materialBlock.SetMatrix(Singleton < VehicleManager >.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0.0f, Mathf.Clamp(m_terrainHeight - m_vehicleRigidBody.transform.position.y, SPRING_OFFSET, 0.0f), 0.0f), Quaternion.identity, Vector3.one));
+            }
+            else
+            {
+                materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, Matrix4x4.identity);
+            }
 
             gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
 
@@ -252,8 +264,6 @@ namespace IOperateIt
             Vector3 vehicleVel = m_vehicleRigidBody.velocity;
             Vector3 vehicleAngularVel = m_vehicleRigidBody.angularVelocity;
             float invert = Vector3.Dot(Vector3.forward, m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel)) > 0.0f ? 1.0f : -1.0f;
-
-            m_vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
             if (m_physicsFallaback)
             {
@@ -331,6 +341,8 @@ namespace IOperateIt
 
         private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
         {
+            m_vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
+
             m_terrainHeight = CalculateHeight(vehiclePos);
             
             if (m_onCollider && m_terrainHeight < m_onColliderHeight)
@@ -354,21 +366,20 @@ namespace IOperateIt
                 {
                     m_isBraking = false;
                 }
-                Vector3 force = Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f));
-                force = m_vehicleRigidBody.transform.TransformDirection(force);
-                m_vehicleRigidBody.AddForceAtPosition(force, vehiclePos, ForceMode.Force);
+                Vector3 netAccel = Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f)) / m_vehicleRigidBody.mass;
 
                 relativeVel.z = 0.0f;
                 relativeVel.y = 0.0f;
 
-                relativeVel = Mathf.Min(Vector3.Magnitude(relativeVel) * 0.99f, GRIP_COEFF * ACCEL_G * Time.fixedDeltaTime) * Vector3.Normalize(relativeVel);
-                relativeVel = m_vehicleRigidBody.transform.TransformDirection(relativeVel);
-                m_vehicleRigidBody.AddForceAtPosition(-relativeVel, vehiclePos, ForceMode.VelocityChange);
+                netAccel -= relativeVel * (1.0f - FLOAT_ERROR) / Time.fixedDeltaTime;
+                netAccel = Mathf.Min(netAccel.magnitude, ACCEL_G * GRIP_COEFF) * Vector3.Normalize(netAccel);
+                netAccel = m_vehicleRigidBody.transform.TransformDirection(netAccel);
+                m_vehicleRigidBody.AddForceAtPosition(netAccel, vehiclePos, ForceMode.Acceleration);
 
                 float speedsteer = Mathf.Min(Mathf.Max(vehicleVel.magnitude * 80f / m_vehicleCollider.size.z, 0f), 60f);
                 speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
 
-                Vector3 angularTarget = 0.99f * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - m_vehicleRigidBody.transform.InverseTransformDirection(vehicleAngularVel);
+                Vector3 angularTarget = (1.0f - FLOAT_ERROR) * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - m_vehicleRigidBody.transform.InverseTransformDirection(vehicleAngularVel);
 
                 m_vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
             }
@@ -400,6 +411,8 @@ namespace IOperateIt
 
         private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
         {
+            m_vehicleRigidBody.AddForce(Vector3.down * (ACCEL_G * m_vehicleRigidBody.mass + DOWN_FORCE * Mathf.Abs(Vector3.Dot(vehicleVel, m_vehicleRigidBody.transform.TransformDirection(Vector3.forward)))), ForceMode.Force);
+
             Vector3 relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
             Vector3 upVec = m_vehicleRigidBody.transform.TransformDirection(Vector3.up);
 
@@ -423,7 +436,7 @@ namespace IOperateIt
             {
                 if (w.isSteerable)
                 {
-                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.isInvertedSteer ? -1.0f : 1.0f) * STEER_MAX * m_steer, 0);
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.isInvertedSteer ? -1.0f : 1.0f) * STEER_MAX * m_steer * Mathf.Clamp(1.0f - STEER_DECAY * vehicleVel.magnitude, 0.1f, 1.0f), 0);
                 }
                 else
                 {
@@ -437,7 +450,7 @@ namespace IOperateIt
                 if (normDotUp > VALID_INCLINE)
                 {
                     Vector3 originWheelBottom = m_vehicleRigidBody.transform.TransformPoint(w.origin + Vector3.down * w.radius);
-                    float compression = Mathf.Clamp((Vector3.Dot(w.heightSample, w.normal) - Vector3.Dot(originWheelBottom, w.normal)) / normDotUp, 0.0f, SPRING_MAX_COMPRESS - SPRING_OFFSET);
+                    float compression = Mathf.Clamp((Vector3.Dot(w.heightSample, w.normal) - Vector3.Dot(originWheelBottom, w.normal)) / normDotUp, 0.0f, 1000000.0f);// SPRING_MAX_COMPRESS - SPRING_OFFSET);
                     float springVel = (compression - w.compression) / Time.fixedDeltaTime;
                     float deltaVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (compression + springVel * Time.fixedDeltaTime) + springVel * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) - springVel;
 
@@ -494,6 +507,20 @@ namespace IOperateIt
                     netImpulse += w.normalImpulse * w.normal;
 
                     m_vehicleRigidBody.AddForceAtPosition(netImpulse, worldContact, ForceMode.Impulse);
+                }
+                else
+                {
+                    if (w.transform.position.y < w.heightSample.y)
+                    {
+                        Vector3 pos = m_vehicleRigidBody.transform.position;
+                        pos.y += w.heightSample.y - w.transform.position.y;
+                        m_vehicleRigidBody.transform.position = pos;
+
+                        m_vehicleRigidBody.AddForce(-(1.0f - FLOAT_ERROR) * Vector3.Dot(w.normal, vehicleVel) * w.normal, ForceMode.VelocityChange);
+
+                        m_vehicleRigidBody.AddTorque(Vector3.Cross(upVec, w.normal) * 0.2f, ForceMode.VelocityChange);
+
+                    }
                 }
             }
         }
@@ -555,11 +582,32 @@ namespace IOperateIt
                 m_rideHeight = m_vehicleInfo.m_generatedInfo.m_tyres[0].y;
 
                 int wheelCount = m_vehicleInfo.m_generatedInfo.m_tyres.Length;
+                int frontCount = 0;
+                foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
+                {
+                    if (tirepos.z > 0.0f)
+                    {
+                        frontCount++;
+                    }
+                }
+                int rearCount = wheelCount - frontCount;
+                float frontPower = DRIVE_BIAS * Settings.ModSettings.EnginePower * KW_TO_W;
+                float rearPower = (1.0f - DRIVE_BIAS) * Settings.ModSettings.EnginePower * KW_TO_W;
+                float frontBraking = BRAKE_BIAS * Settings.ModSettings.BrakingForce * KN_TO_N;
+                float rearBraking = (1.0f - BRAKE_BIAS) * Settings.ModSettings.BrakingForce * KN_TO_N;
 
                 foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
                 {
-                    m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + SPRING_OFFSET, tirepos.z), tirepos.w, true, true, 
-                        Settings.ModSettings.EnginePower * KW_TO_W / wheelCount, Settings.ModSettings.BrakingForce * KN_TO_N / wheelCount, tirepos.z > 0.0f));
+                    if (tirepos.z > 0.0f)
+                    {
+                        m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + SPRING_OFFSET, tirepos.z), tirepos.w, true, true, 
+                            frontPower / frontCount, frontBraking / frontCount, true));
+                    }
+                    else
+                    {
+                        m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + SPRING_OFFSET, tirepos.z), tirepos.w, true, true,
+                            rearPower / rearCount, rearBraking / rearCount, false));
+                    }
                 }
 
                 m_physicsFallaback = false;
@@ -609,7 +657,7 @@ namespace IOperateIt
             m_vehicleRigidBody.mass = halfSA * MASS_FACTOR;
             m_vehicleRigidBody.transform.position = position;
             m_vehicleRigidBody.transform.rotation = rotation;
-            m_vehicleRigidBody.centerOfMass = new Vector3(0.0f, m_rideHeight + adjustedBounds.y * MASS_COM_HEIGHT, 0.0f);
+            m_vehicleRigidBody.centerOfMass = new Vector3(0.0f, m_rideHeight + adjustedBounds.y * MASS_COM_HEIGHT, (MASS_COM_BIAS - 0.5f) * adjustedBounds.z * 0.5f);
             Vector3 squares = new Vector3(adjustedBounds.x * adjustedBounds.x, adjustedBounds.y * adjustedBounds.y, adjustedBounds.z * adjustedBounds.z);
             m_vehicleRigidBody.inertiaTensor = 1.0f / 12.0f * m_vehicleRigidBody.mass * new Vector3(squares.y + squares.z, squares.x + squares.z, squares.x + squares.y);
             m_vehicleRigidBody.velocity = Vector3.zero;
