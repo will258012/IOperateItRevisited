@@ -148,12 +148,14 @@ namespace IOperateIt.Utils
 
             Material debugMat = m_debugMaterial;
 
-            debugMat.color = color;
             debugMat.renderQueue = 4000;
+
+            m_debugMaterialBlock.Clear();
+            m_debugMaterialBlock.SetColor("_Color", color);
 
             Matrix4x4 matrix = Matrix4x4.TRS(position, Quaternion.identity, new Vector3(1.0f, size, 1.0f));
 
-            Graphics.DrawMesh(m_debugMeshMarker, matrix, debugMat, 24, m_mainCamera, 0);
+            Graphics.DrawMesh(m_debugMeshMarker, matrix, debugMat, 24, m_mainCamera, 0, m_debugMaterialBlock);
         }
 
         public static void DrawDebugBox(Vector3 size, Vector3 center, Quaternion rotation, Color color = default)
@@ -171,13 +173,13 @@ namespace IOperateIt.Utils
             {
                 debugMat = m_debugMaterial;
             }
-            debugMat.color = color;
             debugMat.renderQueue = 4000;
 
             m_debugMaterialBlock.Clear();
             m_debugMaterialBlock.SetFloat("_WireThickness", 400f);
             m_debugMaterialBlock.SetFloat("_WireSmoothness", 3f);
             m_debugMaterialBlock.SetColor("_WireColor", color);
+            m_debugMaterialBlock.SetColor("_Color", color);
             m_debugMaterialBlock.SetColor("_BaseColor", Color.clear);
             m_debugMaterialBlock.SetFloat("_MaxTriSize", 200f);
 

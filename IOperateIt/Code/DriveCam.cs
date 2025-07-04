@@ -2,6 +2,7 @@
 using ColossalFramework;
 using ColossalFramework.UI;
 using IOperateIt.Settings;
+using IOperateIt.Utils;
 using UnityEngine;
 
 namespace IOperateIt
@@ -189,9 +190,20 @@ namespace IOperateIt
                 m_rotation = m_rotationOffset;
             }
 
+            float finalFollowDist = m_followDistance;
+            MapUtils.RaycastInput input = MapUtils.GetRaycastInput(vehiclePosition, m_rotation * Vector3.back, 1000.0f, false);
+            input.m_netService.m_service = ItemClass.Service.Road;
+            input.m_netService.m_itemLayers = ItemClass.Layer.Default |
+                                              ItemClass.Layer.MetroTunnels;
+            input.m_netService2.m_service = ItemClass.Service.Beautification;
+            if (MapUtils.RayCast(input, out var output))
+            {
+                finalFollowDist = Mathf.Min(Vector3.Magnitude(output.m_hitPos - vehiclePosition), finalFollowDist);
+            }
+
             // Apply the calculated position and rotation to the camera. Limit the camera's position to the allowed area.
             m_mainCamera.transform.rotation = m_rotation;
-            m_mainCamera.transform.position = CameraController.ClampCameraPosition(vehiclePosition + m_rotation * new Vector3(0.0f, 0.0f, -m_followDistance));
+            m_mainCamera.transform.position = CameraController.ClampCameraPosition(vehiclePosition + m_rotation * new Vector3(0.0f, 0.0f, -finalFollowDist));
         }
 
         private void UpdateCameraRendering()

@@ -11,9 +11,11 @@ namespace IOperateIt
     {
         private const float FLOAT_ERROR = 0.01f;
         private const float THROTTLE_RESP = 0.5f;
-        private const float STEER_RESP = 0.3f;
+        private const float STEER_RESP = 0.35f;
+        private const float GEAR_RESP = 0.25f;
+        private const float PARK_SPEED = 0.5f;
         private const float STEER_MAX = 37.0f;
-        private const float STEER_DECAY = 0.005f;
+        private const float STEER_DECAY = 0.006f;
         private const float ROAD_RAYCAST_UPPER = 1.5f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float ROAD_VALID_LANE_DIST_MULT = 1.25f;
@@ -22,17 +24,20 @@ namespace IOperateIt
         private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
         private const float LIGHT_REARLIGHT_INTENSITY = 0.5f;
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
-        private const float SPRING_DAMP = 7.0f;
+        private const float SPRING_DAMP = 6.0f;
         private const float SPRING_OFFSET = -0.1f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
-        private const float MASS_FACTOR = 100.0f;
-        private const float MASS_COM_HEIGHT = 0.25f;
+        private const float MASS_FACTOR = 85.0f;
+        private const float DRAG_FACTOR = 0.25f;
+        private const float MASS_COM_HEIGHT = 0.1f;
         private const float MASS_COM_BIAS = 0.6f;
         private const float DOWN_FORCE = 5.0f;
-        private const float DRIVE_BIAS = 0.4f; 
-        private const float BRAKE_BIAS = 0.6f;
+        private const float DRIVE_BIAS = 0.5f; 
+        private const float BRAKE_BIAS = 0.7f;
         private const float VALID_INCLINE = 0.5f;
-        private const float GRIP_COEFF = 0.95f;
+        private const float GRIP_OVERMATCH = 0.3f;
+        private const float GRIP_COEFF = 1.0f;
+        private const float GRIP_COEFF_K = 0.8f;
         private const float ACCEL_G = 10f * M_TO_UNIT;
         const float MS_TO_KMPH = 3.6f;
         const float UNIT_TO_M = 25.0f / 54.0f;
@@ -167,19 +172,21 @@ namespace IOperateIt
         private Vector3 m_prevPosition;
         private Vector3 m_prevVelocity;
         private Vector4 m_lightState;
-        private bool m_isSirenEnabled = true;
+        private bool m_isSirenEnabled = false;
         private bool m_isLightEnabled = false;
-        private bool m_physicsFallaback = false;
-        private bool m_isBraking = false;
+        private bool m_physicsFallback = false;
         private bool m_onCollider = false;
 
-        private float m_terrainHeight;
+        private int m_gear = 0;
+        private float m_terrainHeight = 0.0f;
         private float m_distanceTravelled = 0.0f;
         private float m_steer = 0.0f;
+        private float m_brake = 0.0f;
         private float m_throttle = 0.0f;
         private float m_rideHeight = 0.0f;
         private float m_roofHeight = 0.0f;
         private float m_prevCompression = 0.0f;
+        private float m_prevGearChange = 0.0f;
         private float m_onColliderHeight = 0.0f;
         private void Awake()
         {
@@ -203,7 +210,6 @@ namespace IOperateIt
             m_vehicleCollider.material = material;
 
             m_suspensionCollider = gameObject.AddComponent<SphereCollider>();
-            m_suspensionCollider.enabled = false;
 
             StartCoroutine(m_collidersManager.InitializeColliders());
             gameObject.SetActive(false);
@@ -235,14 +241,14 @@ namespace IOperateIt
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
 
             m_lightState.x = m_isLightEnabled ? LIGHT_HEADLIGHT_INTENSITY : 0.0f;
-            m_lightState.y = m_isBraking ? LIGHT_BRAKELIGHT_INTENSITY : (m_isLightEnabled ? LIGHT_REARLIGHT_INTENSITY : 0.0f);
+            m_lightState.y = m_brake > 0.0f ? LIGHT_BRAKELIGHT_INTENSITY : (m_isLightEnabled ? LIGHT_REARLIGHT_INTENSITY : 0.0f);
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_LightState, m_lightState);
             if (m_setColor)
             {
                 materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, m_vehicleColor);
             }
 
-            if (m_physicsFallaback)
+            if (m_physicsFallback)
             {
                 materialBlock.SetMatrix(Singleton < VehicleManager >.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0.0f, Mathf.Clamp(m_terrainHeight - m_vehicleRigidBody.transform.position.y, SPRING_OFFSET, 0.0f), 0.0f), Quaternion.identity, Vector3.one));
             }
@@ -258,14 +264,15 @@ namespace IOperateIt
         }
         private void FixedUpdate()
         {
-            HandleInputOnFixedUpdate();
-
             Vector3 vehiclePos = m_vehicleRigidBody.transform.position;
             Vector3 vehicleVel = m_vehicleRigidBody.velocity;
             Vector3 vehicleAngularVel = m_vehicleRigidBody.angularVelocity;
-            float invert = Vector3.Dot(Vector3.forward, m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel)) > 0.0f ? 1.0f : -1.0f;
+            float speed = Vector3.Dot(Vector3.forward, m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel));
+            int invert = Mathf.Abs(speed) < PARK_SPEED ? 0 : (speed > 0.0f ? 1 : -1);
 
-            if (m_physicsFallaback)
+            HandleInputOnFixedUpdate(invert);
+
+            if (m_physicsFallback || m_onCollider)
             {
                 FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, invert);
                 CalculateSlope(vehiclePos);
@@ -339,6 +346,12 @@ namespace IOperateIt
             LimitVelocity();
         }
 
+        private void OnGUI()
+        {
+            if (Logging.DetailLogging)
+                GUI.Label(new Rect(50f, 50f, 500f, 200f), "g: " + m_gear + " t: " + m_throttle + " b: " + m_brake + " s: " + m_vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH);
+        }
+
         private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
         {
             m_vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
@@ -358,15 +371,16 @@ namespace IOperateIt
             {
                 var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
 
-                if (relativeVel.z == 0f || m_throttle * relativeVel.z < 0f)
+                Vector3 netAccel = Vector3.forward * m_gear * m_throttle * ( Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f)) / m_vehicleRigidBody.mass;
+
+                if (m_gear == 0)
                 {
-                    m_isBraking = true;
+                    netAccel -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(m_brake * (Settings.ModSettings.BrakingForce * KN_TO_N) / m_vehicleRigidBody.mass, Mathf.Abs(relativeVel.z) / Time.fixedDeltaTime);
                 }
                 else
                 {
-                    m_isBraking = false;
+                    netAccel -= Vector3.forward * m_gear * m_brake * (Settings.ModSettings.BrakingForce * KN_TO_N) / m_vehicleRigidBody.mass;
                 }
-                Vector3 netAccel = Vector3.forward * m_throttle * (m_isBraking ? Settings.ModSettings.BrakingForce * KN_TO_N : Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f)) / m_vehicleRigidBody.mass;
 
                 relativeVel.z = 0.0f;
                 relativeVel.y = 0.0f;
@@ -411,25 +425,26 @@ namespace IOperateIt
 
         private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
         {
-            m_vehicleRigidBody.AddForce(Vector3.down * (ACCEL_G * m_vehicleRigidBody.mass + DOWN_FORCE * Mathf.Abs(Vector3.Dot(vehicleVel, m_vehicleRigidBody.transform.TransformDirection(Vector3.forward)))), ForceMode.Force);
-
-            Vector3 relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
             Vector3 upVec = m_vehicleRigidBody.transform.TransformDirection(Vector3.up);
 
-            if (relativeVel.z == 0f || m_throttle * relativeVel.z < 0f)
-            {
-                m_isBraking = true;
-            }
-            else
-            {
-                m_isBraking = false;
-            }
+            m_vehicleRigidBody.AddForce(Vector3.down * (ACCEL_G * m_vehicleRigidBody.mass) - upVec * DOWN_FORCE * Mathf.Abs(Vector3.Dot(vehicleVel, m_vehicleRigidBody.transform.TransformDirection(Vector3.forward))), ForceMode.Force);
 
             foreach (Wheel w in m_wheelObjects) // first calculate the heights at each wheel to prep for road normal calcs
             {
                 Vector3 wheelPos = w.gameObject.transform.position;
                 w.heightSample = wheelPos;
                 w.heightSample.y = CalculateHeight(wheelPos);
+
+                if (wheelPos.y + ROAD_WALL_HEIGHT < w.heightSample.y)
+                {
+                    vehiclePos = m_prevPosition;
+                    vehicleVel = Vector3.zero;
+                    vehicleAngularVel = Vector3.zero;
+                    m_vehicleRigidBody.angularVelocity = vehicleAngularVel;
+                    m_vehicleRigidBody.velocity = vehicleVel;
+                    m_vehicleRigidBody.transform.position = vehiclePos;
+                    return;
+                }
             }
 
             foreach (Wheel w in m_wheelObjects) // calculate the road normals and normal impulses. Update wheel suspension position.
@@ -450,7 +465,7 @@ namespace IOperateIt
                 if (normDotUp > VALID_INCLINE)
                 {
                     Vector3 originWheelBottom = m_vehicleRigidBody.transform.TransformPoint(w.origin + Vector3.down * w.radius);
-                    float compression = Mathf.Clamp((Vector3.Dot(w.heightSample, w.normal) - Vector3.Dot(originWheelBottom, w.normal)) / normDotUp, 0.0f, 1000000.0f);// SPRING_MAX_COMPRESS - SPRING_OFFSET);
+                    float compression = Mathf.Max((Vector3.Dot(w.heightSample, w.normal) - Vector3.Dot(originWheelBottom, w.normal)) / normDotUp, 0.0f);
                     float springVel = (compression - w.compression) / Time.fixedDeltaTime;
                     float deltaVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (compression + springVel * Time.fixedDeltaTime) + springVel * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) - springVel;
 
@@ -485,24 +500,51 @@ namespace IOperateIt
                     }
                     lateralFract = w.normalImpulse / lateralFract;
 
-                    float lateralComponent = lateralFract * m_vehicleRigidBody.mass * Vector3.Dot(worldVelocity, w.binormal);
+                    float lateralSpeed = Vector3.Dot(worldVelocity, w.binormal);
+                    float lateralComponent = lateralFract * m_vehicleRigidBody.mass * lateralSpeed;
                     netImpulse -= lateralComponent * w.binormal;
 
-                    if (w.isPowered)
+
+                    float longSpeed = Vector3.Dot(worldVelocity, w.tangent);
+                    float longComponent = 0.0f;
+
+                    if (m_gear == 0)
                     {
-                        float longComponent = 0.0f;
-                        if (m_isBraking)
-                        {
-                            longComponent = w.brakeForce * Time.fixedDeltaTime;
-                        }
-                        else
-                        {
-                            longComponent = w.power / (Mathf.Abs(Vector3.Dot(worldVelocity, w.tangent)) + 1.0f) * Time.fixedDeltaTime;
-                        }
-                        netImpulse += w.tangent * m_throttle * longComponent;
+                        longComponent -= Mathf.Sign(longSpeed) * Mathf.Min(m_brake * w.brakeForce * Time.fixedDeltaTime, Mathf.Abs(longSpeed) * m_vehicleRigidBody.mass / Wheel.wheelCount);
+                    }
+                    else
+                    {
+                        longComponent -= m_gear * m_brake * w.brakeForce * Time.fixedDeltaTime;
+                    }
+                    longComponent += m_gear * m_throttle * w.power / (Mathf.Abs(longSpeed) + 1.0f) * Time.fixedDeltaTime;
+
+                    Vector3 longImpulse = w.tangent * longComponent;
+                    netImpulse += (1.0f - GRIP_OVERMATCH) * longImpulse;
+
+                    if (m_brake > 0.0f && Mathf.Abs(m_steer) > 0.7 && vehicleVel.magnitude > 20.0f) // kick out rear if braking while steering hard.
+                    {
+                        m_vehicleRigidBody.AddTorque(upVec * Mathf.Sign(m_steer) * (Mathf.Abs(m_steer) - 0.7f) * 0.04f, ForceMode.VelocityChange);
+                    }
+
+                    float gripCoefficient = GRIP_COEFF;
+                    
+                    if (w.isSteerable)
+                    {
+                        gripCoefficient = Mathf.Lerp(GRIP_COEFF, GRIP_COEFF_K, Mathf.Abs(lateralSpeed) * 0.05f);
+                    }
+                    else
+                    {
+                        gripCoefficient = Mathf.Lerp(GRIP_COEFF, GRIP_COEFF_K, Mathf.Abs(lateralSpeed) * 0.1f);
+                    }
+
+                    if (gripCoefficient < (GRIP_COEFF + GRIP_COEFF_K) / 2.0f)
+                    {
+                        DebugHelper.DrawDebugMarker(2.0f, w.transform.position, Color.yellow);
                     }
 
                     netImpulse = Vector3.Normalize(netImpulse) * Mathf.Min(w.normalImpulse * GRIP_COEFF, netImpulse.magnitude);
+
+                    netImpulse += GRIP_OVERMATCH * longImpulse;
 
                     netImpulse += w.normalImpulse * w.normal;
 
@@ -516,9 +558,18 @@ namespace IOperateIt
                         pos.y += w.heightSample.y - w.transform.position.y;
                         m_vehicleRigidBody.transform.position = pos;
 
-                        m_vehicleRigidBody.AddForce(-(1.0f - FLOAT_ERROR) * Vector3.Dot(w.normal, vehicleVel) * w.normal, ForceMode.VelocityChange);
+                        Vector3 normalVel = Vector3.Dot(w.normal, vehicleVel) * w.normal;
 
-                        m_vehicleRigidBody.AddTorque(Vector3.Cross(upVec, w.normal) * 0.2f, ForceMode.VelocityChange);
+                        m_vehicleRigidBody.AddForce(-(1.0f - FLOAT_ERROR) * normalVel - (vehicleVel - normalVel) * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+
+                        if (vehicleAngularVel.magnitude < 0.5f)
+                        {
+                            m_vehicleRigidBody.AddTorque(Vector3.Normalize(Vector3.Cross(upVec, w.normal)) * 0.25f, ForceMode.VelocityChange);
+                        }
+                        else
+                        {
+                            m_vehicleRigidBody.AddTorque(-vehicleAngularVel * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                        }
 
                     }
                 }
@@ -572,8 +623,11 @@ namespace IOperateIt
             m_setColor = setColor;
             m_vehicleColor = vehicleColor;
             m_vehicleColor.a = 0; // Make sure blinking is not set.
+            m_prevPosition = position;
+            m_prevVelocity = Vector3.zero;
             m_lightState = Vector4.zero;
             m_vehicleInfo = vehicleInfo;
+            m_gear = 0;
 
             m_vehicleInfo.CalculateGeneratedInfo();
 
@@ -610,7 +664,7 @@ namespace IOperateIt
                     }
                 }
 
-                m_physicsFallaback = false;
+                m_physicsFallback = false;
 
                 foreach (Wheel w in m_wheelObjects)
                 {
@@ -635,7 +689,7 @@ namespace IOperateIt
 
                     if (w.xWheel == null || w.zWheel == null)
                     {
-                        m_physicsFallaback = true;
+                        m_physicsFallback = true;
                     }
                 }
             }
@@ -652,8 +706,8 @@ namespace IOperateIt
             adjustedBounds.y = adjustedBounds.y - m_rideHeight;
 
             float halfSA = (adjustedBounds.x * adjustedBounds.y + adjustedBounds.x * adjustedBounds.z + adjustedBounds.y * adjustedBounds.z);
-            m_vehicleRigidBody.drag = adjustedBounds.x * adjustedBounds.y / (2.0f * halfSA);
-            m_vehicleRigidBody.angularDrag = adjustedBounds.y * adjustedBounds.z / (2.0f * halfSA);
+            m_vehicleRigidBody.drag = DRAG_FACTOR * adjustedBounds.x * adjustedBounds.y / halfSA;
+            m_vehicleRigidBody.angularDrag = DRAG_FACTOR * adjustedBounds.y * adjustedBounds.z / halfSA;
             m_vehicleRigidBody.mass = halfSA * MASS_FACTOR;
             m_vehicleRigidBody.transform.position = position;
             m_vehicleRigidBody.transform.rotation = rotation;
@@ -665,7 +719,6 @@ namespace IOperateIt
             m_vehicleCollider.size = adjustedBounds;
             m_vehicleCollider.center = new Vector3(0.0f, 0.5f * adjustedBounds.y + m_rideHeight, 0.0f);
 
-            m_suspensionCollider.enabled = m_physicsFallaback;
             m_suspensionCollider.radius = 0.5f * Mathf.Min(Mathf.Min(adjustedBounds.x, adjustedBounds.y), adjustedBounds.z);
             m_suspensionCollider.center = new Vector3(0.0f, m_suspensionCollider.radius, 0.0f);
 
@@ -694,12 +747,29 @@ namespace IOperateIt
             }
             m_wheelObjects.Clear();
             gameObject.SetActive(false);
+            m_vehicleRigidBody.velocity = Vector3.zero;
+            m_vehicleRigidBody.angularVelocity = Vector3.zero;
 
             m_setColor = false;
             m_vehicleColor = default;
             m_vehicleInfo = null;
+            m_prevPosition = Vector3.zero;
+            m_prevVelocity = Vector3.zero;
             m_lightState = Vector4.zero;
+            m_isSirenEnabled = false;
+            m_isLightEnabled = false;
+            m_physicsFallback = false;
+            m_onCollider = false;
+            m_gear = 0;
+            m_terrainHeight = 0.0f;
+            m_distanceTravelled = 0.0f;
+            m_steer = 0.0f;
+            m_brake = 0.0f;
+            m_throttle = 0.0f;
             m_rideHeight = 0.0f;
+            m_roofHeight = 0.0f;
+            m_prevCompression = 0.0f;
+            m_onColliderHeight = 0.0f;
         }
 
         private void OverridePrefabs()
@@ -1139,29 +1209,72 @@ namespace IOperateIt
             return found;
         }
 
-        private void HandleInputOnFixedUpdate()
+        private void HandleInputOnFixedUpdate(int invert)
         {
             bool throttling = false;
+            bool braking = false;
             if (Input.GetKey((KeyCode)Settings.ModSettings.KeyMoveForward.Key))
             {
-                m_throttle = Mathf.Clamp(m_throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
-                throttling = true;
+                if (invert < 0)
+                {
+                    if (m_gear <= 0)
+                    {
+                        m_throttle = 0.0f;
+                        m_brake = Mathf.Clamp(m_brake + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                        braking = true;
+                    }
+                }
+                else if (m_throttle == 0.0f && Time.time > m_prevGearChange + GEAR_RESP && m_gear <= 0)
+                {
+                    m_gear++;
+                    m_prevGearChange = Time.time;
+                }
+
+                if (m_gear > 0)
+                {
+                    m_brake = 0.0f;
+                    m_throttle = Mathf.Clamp(m_throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                    throttling = true;
+                }
             }
-            if (Input.GetKey((KeyCode)Settings.ModSettings.KeyMoveBackward.Key))
+            else if (Input.GetKey((KeyCode)Settings.ModSettings.KeyMoveBackward.Key))
             {
-                m_throttle = Mathf.Clamp(m_throttle - Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
-                throttling = true;
+                if (invert > 0)
+                {
+                    if (m_gear >= 0)
+                    {
+                        m_throttle = 0.0f;
+                        m_brake = Mathf.Clamp(m_brake + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                        braking = true;
+                    }
+                }
+                else if (m_throttle == 0.0f && Time.time > m_prevGearChange + GEAR_RESP && m_gear >= 0)
+                {
+                    m_gear--;
+                    m_prevGearChange = Time.time;
+                }
+
+                if (m_gear < 0)
+                {
+                    m_brake = 0.0f;
+                    m_throttle = Mathf.Clamp(m_throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+                    throttling = true;
+                }
+            }
+            else if (invert == 0 && m_throttle == 0.0f && Time.time > m_prevGearChange + GEAR_RESP && m_gear >= 0)
+            {
+                m_gear = 0;
+                m_prevGearChange = Time.time;
+                m_brake = 1.0f;
+                braking = true;
             }
             if (!throttling)
             {
-                if (m_throttle > 0.0f)
-                {
-                    m_throttle = Mathf.Clamp(m_throttle - Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
-                }
-                else if (m_throttle < 0.0f)
-                {
-                    m_throttle = Mathf.Clamp(m_throttle + Time.fixedDeltaTime / THROTTLE_RESP, -1.0f, 0.0f);
-                }
+                m_throttle = Mathf.Clamp(m_throttle - Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
+            }
+            if (!braking)
+            {
+                m_brake = Mathf.Clamp(m_brake - Time.fixedDeltaTime / THROTTLE_RESP, 0.0f, 1.0f);
             }
 
             bool steering = false;
