@@ -49,8 +49,5 @@
       <Private>false</Private>
     </Reference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Code\Tools\" />
-  </ItemGroup>
   <Import Project="..\thirdparty\AlgernonCommons\AlgernonCommonsPatchingShared.projitems" Label="Shared" />
 </Project> 
