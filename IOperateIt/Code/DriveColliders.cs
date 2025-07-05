@@ -22,7 +22,7 @@ namespace IOperateIt
         public ContainerType Type = ContainerType.TYPE_DEFAULT;
         public int ID = 0;
     }
-    public class CollidersManager
+    public class DriveColliders
     {
         private const int NUM_BUILDING_COLLIDERS = 36;
         private const int NUM_VEHICLE_COLLIDERS = 48;
