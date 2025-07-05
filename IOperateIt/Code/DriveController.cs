@@ -153,7 +153,6 @@ namespace IOperateIt
 
         private Rigidbody       m_vehicleRigidBody;
         private BoxCollider     m_vehicleCollider;
-        private SphereCollider  m_suspensionCollider;
         private Color           m_vehicleColor;
         private bool            m_setColor;
         private VehicleInfo     m_vehicleInfo;
@@ -175,7 +174,6 @@ namespace IOperateIt
         private bool m_isSirenEnabled = false;
         private bool m_isLightEnabled = false;
         private bool m_physicsFallback = false;
-        private bool m_onCollider = false;
 
         private int m_gear = 0;
         private float m_terrainHeight = 0.0f;
@@ -187,7 +185,6 @@ namespace IOperateIt
         private float m_roofHeight = 0.0f;
         private float m_prevCompression = 0.0f;
         private float m_prevGearChange = 0.0f;
-        private float m_onColliderHeight = 0.0f;
         private void Awake()
         {
             instance = this;
@@ -209,7 +206,7 @@ namespace IOperateIt
             m_vehicleCollider = gameObject.AddComponent<BoxCollider>();
             m_vehicleCollider.material = material;
 
-            m_suspensionCollider = gameObject.AddComponent<SphereCollider>();
+            //m_suspensionCollider = gameObject.AddComponent<SphereCollider>();
 
             StartCoroutine(m_collidersManager.InitializeColliders());
             gameObject.SetActive(false);
@@ -272,7 +269,7 @@ namespace IOperateIt
 
             HandleInputOnFixedUpdate(invert);
 
-            if (m_physicsFallback || m_onCollider)
+            if (m_physicsFallback)
             {
                 FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, invert);
                 CalculateSlope(vehiclePos);
@@ -331,14 +328,6 @@ namespace IOperateIt
         private void OnCollisionStay(Collision collision)
         {
             LimitVelocity();
-            foreach (var contact in collision.contacts)
-            {
-                if (Vector3.Dot(contact.normal, m_vehicleRigidBody.transform.TransformDirection(Vector3.up)) > 0.7)
-                {
-                    m_onCollider = true;
-                    m_onColliderHeight = Mathf.Max(contact.point.y);
-                }
-            }
         }
 
         private void OnCollisionExit(Collision collision)
@@ -357,15 +346,6 @@ namespace IOperateIt
             m_vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
             m_terrainHeight = CalculateHeight(vehiclePos);
-            
-            if (m_onCollider && m_terrainHeight < m_onColliderHeight)
-            {
-                m_terrainHeight = Mathf.Max(m_onColliderHeight, m_terrainHeight);
-            }
-            else
-            {
-                m_onCollider = false;
-            }
 
             if (vehiclePos.y + 1.1f * SPRING_OFFSET < m_terrainHeight)
             {
@@ -405,7 +385,7 @@ namespace IOperateIt
                 m_vehicleRigidBody.transform.position = vehiclePos;
                 m_vehicleRigidBody.velocity = vehicleVel;
             }
-            else if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight && !m_onCollider)
+            else if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight)
             {
                 if (vehiclePos.y + SPRING_MAX_COMPRESS < m_terrainHeight)
                 {
@@ -420,7 +400,6 @@ namespace IOperateIt
             }
 
             m_prevCompression = Mathf.Min(vehiclePos.y + SPRING_OFFSET - m_terrainHeight, 0.0f);
-            m_onCollider = false;
         }
 
         private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
@@ -719,9 +698,6 @@ namespace IOperateIt
             m_vehicleCollider.size = adjustedBounds;
             m_vehicleCollider.center = new Vector3(0.0f, 0.5f * adjustedBounds.y + m_rideHeight, 0.0f);
 
-            m_suspensionCollider.radius = 0.5f * Mathf.Min(Mathf.Min(adjustedBounds.x, adjustedBounds.y), adjustedBounds.z);
-            m_suspensionCollider.center = new Vector3(0.0f, m_suspensionCollider.radius, 0.0f);
-
             gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
             gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = m_vehicleInfo.m_material;
             gameObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
@@ -759,7 +735,6 @@ namespace IOperateIt
             m_isSirenEnabled = false;
             m_isLightEnabled = false;
             m_physicsFallback = false;
-            m_onCollider = false;
             m_gear = 0;
             m_terrainHeight = 0.0f;
             m_distanceTravelled = 0.0f;
@@ -769,14 +744,10 @@ namespace IOperateIt
             m_rideHeight = 0.0f;
             m_roofHeight = 0.0f;
             m_prevCompression = 0.0f;
-            m_onColliderHeight = 0.0f;
         }
 
         private void OverridePrefabs()
         {
-            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer.
-            int roadLayer = LayerMask.NameToLayer("Road"); // road render layer.
-
             for (uint prefabIndex = 0; prefabIndex < PrefabCollection<VehicleInfo>.PrefabCount(); prefabIndex++)
             {
                 VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(prefabIndex);
@@ -830,7 +801,7 @@ namespace IOperateIt
                         for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
                         {
                             NetInfo.Segment newSegment = CopySegment(prefabReplaceInfo.m_segments[index]);
-                            newSegment.m_layer = undergroudLayer;
+                            newSegment.m_layer = MapUtils.LAYER_UNDERGROUND;
                             segments[index] = newSegment;
                         }
 
@@ -839,7 +810,7 @@ namespace IOperateIt
                         for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
                         {
                             NetInfo.Node newNode = CopyNode(prefabReplaceInfo.m_nodes[index]);
-                            newNode.m_layer = undergroudLayer;
+                            newNode.m_layer = MapUtils.LAYER_UNDERGROUND;
                             newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
                             nodes[index] = newNode;
                         }
@@ -861,7 +832,7 @@ namespace IOperateIt
                     for (int index = 0; index < prefabNetInfo.m_segments.Length; index++)
                     {
                         NetInfo.Segment currSegment = prefabNetInfo.m_segments[index];
-                        if (currSegment.m_layer == undergroudLayer) // disable slope underground component from rendering.
+                        if (currSegment.m_layer == MapUtils.LAYER_UNDERGROUND) // disable slope underground component from rendering.
                         {
                             NetInfo.Segment newSegment = CopySegment(currSegment);
                             newSegment.m_forwardForbidden = NetSegment.Flags.All;
@@ -881,7 +852,7 @@ namespace IOperateIt
                     for (int index = 0; index < prefabNetInfo.m_nodes.Length; index++)
                     {
                         NetInfo.Node newNode = CopyNode(prefabNetInfo.m_nodes[index]);
-                        if (newNode.m_layer == undergroudLayer) // disable node underground component from rendering.
+                        if (newNode.m_layer == MapUtils.LAYER_UNDERGROUND) // disable node underground component from rendering.
                         {
                             newNode.m_flagsForbidden = NetNode.Flags.All;
                             newNode.m_flagsRequired = NetNode.Flags.None;
@@ -901,15 +872,13 @@ namespace IOperateIt
 
             // replace the distant LOD material for underground and update LOD render groups.
             RenderManager rm = Singleton<RenderManager>.instance;
-            m_backupUndergroundMaterial = rm.m_groupLayerMaterials[undergroudLayer];
-            rm.m_groupLayerMaterials[undergroudLayer] = rm.m_groupLayerMaterials[roadLayer];
-            rm.UpdateGroups(undergroudLayer);
+            m_backupUndergroundMaterial = rm.m_groupLayerMaterials[MapUtils.LAYER_UNDERGROUND];
+            rm.m_groupLayerMaterials[MapUtils.LAYER_UNDERGROUND] = rm.m_groupLayerMaterials[MapUtils.LAYER_ROAD];
+            rm.UpdateGroups(MapUtils.LAYER_UNDERGROUND);
         }
 
         private void RestorePrefabs()
         {
-            int undergroudLayer = LayerMask.NameToLayer("MetroTunnels"); // underground render layer.
-
             // delete all underground vehicle materials. Cities will auto generate new ones.
             for (uint iter = 0; iter < PrefabCollection<VehicleInfo>.PrefabCount(); iter++)
             {
@@ -949,9 +918,9 @@ namespace IOperateIt
 
             // restore the distant LOD material for underground and update LOD render groups.
             RenderManager rm = Singleton<RenderManager>.instance;
-            rm.m_groupLayerMaterials[undergroudLayer] = m_backupUndergroundMaterial;
+            rm.m_groupLayerMaterials[MapUtils.LAYER_UNDERGROUND] = m_backupUndergroundMaterial;
             m_backupUndergroundMaterial = null;
-            rm.UpdateGroups(undergroudLayer);
+            rm.UpdateGroups(MapUtils.LAYER_UNDERGROUND);
         }
 
         private static NetInfo.Node CopyNode(NetInfo.Node node)
@@ -1071,6 +1040,11 @@ namespace IOperateIt
             Vector3 roadPos;
 
             var height = Mathf.Max(Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(position), Singleton<TerrainManager>.instance.WaterLevel(new Vector2(position.x, position.z)));
+
+            if (Physics.Raycast(position + Vector3.up * m_roofHeight, Vector3.down, out RaycastHit hitInfo, m_roofHeight - ROAD_RAYCAST_LOWER, LayerMask.GetMask(MapUtils.LAYER_VEHICLES_NAME, MapUtils.LAYER_BUILDINGS_NAME)))
+            {
+                height = Mathf.Max(height, hitInfo.point.y);
+            }
 
             input = Utils.MapUtils.GetRaycastInput(position, ROAD_RAYCAST_LOWER, m_roofHeight + ROAD_RAYCAST_UPPER); // Configure raycast input parameters.
             input.m_netService.m_service = ItemClass.Service.Road;

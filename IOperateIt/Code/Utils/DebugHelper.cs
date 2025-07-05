@@ -5,6 +5,31 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
+/*
+ * Object Layers:
+ * Default
+ * Buildings
+ * Citizens
+ * MetroTunnels
+ * ScenarioMarkers
+ * Props
+ * Trees
+ * Vehicles
+ * Lights
+ * LightsFloating
+ * PowerLines
+ * NetBuildings
+ * Road
+ * DirectionArrows
+ * Notifications
+ * Offscreen
+ * Markers
+ * Terrain
+ * Decoration
+ * Water
+ * WaterPipes
+ */
+
 namespace IOperateIt.Utils
 {
     internal class DebugHelper

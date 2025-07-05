@@ -70,6 +70,7 @@ namespace IOperateIt
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
                 GameObject gameObject = new GameObject("BuildingCollider" + i);
+                gameObject.layer = MapUtils.LAYER_BUILDINGS;
                 var buildingCollider = gameObject.AddComponent<ColliderContainer>();
                 buildingCollider.MeshCollider = gameObject.AddComponent<MeshCollider>();
                 buildingCollider.MeshCollider.convex = false;
@@ -82,6 +83,7 @@ namespace IOperateIt
             for (int i = 0; i < NUM_VEHICLE_COLLIDERS; i++)
             {
                 GameObject gameObject = new GameObject("VehicleCollider" + i);
+                gameObject.layer = MapUtils.LAYER_VEHICLES;
                 var vehicleCollider = gameObject.AddComponent<ColliderContainer>();
                 vehicleCollider.BoxCollider = gameObject.AddComponent<BoxCollider>();
                 vehicleCollider.BoxCollider.enabled = true;
@@ -97,6 +99,7 @@ namespace IOperateIt
             for (int i = 0; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
             {
                 GameObject gameObject = new GameObject("ParkedVehicleCollider" + i);
+                gameObject.layer = MapUtils.LAYER_VEHICLES;
                 var parkedVehicleCollider = gameObject.AddComponent<ColliderContainer>();
                 parkedVehicleCollider.BoxCollider = gameObject.AddComponent<BoxCollider>();
                 parkedVehicleCollider.BoxCollider.enabled = true;

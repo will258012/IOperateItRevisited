@@ -4,6 +4,15 @@ namespace IOperateIt.Utils
 {
     public class MapUtils : ToolBase
     {
+        public const string LAYER_UNDERGROUND_NAME = "MetroTunnels";
+        public const string LAYER_BUILDINGS_NAME = "Buildings";
+        public const string LAYER_VEHICLES_NAME = "Vehicles";
+        public const string LAYER_ROAD_NAME = "Road";
+
+        public static readonly int LAYER_UNDERGROUND = LayerMask.NameToLayer(LAYER_UNDERGROUND_NAME); // underground render layer.
+        public static readonly int LAYER_BUILDINGS = LayerMask.NameToLayer(LAYER_BUILDINGS_NAME); // building render layer.
+        public static readonly int LAYER_VEHICLES = LayerMask.NameToLayer(LAYER_VEHICLES_NAME); // vehicle render layer.
+        public static readonly int LAYER_ROAD = LayerMask.NameToLayer(LAYER_ROAD_NAME); // road render layer.
         public static bool RayCast(RaycastInput rayCastInput, out RaycastOutput result)
         {
             result = default;
