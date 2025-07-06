@@ -497,9 +497,9 @@ namespace IOperateIt
                     Vector3 longImpulse = w.tangent * longComponent;
                     netImpulse += (1.0f - GRIP_OVERMATCH) * longImpulse;
 
-                    if (m_brake > 0.0f && Mathf.Abs(m_steer) > 0.7 && vehicleVel.magnitude > 20.0f) // kick out rear if braking while steering hard.
+                    if (m_brake > 0.0f && Mathf.Abs(m_steer) > 0.85 && vehicleVel.magnitude > 25.0f) // kick out rear if braking while steering hard.
                     {
-                        m_vehicleRigidBody.AddTorque(upVec * Mathf.Sign(m_steer) * (Mathf.Abs(m_steer) - 0.7f) * 0.04f, ForceMode.VelocityChange);
+                        m_vehicleRigidBody.AddTorque(upVec * Mathf.Sign(m_steer) * (Mathf.Abs(m_steer) - 0.85f) * 0.06f, ForceMode.VelocityChange);
                     }
 
                     float gripCoefficient = GRIP_COEFF;

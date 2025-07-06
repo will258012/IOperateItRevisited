@@ -98,18 +98,20 @@ namespace IOperateIt.Utils
                 if (output.m_netSegment != 0)
                 {
                     float offset = 0f;
+                    int lane = 0;
                     ref NetSegment segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[output.m_netSegment];
 
-                    if (GetClosestLanePositionFiltered(ref segment, position, out roadPos, out offset, out _))
+                    if (GetClosestLanePositionFiltered(ref segment, position, out roadPos, out offset, out lane))
                     {
                         height = roadPos.y;
 
                         if (offset == 0f || offset == 1f)
                         {
-                            ref NetNode node = ref Singleton<NetManager>.instance.m_nodes.m_buffer[offset == 0f ? segment.m_startNode : segment.m_endNode];
+                            ushort nodeId = offset == 0f ? segment.m_startNode : segment.m_endNode;
+                            ref NetNode node = ref Singleton<NetManager>.instance.m_nodes.m_buffer[nodeId];
                             if (node.CountSegments() > 1)
                             {
-                                GetClosestLanePositionOnNodeFiltered(ref node, output.m_netSegment, position, ref roadPos);
+                                GetClosestLanePositionOnNodeFiltered(nodeId, output.m_netSegment, (ushort)lane, position, ref roadPos);
                                 height = roadPos.y;
                             }
                         }
@@ -120,41 +122,68 @@ namespace IOperateIt.Utils
             return height;
         }
 
-        private static void GetClosestLanePositionOnNodeFiltered(ref NetNode node, ushort currSegmentId, Vector3 inPos, ref Vector3 currClosest)
+        private static void GetClosestLanePositionOnNodeFiltered(ushort currNodeId, ushort currSegmentId, ushort currLaneId, Vector3 inPos, ref Vector3 currClosest)
         {
             int iter = 0;
+            ref NetNode node = ref Singleton<NetManager>.instance.m_nodes.m_buffer[currNodeId];
             float currClosestDist = Vector3.Magnitude(currClosest - inPos);
+            ushort currClosestSegment = currSegmentId;
+            bool transitionNode = (node.m_flags & NetNode.Flags.Transition) > 0;
+            float currLaneVOffset = Singleton<NetManager>.instance.m_segments.m_buffer[currSegmentId].Info.m_lanes[currLaneId].m_verticalOffset;
+            float lowest = 10000.0f;
 
             while (iter < 8) // Cities only supports 8 segments per node.
             {
                 ushort altSegmentId = node.GetSegment(iter);
-                if (altSegmentId != 0 && altSegmentId != currSegmentId)
+
+                if (altSegmentId != 0)
                 {
                     ref NetSegment tmpSegment = ref Singleton<NetManager>.instance.m_segments.m_buffer[altSegmentId];
-                    Vector3 roadPos;
-                    float offset;
-                    int lane;
-                    if (GetClosestLanePositionFiltered(ref tmpSegment, inPos, out roadPos, out offset, out lane))
+
+                    if (transitionNode)
                     {
-                        Vector3 horzOffset = inPos - roadPos;
-                        horzOffset.y = 0;
-                        float tmpDist = Vector3.Magnitude(horzOffset);
-                        if (offset != 0 && offset != 1)
+                        foreach (var laneObj in tmpSegment.Info.m_lanes)
                         {
-                            if (tmpDist < ROAD_VALID_LANE_DIST_MULT * tmpSegment.Info.m_lanes[lane].m_width)
-                            {
-                                currClosest = roadPos;
-                                return;
-                            }
+                            lowest = Mathf.Min(lowest, laneObj.m_verticalOffset);
                         }
-                        else if (tmpDist < currClosestDist)
+                    }
+
+                    if (altSegmentId != currSegmentId)
+                    {
+                        Vector3 roadPos;
+                        float offset;
+                        int lane;
+
+                        if (GetClosestLanePositionFiltered(ref tmpSegment, inPos, out roadPos, out offset, out lane))
                         {
-                            currClosestDist = tmpDist;
-                            currClosest = roadPos;
+                            Vector3 horzOffset = inPos - roadPos;
+                            horzOffset.y = 0;
+                            float tmpDist = Vector3.Magnitude(horzOffset);
+                            if (offset != 0 && offset != 1)
+                            {
+                                if (tmpDist < ROAD_VALID_LANE_DIST_MULT * tmpSegment.Info.m_lanes[lane].m_width)
+                                {
+                                    currClosest = roadPos;
+                                    return;
+                                }
+                            }
+                            else if (tmpDist < currClosestDist)
+                            {
+                                currClosestSegment = altSegmentId;
+                                currClosestDist = tmpDist;
+                                currClosest = roadPos;
+                                currLaneVOffset = tmpSegment.Info.m_lanes[lane].m_verticalOffset;
+                            }
                         }
                     }
                 }
                 iter++;
+            }
+
+            if (transitionNode)
+            {
+                Vector3 closestDir = Singleton<NetManager>.instance.m_segments.m_buffer[currClosestSegment].GetDirection(currNodeId);
+                currClosest.y += Mathf.Lerp(0.0f, lowest - currLaneVOffset, Mathf.Clamp(Vector3.Dot(currClosest - inPos, Vector3.Normalize(closestDir)) * 0.5f, 0.0f, 1.0f));
             }
         }
 

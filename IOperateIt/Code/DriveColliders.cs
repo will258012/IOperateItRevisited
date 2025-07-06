@@ -201,8 +201,7 @@ namespace IOperateIt
                 if (hitPos != Vector3.zero)
                 {
                     ref var building = ref Singleton<BuildingManager>.instance.m_buildings.m_buffer[buildingIndex];
-                    if (!hitBuildings.Contains(buildingIndex) &&
-                        building.Info.name != "478820060.CableStay32m_Data" && building.Info.name != "BridgePillar.CableStay32m_Data")
+                    if (!hitBuildings.Contains(buildingIndex))
                     {
                         building.CalculateMeshPosition(out buildingPosition, out buildingRotation);
 
