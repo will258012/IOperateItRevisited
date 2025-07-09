@@ -456,8 +456,8 @@ namespace IOperateIt
                 }
                 else
                 {
-                    w.compression = SPRING_MAX_COMPRESS;
-                    w.gameObject.transform.localPosition = w.origin + Vector3.up * SPRING_MAX_COMPRESS;
+                    w.compression = 0.0f;
+                    w.gameObject.transform.localPosition = w.origin;
                 }
             }
 
@@ -528,25 +528,22 @@ namespace IOperateIt
                 }
                 else
                 {
-                    if (w.transform.position.y < w.heightSample.y)
+                    float tireOffset = Mathf.Sqrt(Mathf.Abs(Vector3.Dot(upVec, w.normal)));
+                    if (w.transform.position.y - w.radius * tireOffset < w.heightSample.y)
                     {
                         Vector3 pos = m_vehicleRigidBody.transform.position;
-                        pos.y += w.heightSample.y - w.transform.position.y;
+                        pos.y += w.heightSample.y - w.transform.position.y + w.radius * tireOffset;
                         m_vehicleRigidBody.transform.position = pos;
 
                         Vector3 normalVel = Vector3.Dot(w.normal, vehicleVel) * w.normal;
 
                         m_vehicleRigidBody.AddForce(-(1.0f - FLOAT_ERROR) * normalVel - (vehicleVel - normalVel) * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
 
-                        if (vehicleAngularVel.magnitude < 0.5f)
+                        m_vehicleRigidBody.AddTorque(-vehicleAngularVel * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                        if (vehicleAngularVel.magnitude < 1.0f)
                         {
                             m_vehicleRigidBody.AddTorque(Vector3.Normalize(Vector3.Cross(upVec, w.normal)) * 0.25f, ForceMode.VelocityChange);
                         }
-                        else
-                        {
-                            m_vehicleRigidBody.AddTorque(-vehicleAngularVel * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
-                        }
-
                     }
                 }
             }
