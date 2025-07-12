@@ -167,6 +167,9 @@ namespace IOperateIt
         private DriveColliders m_collidersManager = new DriveColliders();
         private Vector3 m_prevPosition;
         private Vector3 m_prevVelocity;
+        private Vector3 m_tangent;
+        private Vector3 m_binormal;
+        private Vector3 m_normal;
         private Vector4 m_lightState;
         private bool m_isSirenEnabled = false;
         private bool m_isLightEnabled = false;
@@ -180,8 +183,9 @@ namespace IOperateIt
         private float m_throttle = 0.0f;
         private float m_rideHeight = 0.0f;
         private float m_roofHeight = 0.0f;
-        private float m_prevCompression = 0.0f;
+        private float m_compression = 0.0f;
         private float m_prevGearChange = 0.0f;
+        private float m_normalImpulse = 0.0f;
         private void Awake()
         {
             instance = this;
@@ -269,7 +273,6 @@ namespace IOperateIt
             if (m_physicsFallback)
             {
                 FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, invert);
-                CalculateSlope(vehiclePos);
             }
             else
             {
@@ -342,30 +345,68 @@ namespace IOperateIt
         {
             m_vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
-            m_terrainHeight = MapUtils.CalculateHeight(vehiclePos, m_roofHeight);
+            float height = MapUtils.CalculateHeight(vehiclePos, m_roofHeight);
+            bool onGround = vehiclePos.y + SPRING_OFFSET < m_terrainHeight;
 
-            if (vehiclePos.y + 1.1f * SPRING_OFFSET < m_terrainHeight)
+            CalculateSlope(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, height, onGround);
+            m_terrainHeight = height;
+
+
+            if (vehiclePos.y + ROAD_WALL_HEIGHT < m_terrainHeight)
             {
-                var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
-
-                Vector3 netAccel = Vector3.forward * m_gear * m_throttle * ( Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f)) / m_vehicleRigidBody.mass;
-
-                if (m_gear == 0)
+                vehiclePos = m_prevPosition;
+                vehicleVel = Vector3.zero;
+                m_vehicleRigidBody.transform.position = vehiclePos;
+                m_vehicleRigidBody.velocity = vehicleVel;
+            }
+            else if (onGround)
+            {
+                if (vehiclePos.y + SPRING_MAX_COMPRESS < m_terrainHeight)
                 {
-                    netAccel -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(m_brake * (Settings.ModSettings.BrakingForce * KN_TO_N) / m_vehicleRigidBody.mass, Mathf.Abs(relativeVel.z) / Time.fixedDeltaTime);
+                    vehiclePos = new Vector3(vehiclePos.x, m_terrainHeight - SPRING_MAX_COMPRESS, vehiclePos.z);
+                    m_vehicleRigidBody.transform.position = vehiclePos;
+                }
+
+                float compression = Mathf.Max(m_terrainHeight - (vehiclePos.y + SPRING_OFFSET), 0.0f);
+                float springVel = (compression - m_compression) / Time.fixedDeltaTime;
+                float deltaVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (compression + springVel * Time.fixedDeltaTime) + springVel * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) - springVel;
+
+                if (deltaVel < 0.0f)
+                {
+                    m_normalImpulse = -deltaVel * m_vehicleRigidBody.mass;
                 }
                 else
                 {
-                    netAccel -= Vector3.forward * m_gear * m_brake * (Settings.ModSettings.BrakingForce * KN_TO_N) / m_vehicleRigidBody.mass;
+                    m_normalImpulse = 0.0f;
+                }
+            }
+
+            if (onGround)
+            {
+                var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
+
+                Vector3 longImpulse = Vector3.forward * m_gear * m_throttle * (Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f)) * Time.fixedDeltaTime;
+
+                if (m_gear == 0)
+                {
+                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(m_brake * (Settings.ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime, Mathf.Abs(relativeVel.z) * m_vehicleRigidBody.mass);
+                }
+                else
+                {
+                    longImpulse -= Vector3.forward * m_gear * m_brake * (Settings.ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
                 }
 
                 relativeVel.z = 0.0f;
                 relativeVel.y = 0.0f;
 
-                netAccel -= relativeVel * (1.0f - FLOAT_ERROR) / Time.fixedDeltaTime;
-                netAccel = Mathf.Min(netAccel.magnitude, ACCEL_G * GRIP_COEFF) * Vector3.Normalize(netAccel);
-                netAccel = m_vehicleRigidBody.transform.TransformDirection(netAccel);
-                m_vehicleRigidBody.AddForceAtPosition(netAccel, vehiclePos, ForceMode.Acceleration);
+                Vector3 netImpulse = (1.0f - GRIP_OVERMATCH) * longImpulse;
+
+                netImpulse -= relativeVel * (1.0f - FLOAT_ERROR) * m_vehicleRigidBody.mass;
+                netImpulse = Mathf.Min(netImpulse.magnitude, m_normalImpulse * GRIP_COEFF) * Vector3.Normalize(netImpulse);
+                netImpulse += GRIP_OVERMATCH * longImpulse;
+                netImpulse += Vector3.up * m_normalImpulse;
+                netImpulse = m_vehicleRigidBody.transform.TransformDirection(netImpulse);
+                m_vehicleRigidBody.AddForceAtPosition(netImpulse, new Vector3(vehiclePos.x, m_terrainHeight, vehiclePos.z), ForceMode.Impulse);
 
                 float speedsteer = Mathf.Min(Mathf.Max(vehicleVel.magnitude * 80f / m_vehicleCollider.size.z, 0f), 60f);
                 speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
@@ -375,28 +416,8 @@ namespace IOperateIt
                 m_vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
             }
 
-            if (vehiclePos.y + ROAD_WALL_HEIGHT < m_terrainHeight)
-            {
-                vehiclePos = m_prevPosition;
-                vehicleVel = Vector3.zero;
-                m_vehicleRigidBody.transform.position = vehiclePos;
-                m_vehicleRigidBody.velocity = vehicleVel;
-            }
-            else if (vehiclePos.y + SPRING_OFFSET < m_terrainHeight)
-            {
-                if (vehiclePos.y + SPRING_MAX_COMPRESS < m_terrainHeight)
-                {
-                    vehiclePos = new Vector3(vehiclePos.x, m_terrainHeight - SPRING_MAX_COMPRESS, vehiclePos.z);
-                    m_vehicleRigidBody.transform.position = vehiclePos;
-                }
 
-                float startX = vehiclePos.y + SPRING_OFFSET - m_terrainHeight;
-                float startV = (startX - m_prevCompression) / Time.fixedDeltaTime;
-                float finalVel = -SPRING_DAMP * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime) * (startX + startV * Time.fixedDeltaTime) + startV * Mathf.Exp(-SPRING_DAMP * Time.fixedDeltaTime);
-                m_vehicleRigidBody.AddRelativeForce(Vector3.up * (finalVel - startV), ForceMode.VelocityChange);
-            }
-
-            m_prevCompression = Mathf.Min(vehiclePos.y + SPRING_OFFSET - m_terrainHeight, 0.0f);
+            m_compression = Mathf.Max(m_terrainHeight - (vehiclePos.y + SPRING_OFFSET), 0.0f);
         }
 
         private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
@@ -601,6 +622,14 @@ namespace IOperateIt
             m_lightState = Vector4.zero;
             m_vehicleInfo = vehicleInfo;
             m_gear = 0;
+            m_terrainHeight = 0.0f;
+            m_distanceTravelled = 0.0f;
+            m_steer = 0.0f;
+            m_brake = 0.0f;
+            m_throttle = 0.0f;
+            m_compression = 0.0f;
+            m_normalImpulse = 0.0f;
+            m_prevGearChange = 0.0f;
 
             m_vehicleInfo.CalculateGeneratedInfo();
 
@@ -704,6 +733,10 @@ namespace IOperateIt
                 gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
             }
 
+            m_tangent = m_vehicleRigidBody.transform.TransformDirection(Vector3.forward);
+            m_normal = m_vehicleRigidBody.transform.TransformDirection(Vector3.up);
+            m_binormal = m_vehicleRigidBody.transform.TransformDirection(Vector3.right);
+
             gameObject.SetActive(true);
 
             AddEffects();
@@ -725,6 +758,9 @@ namespace IOperateIt
             m_vehicleInfo = null;
             m_prevPosition = Vector3.zero;
             m_prevVelocity = Vector3.zero;
+            m_tangent = Vector3.zero;
+            m_binormal = Vector3.zero;
+            m_normal = Vector3.zero;
             m_lightState = Vector4.zero;
             m_isSirenEnabled = false;
             m_isLightEnabled = false;
@@ -737,7 +773,9 @@ namespace IOperateIt
             m_throttle = 0.0f;
             m_rideHeight = 0.0f;
             m_roofHeight = 0.0f;
-            m_prevCompression = 0.0f;
+            m_compression = 0.0f;
+            m_normalImpulse = 0.0f;
+            m_prevGearChange = 0.0f;
         }
 
         private void OverridePrefabs()
@@ -996,34 +1034,84 @@ namespace IOperateIt
 
         //    return retval;
         //}
-        private void CalculateSlope(Vector3 position)
+        private void CalculateSlope(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float height, bool onGround) // TODO: fix slope calculation
         {
-            Vector3 diffVector = position - m_prevPosition;
-            Vector3 horizontalDirection = new Vector3(diffVector.x, 0f, diffVector.z);
-            float heightDifference = diffVector.y;
+            Vector3 tangent = Vector3.forward;
+            Vector3 binorm = Vector3.right;
+            Vector3 lateral = m_vehicleRigidBody.transform.TransformDirection(Vector3.right);
+            Vector3 forward = m_vehicleRigidBody.transform.TransformDirection(Vector3.forward);
 
-            if (horizontalDirection.sqrMagnitude > 0.001f)
+            int slopeMode = onGround ? 2 : 1;
+
+            if (slopeMode == 2)
             {
-                float slopeAngle = Mathf.Atan2(heightDifference, horizontalDirection.magnitude) * Mathf.Rad2Deg;//+: upslope -: downslope
-                slopeAngle = Mathf.Clamp(slopeAngle, -90f, 90f);
-
-                bool isReversing = Vector3.Dot(diffVector.normalized, m_vehicleRigidBody.transform.forward) < 0;
-
-                if (isReversing)
-                    slopeAngle = -slopeAngle;
-
-                var targetRotation = Quaternion.Euler(
-                    -slopeAngle,
-                    m_vehicleRigidBody.transform.rotation.eulerAngles.y,
-                    0f
-                );
-
-                m_vehicleRigidBody.transform.rotation = Quaternion.Slerp(
-                    m_vehicleRigidBody.transform.rotation,
-                    targetRotation,
-                    Time.deltaTime * 6f
-                );
+                tangent = vehiclePos - m_prevPosition;
+                if (Vector3.Dot(tangent, forward) < 0.0f)
+                {
+                    tangent = -tangent;
+                }
+                tangent.y = height - m_terrainHeight;
+                tangent = tangent - Vector3.Dot(tangent, lateral) * lateral;
+                tangent = Vector3.Normalize(tangent);
+                if (tangent.magnitude < 0.5f || Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) < FLOAT_ERROR)
+                {
+                    slopeMode = 0;
+                }
             }
+
+            if (slopeMode == 1)
+            {
+                tangent = vehicleVel;
+                if (Vector3.Dot(tangent, forward) < 0.0f)
+                {
+                    tangent = -tangent;
+                }
+                Vector3.Normalize(tangent - Vector3.Dot(tangent, lateral) * lateral);
+                if (tangent.magnitude < 0.5f || Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) < FLOAT_ERROR)
+                {
+                    slopeMode = 0;
+                }
+            }
+
+            if (slopeMode == 0)
+            {
+                tangent = m_tangent;
+            }
+
+            binorm = Vector3.Normalize(Vector3.Cross(Vector3.up, tangent));
+
+            if (binorm.magnitude < 0.5f)
+            {
+                binorm = m_binormal;
+            }
+
+            Quaternion lookRot = Quaternion.LookRotation(tangent);
+
+            m_vehicleRigidBody.MoveRotation(lookRot);
+
+            //Vector3 torquet = Vector3.Cross(forward, tangent);
+            //Vector3 torqueb = Vector3.Cross(lateral, binorm);
+
+            //if (Vector3.Dot(forward, tangent) < 0.0f)
+            //{
+            //    torquet = Vector3.Normalize(torquet);
+            //}
+
+            //if (Vector3.Dot(lateral, binorm) < 0.0f)
+            //{
+            //    torqueb = Vector3.Normalize(torqueb);
+            //}
+
+            //m_vehicleRigidBody.AddTorque(-vehicleAngularVel * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange); // scuffed as all hell
+            //if (vehicleAngularVel.magnitude < 1.0f)
+            //{
+            //    if (torquet.magnitude > FLOAT_ERROR) m_vehicleRigidBody.AddTorque(60.0f * torquet * Time.fixedDeltaTime, ForceMode.VelocityChange);
+            //    if (torqueb.magnitude > FLOAT_ERROR) m_vehicleRigidBody.AddTorque(60.0f * torqueb * Time.fixedDeltaTime, ForceMode.VelocityChange);
+            //}
+
+
+            m_tangent = tangent;
+            m_binormal = binorm;
         }
 
         private void HandleInputOnFixedUpdate(int invert)
