@@ -1,4 +1,0 @@
-files:
-  - source: IOperateIt/Translations/en-EN.csv
-    translation: /**/IOperateIt/Translations/%locale%.csv
-    scheme: 'identifier,source_or_translation,context'

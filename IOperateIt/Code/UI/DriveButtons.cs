@@ -1,21 +1,29 @@
-﻿extern alias FPSCamera;
-using AlgernonCommons.Translation;
+﻿using AlgernonCommons.Translation;
+using ColossalFramework;
 using ColossalFramework.UI;
-using FPSCamera.FPSCamera.Cam.Controller;
 using UnityEngine;
 
 namespace IOperateIt.UI
 {
     public class DriveButtons : MonoBehaviour
     {
+        public static DriveButtons instance { get; private set; }
+
+        private CitizenVehicleWorldInfoPanel citizenVehicleInfo_Panel;
+        private UIButton citizenVehicleInfo_Button;
+
+        private CityServiceVehicleWorldInfoPanel cityServiceVehicleInfo_Panel;
+        private UIButton cityServiceVehicleInfo_Button;
+
+        private PublicTransportVehicleWorldInfoPanel publicTransportVehicleInfo_Panel;
+        private UIButton publicTransportVehicleInfo_Button;
 
         private void Awake()
         {
+            instance = this;
             citizenVehicleInfo_Button = Initialize(ref citizenVehicleInfo_Panel);
             cityServiceVehicleInfo_Button = Initialize(ref cityServiceVehicleInfo_Panel);
             publicTransportVehicleInfo_Button = Initialize(ref publicTransportVehicleInfo_Panel);
-            FPSCamController.OnCameraEnabled += SetDisable;
-            FPSCamController.OnCameraDisabled += SetEnable;
         }
 
         private void Update()
@@ -30,13 +38,11 @@ namespace IOperateIt.UI
             Destroy(citizenVehicleInfo_Button);
             Destroy(cityServiceVehicleInfo_Button);
             Destroy(publicTransportVehicleInfo_Button);
-            FPSCamController.OnCameraEnabled -= SetDisable;
-            FPSCamController.OnCameraDisabled -= SetEnable;
         }
 
-        private void SetEnable() => enabled = true;
+        public void SetEnable() => enabled = true;
 
-        private void SetDisable() => enabled = false;
+        public void SetDisable() => enabled = false;
 
         private static UIButton Initialize<T>(ref T panel) where T : WorldInfoPanel
         {
@@ -66,15 +72,17 @@ namespace IOperateIt.UI
                 var instanceID = WorldInfoPanel.GetCurrentInstanceID();
                 if (instanceID.Type == InstanceType.Vehicle)
                 {
-                    var vehicle = VehicleManager.instance.m_vehicles.m_buffer[instanceID.Vehicle];
-                    DriveController.Instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info);
-                    MainPanel.Instance.vehicleList.FindItem<uint>(vehicle.m_infoIndex);
+                    ref var vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[instanceID.Vehicle];
+                    Color color = vehicle.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicle, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
+                    DriveController.instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info, color, true);
+                    MainPanel.instance._vehicleList.FindItem<uint>(vehicle.m_infoIndex);
                 }
                 else if (instanceID.Type == InstanceType.ParkedVehicle)
                 {
-                    var vehicleParked = VehicleManager.instance.m_parkedVehicles.m_buffer[instanceID.ParkedVehicle];
-                    DriveController.Instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info);
-                    MainPanel.Instance.vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
+                    ref var vehicleParked = ref Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[instanceID.ParkedVehicle];
+                    Color color = vehicleParked.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicleParked, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
+                    DriveController.instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info, color, true);
+                    MainPanel.instance._vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
                 }
                 panel.component.isVisible = false;
             };
@@ -93,14 +101,5 @@ namespace IOperateIt.UI
                 button.isVisible = instanceID != default;
             }
         }
-        private CitizenVehicleWorldInfoPanel citizenVehicleInfo_Panel;
-        private UIButton citizenVehicleInfo_Button;
-
-        private CityServiceVehicleWorldInfoPanel cityServiceVehicleInfo_Panel;
-        private UIButton cityServiceVehicleInfo_Button;
-
-        private PublicTransportVehicleWorldInfoPanel publicTransportVehicleInfo_Panel;
-        private UIButton publicTransportVehicleInfo_Button;
-
     }
 }

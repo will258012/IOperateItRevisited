@@ -2,7 +2,7 @@
 using ColossalFramework;
 using UnityEngine;
 
-namespace IOperateIt.Tools
+namespace IOperateIt.Utils
 {
     public class RoadSelectTool : ToolBase
     {
@@ -18,7 +18,7 @@ namespace IOperateIt.Tools
 
                     if (netSegmentId != 0)
                     {
-                        var netSegment = NetManager.instance.m_segments.m_buffer[netSegmentId];
+                        var netSegment = Singleton<NetManager>.instance.m_segments.m_buffer[netSegmentId];
 
                         if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
                         {
@@ -41,7 +41,7 @@ namespace IOperateIt.Tools
 
                     if (netSegmentId != 0)
                     {
-                        var netSegment = NetManager.instance.m_segments.m_buffer[netSegmentId];
+                        var netSegment = Singleton<NetManager>.instance.m_segments.m_buffer[netSegmentId];
 
                         if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
                         {
@@ -49,7 +49,7 @@ namespace IOperateIt.Tools
                             {
                                 netSegment.GetClosestPositionAndDirection(netSegment.m_middlePosition, out _, out var dir);
                                 var rotation = Quaternion.LookRotation(dir);
-                                DriveController.Instance.StartDriving(netSegment.m_middlePosition, rotation);
+                                DriveController.instance.StartDriving(netSegment.m_middlePosition, rotation);
                                 ShowToolInfo(false, null, Vector3.zero);
                             }
                             else

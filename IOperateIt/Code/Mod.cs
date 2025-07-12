@@ -24,7 +24,7 @@ namespace IOperateIt
                 MessagesAreKeys = true,
                 Messages = new string[]
                 {
-                   "WHATSNEW_L1",
+                    "WHATSNEW_L1",
                     "WHATSNEW_L2",
                     "WHATSNEW_L3"
                 }

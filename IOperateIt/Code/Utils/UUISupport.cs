@@ -37,7 +37,7 @@ namespace IOperateIt.Utils
                     name: "MainPanelBtn",
                     groupName: null,
                     tooltip: Translations.Translate("MAINPANELBTN_TOOLTIP"),
-                    texture: UUIHelpers.LoadTexture(Path.Combine(AssemblyUtils.AssemblyPath, "Resources/IOperateItIcon.png")),
+                    texture: UUIHelpers.LoadTexture(Path.Combine(AssemblyUtils.AssemblyPath, "Resources/Textures/IOperateItIcon.png")),
                     onToggle: (value) =>
                     {
                         if (value)
@@ -54,14 +54,14 @@ namespace IOperateIt.Utils
                                 ? UnifiedUI.GUI.MainPanel.Instance.height
                                 : Object.FindObjectOfType<UnifiedUI.GUI.FloatingButton>().height;
                             // Position the main panel properly based on UUI button position
-                            MainPanel.Instance.Panel.absolutePosition = new Vector3(
+                            MainPanel.instance.Panel.absolutePosition = new Vector3(
                             UUIpos.x + (UUIpos.x < Screen.width / 2f ?
-                            UUIwidth - 10f : -MainPanel.Instance.Panel.width + 10f),
+                            UUIwidth - 10f : -MainPanel.instance.Panel.width + 10f),
                             UUIpos.y + (UUIpos.y < Screen.height / 2f ?
-                            UUIheight - 15f : -MainPanel.Instance.Panel.height + 15f));
+                            UUIheight - 15f : -MainPanel.instance.Panel.height + 15f));
                         }
                         // Set main panel visibility
-                        MainPanel.Instance.Panel.isVisible = value;
+                        MainPanel.instance.Panel.isVisible = value;
                     },
                     onToolChanged: null,
                     activationKey: UUIKey,

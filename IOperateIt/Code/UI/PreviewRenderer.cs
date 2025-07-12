@@ -79,8 +79,8 @@ namespace IOperateIt.UI
             sunLight.color = Color.white;
             sunLight.transform.eulerAngles = new Vector3(50, 180, 70);
 
-            Light mainLight = RenderManager.instance.MainLight;
-            RenderManager.instance.MainLight = sunLight;
+            Light mainLight = Singleton<RenderManager>.instance.MainLight;
+            Singleton<RenderManager>.instance.MainLight = sunLight;
 
             if (mainLight == DayNightProperties.instance.moonLightSource)
             {
@@ -115,7 +115,15 @@ namespace IOperateIt.UI
 
             instance.m_drawCallData.m_defaultCalls = instance.m_drawCallData.m_defaultCalls + 1;
 
-            info.m_material.SetVectorArray(instance.ID_TyreLocation, info.m_generatedInfo.m_tyres);
+            if (info.m_generatedInfo.m_tyres != null)
+            {
+                info.m_material.SetVectorArray(instance.ID_TyreLocation, info.m_generatedInfo.m_tyres);
+            }
+            else
+            {
+                info.m_material.SetVectorArray(instance.ID_TyreLocation, new Vector4[1] { Vector4.one });
+            }
+                
             Graphics.DrawMesh(info.m_mesh, matrixBody, info.m_material, 0, m_camera, 0, materialBlock, true, true);
 
             m_camera.RenderWithShader(info.m_material.shader, "");
@@ -124,7 +132,7 @@ namespace IOperateIt.UI
             sunLight.color = lightColor;
             sunLight.transform.eulerAngles = lightAngles;
 
-            RenderManager.instance.MainLight = mainLight;
+            Singleton<RenderManager>.instance.MainLight = mainLight;
 
             if (mainLight == DayNightProperties.instance.moonLightSource)
             {
