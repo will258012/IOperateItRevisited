@@ -1,6 +1,6 @@
 ﻿using HarmonyLib;
-using IOperateIt.Tools;
 using IOperateIt.UI;
+using IOperateIt.Utils;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -22,7 +22,7 @@ namespace IOperateIt.Patches
         [HarmonyPrefix]
         private static bool HandleEscape()
         {
-            if (MainPanel.Instance?.OnEsc() ?? false) return false;
+            if (MainPanel.instance?.OnEsc() ?? false) return false;
             if (ToolsModifierControl.GetCurrentTool<RoadSelectTool>() != null)
             {
                 ToolsModifierControl.SetTool<DefaultTool>();

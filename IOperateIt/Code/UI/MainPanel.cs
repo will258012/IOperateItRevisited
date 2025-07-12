@@ -1,4 +1,5 @@
-﻿using AlgernonCommons.Translation;
+﻿extern alias FPC;
+using AlgernonCommons.Translation;
 using AlgernonCommons.UI;
 using AlgernonCommons.Utils;
 using ColossalFramework.UI;
@@ -20,7 +21,7 @@ namespace IOperateIt.UI
         private const float VehicleRowHeight = 40f;
 
         private UIButton _mainBtn;
-        private RoadSelectTool _roadSelectTool;
+        private UIButton _modSettingsBtn;
         private UIButton _spawnBtn;
         internal UIList _vehicleList;
         private PreviewPanel _previewPanel;
@@ -68,7 +69,7 @@ namespace IOperateIt.UI
             };
 
             _previewPanel = Panel.AddUIComponent<PreviewPanel>();
-            _previewPanel.relativePosition = new Vector2(Margin + _vehicleList.width + Margin, currentY);
+            _previewPanel.relativePosition = UILayout.PositionRightOf(_vehicleList);
 
             currentY += _vehicleList.height + Margin;
 
@@ -76,6 +77,8 @@ namespace IOperateIt.UI
             _spawnBtn.isEnabled = false;
             _spawnBtn.playAudioEvents = true;
             _spawnBtn.eventClick += SpawnBtnClickEvent;
+            _modSettingsBtn = UIButtons.AddButton(Panel, _previewPanel.relativePosition.x + (_previewPanel.width - 200f) / 2f, currentY, Translations.Translate("MODSETTINGSBTN_TEXT"));
+            _modSettingsBtn.eventClick += (_, e) => FPC.FPSCamera.UI.MainPanel.OpenSettingsPanel(Mod.Instance.Name);
             Panel.height = currentY + _spawnBtn.height + Margin;
             Panel.Hide();
 
@@ -138,7 +141,6 @@ namespace IOperateIt.UI
             _spawnBtn.eventClick -= SpawnBtnClickEvent;
             Destroy(Panel);
             Destroy(GetMainButton());
-            Destroy(_roadSelectTool);
         }
         public bool OnEsc()
         {
@@ -179,22 +181,14 @@ namespace IOperateIt.UI
         {
             if (DriveController.instance.isVehicleInfoSet())
             {
-                if (_roadSelectTool == null)
+                if (ToolsModifierControl.GetCurrentTool<RoadSelectTool>() == null)
                 {
-                    if (!ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>())
-                    {
-                        ToolsModifierControl.toolController.gameObject.AddComponent<RoadSelectTool>();
-                    }
-                    _roadSelectTool = ToolsModifierControl.toolController.gameObject.GetComponent<RoadSelectTool>();
-                    ToolsModifierControl.toolController.CurrentTool = _roadSelectTool;
+                    ToolsModifierControl.toolController.CurrentTool = RoadSelectTool.Instance;
                     ToolsModifierControl.SetTool<RoadSelectTool>();
                 }
                 else
                 {
-                    ToolsModifierControl.toolController.CurrentTool = ToolsModifierControl.GetTool<DefaultTool>();
                     ToolsModifierControl.SetTool<DefaultTool>();
-                    Destroy(_roadSelectTool);
-                    _roadSelectTool = null;
                 }
                 OnEsc();
             }
@@ -205,11 +199,6 @@ namespace IOperateIt.UI
             OnDestory();
             Awake();
         }
-
-        // <copyright file="VehicleSelectionRow.cs" company="algernon (K. Algernon A. Sheppard)">
-        // Copyright (c) algernon (K. Algernon A. Sheppard). All rights reserved.
-        // Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.
-        // </copyright>
         /// <summary>
         /// UIList row item for vehicle prefabs.
         /// </summary>

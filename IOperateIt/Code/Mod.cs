@@ -1,15 +1,15 @@
-﻿extern alias FPSCamera;
+﻿extern alias FPC;
 using AlgernonCommons;
 using AlgernonCommons.Notifications;
 using AlgernonCommons.Patching;
 using AlgernonCommons.Translation;
-using FPSCamera.FPSCamera.UI;
+using FPC.FPSCamera.UI;
 using ICities;
 using IOperateIt.Settings;
 
 namespace IOperateIt
 {
-    public sealed class Mod : PatcherMod<OptionsPanel, PatcherBase>, IUserMod
+    public sealed class Mod : PatcherMod<SettingsPanel, PatcherBase>, IUserMod
     {
         public override string BaseName => "IOperateIt Revisited";
         public override string HarmonyID => "Will258012.IOperateIt";
