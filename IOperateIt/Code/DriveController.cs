@@ -75,7 +75,8 @@ namespace IOperateIt
             public Vector3 origin;
             public float mass;
             public float radius;
-            public float power;
+            public float torque;
+            public float radps;
             public float brakeForce;
             public float normalImpulse;
             public float compression;
@@ -89,7 +90,7 @@ namespace IOperateIt
             private bool powered;
             private bool steerable;
             private bool inverted;
-            public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float power = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
+            public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
             {
                 GameObject go = new GameObject("Wheel");
                 Wheel w = go.AddComponent<Wheel>();
@@ -104,7 +105,8 @@ namespace IOperateIt
                 w.origin = localpos;
                 w.mass = mass;
                 w.radius = radius;
-                w.power = power;
+                w.torque = torque;
+                w.radps = 0.0f;
                 w.brakeForce = brakeForce;
                 w.normalImpulse = 0.0f;
                 w.compression = 0.0f;
@@ -192,8 +194,8 @@ namespace IOperateIt
         private float m_compression = 0.0f;
         private float m_prevGearChange = 0.0f;
         private float m_normalImpulse = 0.0f;
-        private float m_rpm = 0.0f;
-        private float m_force = 0.0f;
+        private float m_radps = 0.0f;
+        private float m_torque = 0.0f;
 
         private void Awake()
         {
@@ -522,7 +524,7 @@ namespace IOperateIt
                     {
                         longComponent -= m_gear * m_brake * w.brakeForce * Time.fixedDeltaTime;
                     }
-                    longComponent += m_gear * m_throttle * w.power / (Mathf.Abs(longSpeed) + 1.0f) * Time.fixedDeltaTime;
+                    longComponent += m_gear * m_throttle * w.torque / (Mathf.Abs(longSpeed) + 1.0f) * Time.fixedDeltaTime;
 
                     Vector3 longImpulse = w.tangent * longComponent;
                     netImpulse += (1.0f - ModSettings.GripOvermatch) * longImpulse;
@@ -656,8 +658,8 @@ namespace IOperateIt
                     }
                 }
                 int rearCount = wheelCount - frontCount;
-                float frontPower = ModSettings.DriveBias * Settings.ModSettings.EnginePower * KW_TO_W;
-                float rearPower = (1.0f - ModSettings.DriveBias) * Settings.ModSettings.EnginePower * KW_TO_W;
+                float frontPower = ModSettings.DriveBias;
+                float rearPower = 1.0f - ModSettings.DriveBias;
                 float frontBraking = ModSettings.BrakeBias * Settings.ModSettings.BrakingForce * KN_TO_N;
                 float rearBraking = (1.0f - ModSettings.BrakeBias) * Settings.ModSettings.BrakingForce * KN_TO_N;
 
