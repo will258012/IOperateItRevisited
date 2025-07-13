@@ -32,6 +32,61 @@ namespace IOperateIt.Settings
         [XmlIgnore]
         internal static float BrakingForce = 30f;
 
+        [XmlElement("DownForce")]
+        public float XMLDownForce { get => DownForce; set => DownForce = value; }
+        [XmlIgnore]
+        internal static float DownForce = 5.0f;
+
+        [XmlElement("DriveBias")]
+        public float XMLDriveBias { get => DriveBias; set => DriveBias = value; }
+        [XmlIgnore]
+        internal static float DriveBias = 0.5f;
+
+        [XmlElement("BrakeBias")]
+        public float XMLBrakeBias { get => BrakeBias; set => BrakeBias = value; }
+        [XmlIgnore]
+        internal static float BrakeBias = 0.7f;
+
+        [XmlElement("GripOvermatch")]
+        public float XMLGripOvermatch { get => GripOvermatch; set => GripOvermatch = value; }
+        [XmlIgnore]
+        internal static float GripOvermatch = 0.3f;
+
+        [XmlElement("GripCoeffS")]
+        public float XMLGripCoeffS { get => GripCoeffS; set => GripCoeffS = value; }
+        [XmlIgnore]
+        internal static float GripCoeffS = 1.0f;
+
+        [XmlElement("GripCoeffK")]
+        public float XMLGripCoeffK { get => GripCoeffK; set => GripCoeffK = value; }
+        [XmlIgnore]
+        internal static float GripCoeffK = 0.8f;
+
+        [XmlElement("SpringDamp")]
+        public float XMLSpringDamp { get => SpringDamp; set => SpringDamp = value; }
+        [XmlIgnore]
+        internal static float SpringDamp = 6.0f;
+
+        [XmlElement("SpringOffset")]
+        public float XMLSpringOffset { get => SpringOffset; set => SpringOffset = value; }
+        [XmlIgnore]
+        internal static float SpringOffset = -0.1f;
+
+        [XmlElement("MassFactor")]
+        public float XMLMassFactor { get => MassFactor; set => MassFactor = value; }
+        [XmlIgnore]
+        internal static float MassFactor = 85.0f;
+
+        [XmlElement("MassCenterHeight")]
+        public float XMLMassCenterHeight { get => MassCenterHeight; set => MassCenterHeight = value; }
+        [XmlIgnore]
+        internal static float MassCenterHeight = 0.1f;
+
+        [XmlElement("MassCenterBias")]
+        public float XMLMassCenterBias { get => MassCenterBias; set => MassCenterBias = value; }
+        [XmlIgnore]
+        internal static float MassCenterBias = 0.6f;
+
         [XmlElement("Offset")]
         public Vector3 XMLOffset { get => Offset; set => Offset = value; }
         [XmlIgnore]
