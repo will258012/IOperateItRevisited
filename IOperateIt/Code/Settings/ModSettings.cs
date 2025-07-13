@@ -37,31 +37,6 @@ namespace IOperateIt.Settings
         [XmlIgnore]
         internal static Vector3 Offset = new Vector3(0f, 2f, -5f);
 
-        [XmlElement("CamMouseRotateSensitivity")]
-        public float XMLCamMouseRotateSensitivity { get => CamMouseRotateSensitivity; set => CamMouseRotateSensitivity = value; }
-        [XmlIgnore]
-        internal static float CamMouseRotateSensitivity = 1f;
-
-        [XmlElement("CamKeyRotateSensitivity")]
-        public float XMLCamKeyRotateSensitivity { get => CamKeyRotateSensitivity; set => CamKeyRotateSensitivity = value; }
-        [XmlIgnore]
-        internal static float CamKeyRotateSensitivity = 1f;
-
-        [XmlElement("CamFieldOfView")]
-        public float XMLCamFieldOfView { get => CamFieldOfView; set => CamFieldOfView = value; }
-        [XmlIgnore]
-        internal static float CamFieldOfView = 45f;
-
-        [XmlElement("CamMaxPitchDeg")]
-        public float XMLCamMaxPitchDeg { get => CamMaxPitchDeg; set => CamMaxPitchDeg = value; }
-        [XmlIgnore]
-        internal static float CamMaxPitchDeg = 70f;
-
-        [XmlElement("CamSmoothing")]
-        public float XMLCamSmoothing { get => CamSmoothing; set => CamSmoothing = value; }
-        [XmlIgnore]
-        internal static float CamSmoothing = 1f;
-
         [XmlElement("BuildingCollision")]
         public bool XMLBuildingCollision { get => BuildingCollision; set => BuildingCollision = value; }
         [XmlIgnore]
@@ -84,66 +59,6 @@ namespace IOperateIt.Settings
         public KeyOnlyBinding XMLKeySirenToggle { get => KeySirenToggle; set => KeySirenToggle = value; }
         [XmlIgnore]
         internal static KeyOnlyBinding KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
-
-        [XmlElement("KeyMoveForward")]
-        public KeyOnlyBinding XMLKeyMoveForward { get => KeyMoveForward; set => KeyMoveForward = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyMoveForward = new KeyOnlyBinding(KeyCode.W);
-
-        [XmlElement("KeyMoveBackward")]
-        public KeyOnlyBinding XMLKeyMoveBackward { get => KeyMoveBackward; set => KeyMoveBackward = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyMoveBackward = new KeyOnlyBinding(KeyCode.S);
-
-        [XmlElement("KeyMoveLeft")]
-        public KeyOnlyBinding XMLKeyMoveLeft { get => KeyMoveLeft; set => KeyMoveLeft = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyMoveLeft = new KeyOnlyBinding(KeyCode.A);
-
-        [XmlElement("KeyMoveRight")]
-        public KeyOnlyBinding XMLKeyMoveRight { get => KeyMoveRight; set => KeyMoveRight = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyMoveRight = new KeyOnlyBinding(KeyCode.D);
-
-        [XmlElement("KeyCamCursorToggle")]
-        public KeyOnlyBinding XMLKeyCamCursorToggle { get => KeyCamCursorToggle; set => KeyCamCursorToggle = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamCursorToggle = new KeyOnlyBinding(KeyCode.Tab);
-
-        [XmlElement("KeyCamReset")]
-        public KeyOnlyBinding XMLKeyCamReset { get => KeyCamReset; set => KeyCamReset = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamReset = new KeyOnlyBinding(KeyCode.Backslash);
-
-        [XmlElement("KeyCamZoomIn")]
-        public KeyOnlyBinding XMLKeyCamZoomIn { get => KeyCamZoomIn; set => KeyCamZoomIn = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamZoomIn = new KeyOnlyBinding(KeyCode.Equals);
-
-        [XmlElement("KeyCamZoomOut")]
-        public KeyOnlyBinding XMLKeyCamZoomOut { get => KeyCamZoomOut; set => KeyCamZoomOut = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamZoomOut = new KeyOnlyBinding(KeyCode.Minus);
-
-        [XmlElement("KeyCamRotateLeft")]
-        public KeyOnlyBinding XMLKeyCamRotateLeft { get => KeyCamRotateLeft; set => KeyCamRotateLeft = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamRotateLeft = new KeyOnlyBinding(KeyCode.LeftArrow);
-
-        [XmlElement("KeyCamRotateRight")]
-        public KeyOnlyBinding XMLKeyCamRotateRight { get => KeyCamRotateRight; set => KeyCamRotateRight = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamRotateRight = new KeyOnlyBinding(KeyCode.RightArrow);
-
-        [XmlElement("KeyCamRotateUp")]
-        public KeyOnlyBinding XMLKeyCamRotateUp { get => KeyCamRotateUp; set => KeyCamRotateUp = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamRotateUp = new KeyOnlyBinding(KeyCode.UpArrow);
-
-        [XmlElement("KeyCamRotateDown")]
-        public KeyOnlyBinding XMLKeyCamRotateDown { get => KeyCamRotateDown; set => KeyCamRotateDown = value; }
-        [XmlIgnore]
-        internal static KeyOnlyBinding KeyCamRotateDown = new KeyOnlyBinding(KeyCode.DownArrow);
 
         [XmlElement("MainButtonPos")]
         public Vector2 XMLMainButtonPos { get => MainButtonPos; set => MainButtonPos = value; }

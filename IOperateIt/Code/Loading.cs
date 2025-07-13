@@ -28,13 +28,7 @@ namespace IOperateIt
             gameObject.AddComponent<MainPanel>();
             gameObject.AddComponent<DriveButtons>();
             gameObject.AddComponent<DriveController>();
-            gameObject.AddComponent<DriveCam>();
-        }
-
-        public override void OnCreated(ILoading loading)
-        {
-            base.OnCreated(loading);
-            ModSupport.Initialize();
+            gameObject.AddComponent<DriveCamController>();
         }
 
         private GameObject gameObject = null;

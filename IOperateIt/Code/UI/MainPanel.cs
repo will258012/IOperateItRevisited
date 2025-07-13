@@ -82,7 +82,7 @@ namespace IOperateIt.UI
             Panel.height = currentY + _spawnBtn.height + Margin;
             Panel.Hide();
 
-            if (ModSupport.FoundUUI)
+            if (FPC.FPSCamera.Utils.ModSupport.FoundUUI)
             {
                 UUISupport.UUIRegister();
                 return;
@@ -147,7 +147,7 @@ namespace IOperateIt.UI
             if (Panel.isVisible)
             {
                 Panel.Hide();
-                if (ModSupport.FoundUUI)
+                if (FPC.FPSCamera.Utils.ModSupport.FoundUUI)
                 {
                     (GetMainButton() as ButtonBase).IsActive = false;
                 }
@@ -166,20 +166,20 @@ namespace IOperateIt.UI
                     Color adjustedColor = selectedVehicle.m_color0;
                     adjustedColor.a = 0;
                     _previewPanel.SetTarget(selectedVehicle, adjustedColor, true);
-                    DriveController.instance.updateColor(adjustedColor, true);
+                    DriveController.instance.UpdateColor(adjustedColor, true);
                 }
                 else
                 {
                     _previewPanel.SetTarget(selectedVehicle);
-                    DriveController.instance.updateColor(default, false);
+                    DriveController.instance.UpdateColor(default, false);
                 }
-                DriveController.instance.updateVehicleInfo(selectedVehicle);
+                DriveController.instance.UpdateVehicleInfo(selectedVehicle);
                 _spawnBtn.isEnabled = true;
             }
         }
         private void SpawnBtnClickEvent(UIComponent component, UIMouseEventParameter eventParam)
         {
-            if (DriveController.instance.isVehicleInfoSet())
+            if (DriveController.instance.IsVehicleInfoSet())
             {
                 if (ToolsModifierControl.GetCurrentTool<RoadSelectTool>() == null)
                 {

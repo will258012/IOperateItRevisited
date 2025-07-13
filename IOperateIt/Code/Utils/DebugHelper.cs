@@ -1,4 +1,5 @@
-﻿using AlgernonCommons;
+﻿#if DEBUG
+using AlgernonCommons;
 using ColossalFramework;
 using System;
 using System.Collections.Generic;
@@ -42,7 +43,7 @@ namespace IOperateIt.Utils
         private static Mesh m_debugMeshMarker = null;
         private static Mesh m_debugMeshCube = null;
 
-        private static void Initialize()
+        static DebugHelper()
         {
             if (!m_bInit)
             {
@@ -167,10 +168,6 @@ namespace IOperateIt.Utils
         
         public static void DrawDebugMarker(float size, Vector3 position, Color color = default)
         {
-            if (!Logging.DetailLogging) return;
-
-            Initialize();
-
             Material debugMat = m_debugMaterial;
 
             debugMat.renderQueue = 4000;
@@ -185,10 +182,6 @@ namespace IOperateIt.Utils
 
         public static void DrawDebugBox(Vector3 size, Vector3 center, Quaternion rotation, Color color = default)
         {
-            if (!Logging.DetailLogging) return;
-
-            Initialize();
-
             Material debugMat;
             if (m_debugMaterialWire != null)
             {
@@ -214,3 +207,4 @@ namespace IOperateIt.Utils
         }
     }
 }
+#endif
