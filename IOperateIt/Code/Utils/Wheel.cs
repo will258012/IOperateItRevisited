@@ -16,6 +16,7 @@ namespace IOperateIt.Utils
         public Vector3 normal;
         public Vector3 heightSample;
         public Vector3 origin;
+        public float mass;
         public float radius;
         public float power;
         public float brakeForce;
@@ -31,7 +32,7 @@ namespace IOperateIt.Utils
         private bool powered;
         private bool steerable;
         private bool inverted;
-        public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float radius, bool isSimulated = true, bool isPowered = true, float power = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
+        public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float power = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
         {
             GameObject go = new GameObject("Wheel");
             Wheel w = go.AddComponent<Wheel>();
@@ -44,6 +45,7 @@ namespace IOperateIt.Utils
             w.normal = Vector3.zero;
             w.heightSample = Vector3.zero;
             w.origin = localpos;
+            w.mass = mass;
             w.radius = radius;
             w.power = power;
             w.brakeForce = brakeForce;
@@ -92,5 +94,4 @@ namespace IOperateIt.Utils
             tangent = Vector3.Normalize(Vector3.Cross(normal, binormal));
         }
     }
-
 }
