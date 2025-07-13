@@ -67,6 +67,50 @@ namespace IOperateIt
             var brakingForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_BRAKINGFORCE"), 5f, 150f, 1f, ModSettings.BrakingForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: " KN"));
             brakingForce_Slider.eventValueChanged += (_, value) => ModSettings.BrakingForce = value;
             currentY += brakingForce_Slider.height + SliderMargin;
+
+            var downForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_DOWNFORCE"), 0.0f, 50.0f, 1f, ModSettings.DownForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N"));
+            downForce_Slider.eventValueChanged += (_, value) => ModSettings.DownForce = value;
+            currentY += downForce_Slider.height + SliderMargin;
+
+            var driveBias_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_DRIVEBIAS"), 0.0f, 1.0f, 0.05f, ModSettings.DriveBias, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            driveBias_Slider.eventValueChanged += (_, value) => ModSettings.DriveBias = value;
+            currentY += driveBias_Slider.height + SliderMargin;
+
+            var brakeBias_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_BRAKEBIAS"), 0.0f, 1.0f, 0.05f, ModSettings.BrakeBias, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            brakeBias_Slider.eventValueChanged += (_, value) => ModSettings.BrakeBias = value;
+            currentY += brakeBias_Slider.height + SliderMargin;
+
+            var gripOvermatch_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_GRIPOVERMATCH"), 0.0f, 1.0f, 0.05f, ModSettings.GripOvermatch, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            gripOvermatch_Slider.eventValueChanged += (_, value) => ModSettings.GripOvermatch = value;
+            currentY += gripOvermatch_Slider.height + SliderMargin;
+
+            var gripCoeffS_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_GRIPCOEFFS"), 0.0f, 2.0f, 0.05f, ModSettings.GripCoeffS, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            gripCoeffS_Slider.eventValueChanged += (_, value) => ModSettings.GripCoeffS = value;
+            currentY += gripCoeffS_Slider.height + SliderMargin;
+
+            var gripCoeffK_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_GRIPCOEFFK"), 0.0f, 2.0f, 0.05f, ModSettings.GripCoeffK, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            gripCoeffK_Slider.eventValueChanged += (_, value) => ModSettings.GripCoeffK = value;
+            currentY += gripCoeffK_Slider.height + SliderMargin;
+
+            var springDamp_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_SPRINGDAMP"), 0.0f, 20.0f, 0.1f, ModSettings.SpringDamp, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.1f, numberFormat: "N"));
+            springDamp_Slider.eventValueChanged += (_, value) => ModSettings.SpringDamp = value;
+            currentY += springDamp_Slider.height + SliderMargin;
+
+            var springOffset_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_SPRINGOFFSET"), -2.0f, 2.0f, 0.1f, ModSettings.SpringOffset, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.1f, numberFormat: "N"));
+            springOffset_Slider.eventValueChanged += (_, value) => ModSettings.SpringOffset = value;
+            currentY += springOffset_Slider.height + SliderMargin;
+
+            var massFactor_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_MASSFACTOR"), 5.0f, 200.0f, 5.0f, ModSettings.MassFactor, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 5.0f, numberFormat: "N"));
+            massFactor_Slider.eventValueChanged += (_, value) => ModSettings.MassFactor = value;
+            currentY += massFactor_Slider.height + SliderMargin;
+
+            var massCenterHeight_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_MASSCENTERHEIGHT"), -1.0f, 1.0f, 0.05f, ModSettings.MassCenterHeight, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            massCenterHeight_Slider.eventValueChanged += (_, value) => ModSettings.MassCenterHeight = value;
+            currentY += massCenterHeight_Slider.height + SliderMargin;
+
+            var massCenterBias_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_MASSCENTERBIAS"), 0.0f, 1.0f, 0.05f, ModSettings.MassCenterBias, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            massCenterBias_Slider.eventValueChanged += (_, value) => ModSettings.MassCenterBias = value;
+            currentY += massCenterBias_Slider.height + SliderMargin;
             #endregion
 
             #region Camera Group
