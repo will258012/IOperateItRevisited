@@ -63,8 +63,11 @@ namespace IOperateIt
         {
             //public TrailRenderer skidTrail;
             public static int wheelCount { get => wheels; private set => wheels = value; }
+            public static int frontCount { get => fronts; private set => fronts = value; }
+            public static int rearCount { get => wheels - fronts; }
 
             private static int wheels = 0;
+            private static int fronts = 0;
 
             public Wheel xWheel;
             public Wheel zWheel;
@@ -72,10 +75,11 @@ namespace IOperateIt
             public Vector3 binormal;
             public Vector3 normal;
             public Vector3 heightSample;
+            public Vector3 contactPoint;
             public Vector3 origin;
             public float mass;
             public float radius;
-            public float torque;
+            public float torqueFract;
             public float radps;
             public float brakeForce;
             public float normalImpulse;
@@ -85,11 +89,13 @@ namespace IOperateIt
             public bool isPowered       { get => powered; private set => powered = value; }
             public bool isSteerable     { get => steerable; private set => steerable = value; }
             public bool isInvertedSteer { get => inverted; private set => inverted = value; }
+            public bool isFront         { get => front; private set => front = value; }
 
             private bool simulated;
             private bool powered;
             private bool steerable;
             private bool inverted;
+            private bool front;
             public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
             {
                 GameObject go = new GameObject("Wheel");
@@ -102,10 +108,11 @@ namespace IOperateIt
                 w.binormal = Vector3.zero;
                 w.normal = Vector3.zero;   
                 w.heightSample = Vector3.zero;
+                w.contactPoint = Vector3.zero;
                 w.origin = localpos;
                 w.mass = mass;
                 w.radius = radius;
-                w.torque = torque;
+                w.torqueFract = torque;
                 w.radps = 0.0f;
                 w.brakeForce = brakeForce;
                 w.normalImpulse = 0.0f;
@@ -115,6 +122,7 @@ namespace IOperateIt
                 w.isPowered = isPowered;
                 w.isSteerable = isSteerable;
                 w.isInvertedSteer = isInvertedSteer;
+                w.isFront = localpos.z > 0.0f;
 
                 return w;
             }
@@ -125,6 +133,11 @@ namespace IOperateIt
                 {
                     wheelCount++;
                 }
+
+                if (isFront)
+                {
+                    fronts++;
+                }
             }
 
             public void OnDisable()
@@ -132,6 +145,10 @@ namespace IOperateIt
                 if (isSimulated)
                 {
                     wheelCount--;
+                }
+                if (isFront)
+                {
+                    fronts--;
                 }
             }
 
@@ -493,12 +510,19 @@ namespace IOperateIt
                 }
             }
 
+            float frontSpin = 0.0f;
+            float rearSpin = 0.0f;
+            foreach (Wheel w in m_wheelObjects)
+            {
+                w.contactPoint = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));
+            }
+
             foreach(Wheel w in m_wheelObjects) // calculate the lateral and longitudinal forces. Apply all forces.
             {
                 if (w.onGround)
                 {
                     Vector3 netImpulse = Vector3.zero;
-                    Vector3 worldContact = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));                
+                    Vector3 worldContact = w.contactPoint;                
                     Vector3 worldVelocity = m_vehicleRigidBody.GetPointVelocity(worldContact);
 
                     float lateralFract = 0.0f;
@@ -524,7 +548,7 @@ namespace IOperateIt
                     {
                         longComponent -= m_gear * m_brake * w.brakeForce * Time.fixedDeltaTime;
                     }
-                    longComponent += m_gear * m_throttle * w.torque / (Mathf.Abs(longSpeed) + 1.0f) * Time.fixedDeltaTime;
+                    longComponent += m_gear * m_throttle * w.torqueFract / (Mathf.Abs(longSpeed) + 1.0f) * Time.fixedDeltaTime;
 
                     Vector3 longImpulse = w.tangent * longComponent;
                     netImpulse += (1.0f - ModSettings.GripOvermatch) * longImpulse;
@@ -648,32 +672,28 @@ namespace IOperateIt
             {
                 m_rideHeight = m_vehicleInfo.m_generatedInfo.m_tyres[0].y;
 
-                int wheelCount = m_vehicleInfo.m_generatedInfo.m_tyres.Length;
-                int frontCount = 0;
                 foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
                 {
-                    if (tirepos.z > 0.0f)
-                    {
-                        frontCount++;
-                    }
+                    m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + ModSettings.SpringOffset, tirepos.z), MASS_WHEEL, tirepos.w, 
+                        true, true, 0, 0, true));
                 }
-                int rearCount = wheelCount - frontCount;
-                float frontPower = ModSettings.DriveBias;
-                float rearPower = 1.0f - ModSettings.DriveBias;
-                float frontBraking = ModSettings.BrakeBias * Settings.ModSettings.BrakingForce * KN_TO_N;
-                float rearBraking = (1.0f - ModSettings.BrakeBias) * Settings.ModSettings.BrakingForce * KN_TO_N;
 
-                foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
+                float frontPower = ModSettings.DriveBias / Wheel.frontCount;
+                float rearPower = 1.0f - ModSettings.DriveBias / Wheel.rearCount;
+                float frontBraking = ModSettings.BrakeBias * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.frontCount;
+                float rearBraking = (1.0f - ModSettings.BrakeBias) * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.rearCount;
+
+                foreach (Wheel w in m_wheelObjects)
                 {
-                    if (tirepos.z > 0.0f)
+                    if (w.isFront)
                     {
-                        m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + ModSettings.SpringOffset, tirepos.z), MASS_WHEEL, tirepos.w, 
-                            true, true, frontPower / frontCount, frontBraking / frontCount, true));
+                        w.torqueFract = frontPower;
+                        w.brakeForce = frontBraking;
                     }
                     else
                     {
-                        m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + ModSettings.SpringOffset, tirepos.z), MASS_WHEEL, tirepos.w, 
-                            true, true, rearPower / rearCount, rearBraking / rearCount, false));
+                        w.torqueFract = rearPower;
+                        w.brakeForce = rearBraking;
                     }
                 }
 
