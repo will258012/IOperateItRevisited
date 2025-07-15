@@ -1,6 +1,6 @@
 # Cities: Skylines
-# IOperateIt Revamped
-<img src="Images/banner.jpg" width="750px"/>
+# DriveIt (IOperateIt Revamped)
+<img src="Images/banner.png" width="750px"/>
 
 > This mod is rework of [IOperateItRevisited](https://github.com/will258012/IOperateItRevisited) by will258012 which is an updated version of [IOperateIt](https://github.com/tony56a/IOperateIt) by tony56a.
 
