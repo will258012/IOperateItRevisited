@@ -6,8 +6,11 @@ namespace IOperateIt.Utils
     {
         //public TrailRenderer skidTrail;
         public static int wheelCount { get => wheels; private set => wheels = value; }
+        public static int frontCount { get => fronts; private set => fronts = value; }
+        public static int rearCount { get => wheels - fronts; }
 
         private static int wheels = 0;
+        private static int fronts = 0;
 
         public Wheel xWheel;
         public Wheel zWheel;
@@ -15,10 +18,12 @@ namespace IOperateIt.Utils
         public Vector3 binormal;
         public Vector3 normal;
         public Vector3 heightSample;
+        public Vector3 contactPoint;
         public Vector3 origin;
         public float mass;
         public float radius;
-        public float power;
+        public float torqueFract;
+        public float radps;
         public float brakeForce;
         public float normalImpulse;
         public float compression;
@@ -27,12 +32,14 @@ namespace IOperateIt.Utils
         public bool isPowered { get => powered; private set => powered = value; }
         public bool isSteerable { get => steerable; private set => steerable = value; }
         public bool isInvertedSteer { get => inverted; private set => inverted = value; }
+        public bool isFront { get => front; private set => front = value; }
 
         private bool simulated;
         private bool powered;
         private bool steerable;
         private bool inverted;
-        public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float power = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
+        private bool front;
+        public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
         {
             GameObject go = new GameObject("Wheel");
             Wheel w = go.AddComponent<Wheel>();
@@ -44,10 +51,12 @@ namespace IOperateIt.Utils
             w.binormal = Vector3.zero;
             w.normal = Vector3.zero;
             w.heightSample = Vector3.zero;
+            w.contactPoint = Vector3.zero;
             w.origin = localpos;
             w.mass = mass;
             w.radius = radius;
-            w.power = power;
+            w.torqueFract = torque;
+            w.radps = 0.0f;
             w.brakeForce = brakeForce;
             w.normalImpulse = 0.0f;
             w.compression = 0.0f;
@@ -56,6 +65,7 @@ namespace IOperateIt.Utils
             w.isPowered = isPowered;
             w.isSteerable = isSteerable;
             w.isInvertedSteer = isInvertedSteer;
+            w.isFront = localpos.z > 0.0f;
 
             return w;
         }
@@ -66,6 +76,11 @@ namespace IOperateIt.Utils
             {
                 wheelCount++;
             }
+
+            if (isFront)
+            {
+                fronts++;
+            }
         }
 
         public void OnDisable()
@@ -73,6 +88,10 @@ namespace IOperateIt.Utils
             if (isSimulated)
             {
                 wheelCount--;
+            }
+            if (isFront)
+            {
+                fronts--;
             }
         }
 
@@ -94,4 +113,5 @@ namespace IOperateIt.Utils
             tangent = Vector3.Normalize(Vector3.Cross(normal, binormal));
         }
     }
+
 }
