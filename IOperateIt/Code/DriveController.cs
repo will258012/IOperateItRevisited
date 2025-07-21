@@ -27,9 +27,10 @@ namespace IOperateIt
         private const float SPRING_MAX_COMPRESS = 0.2f;
         //private const float MASS_FACTOR = 85.0f;
         private const float DRAG_FACTOR = 0.25f;
+        private const float DRAG_WHEEL = 0.05f;
         //private const float MASS_COM_HEIGHT = 0.1f;
         //private const float MASS_COM_BIAS = 0.6f;
-        private const float MASS_WHEEL = 15.0f;
+        private const float MASS_WHEEL = 10.0f;
         //private const float DOWN_FORCE = 5.0f;
         //private const float DRIVE_BIAS = 0.5f; 
         //private const float BRAKE_BIAS = 0.7f;
@@ -37,9 +38,10 @@ namespace IOperateIt
         //private const float GRIP_OVERMATCH = 0.3f;
         //private const float GRIP_COEFF = 1.0f;
         //private const float GRIP_COEFF_K = 0.8f;
+        private const float GRIP_MAX_SLIP = 0.1f;
         private const float ENGINE_RPM_IDLE = 300.0f;
         private const float GEAR_RATIO_1 = 1.0f / 300.0f;
-        private const float ACCEL_G = 10f * M_TO_UNIT;
+        private const float ACCEL_G = 10f;
         const float MS_TO_KMPH = 3.6f;
         const float UNIT_TO_M = 25.0f / 54.0f;
         const float M_TO_UNIT = 54.0f / 25.0f;
@@ -76,6 +78,7 @@ namespace IOperateIt
             public Vector3 normal;
             public Vector3 heightSample;
             public Vector3 contactPoint;
+            public Vector3 contactVelocity;
             public Vector3 origin;
             public float mass;
             public float radius;
@@ -83,7 +86,10 @@ namespace IOperateIt
             public float radps;
             public float brakeForce;
             public float normalImpulse;
+            public float binormalImpulse;
+            public float tangentImpulse;
             public float compression;
+            public float frictionCoeff;
             public bool onGround;
             public bool isSimulated     { get => simulated; private set => simulated = value; }
             public bool isPowered       { get => powered; private set => powered = value; }
@@ -96,6 +102,7 @@ namespace IOperateIt
             private bool steerable;
             private bool inverted;
             private bool front;
+            private bool registered;
             public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
             {
                 GameObject go = new GameObject("Wheel");
@@ -109,6 +116,7 @@ namespace IOperateIt
                 w.normal = Vector3.zero;   
                 w.heightSample = Vector3.zero;
                 w.contactPoint = Vector3.zero;
+                w.contactVelocity = Vector3.zero;
                 w.origin = localpos;
                 w.mass = mass;
                 w.radius = radius;
@@ -116,40 +124,31 @@ namespace IOperateIt
                 w.radps = 0.0f;
                 w.brakeForce = brakeForce;
                 w.normalImpulse = 0.0f;
+                w.binormalImpulse = 0.0f;
+                w.tangentImpulse = 0.0f;
                 w.compression = 0.0f;
+                w.frictionCoeff = ModSettings.GripCoeffK;
                 w.onGround = false;
                 w.isSimulated = isSimulated;
                 w.isPowered = isPowered;
                 w.isSteerable = isSteerable;
                 w.isInvertedSteer = isInvertedSteer;
                 w.isFront = localpos.z > 0.0f;
+                w.registered = false;
+
+                w.Register();
 
                 return w;
             }
 
             public void OnEnable()
             {
-                if (isSimulated)
-                {
-                    wheelCount++;
-                }
-
-                if (isFront)
-                {
-                    fronts++;
-                }
+                Register();
             }
 
             public void OnDisable()
             {
-                if (isSimulated)
-                {
-                    wheelCount--;
-                }
-                if (isFront)
-                {
-                    fronts--;
-                }
+                DeRegister();
             }
 
             public void CalcRoadTBN()
@@ -168,6 +167,40 @@ namespace IOperateIt
                     this.normal = tmp;
                 this.binormal = Vector3.Normalize(Vector3.Cross(this.gameObject.transform.TransformDirection(Vector3.forward), this.normal));
                 this.tangent = Vector3.Normalize(Vector3.Cross(this.normal, this.binormal));
+            }
+
+            private void Register()
+            {
+                if (!registered)
+                {
+                    if (isSimulated)
+                    {
+                        wheelCount++;
+                    }
+
+                    if (isFront)
+                    {
+                        fronts++;
+                    }
+                    registered = true;
+                }
+            }
+
+            private void DeRegister()
+            {
+                if (registered)
+                {
+                    if (isSimulated)
+                    {
+                        wheelCount--;
+                    }
+
+                    if (isFront)
+                    {
+                        fronts--;
+                    }
+                    registered = false;
+                }
             }
         }
 
@@ -366,7 +399,8 @@ namespace IOperateIt
         private void OnGUI()
         {
             if (Logging.DetailLogging)
-                GUI.Label(new Rect(50f, 50f, 500f, 200f), "g: " + m_gear + " t: " + m_throttle + " b: " + m_brake + " s: " + m_vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH);
+                GUI.Label(new Rect(50f, 50f, 500f, 500f), "g: " + m_gear + "\nt: " + m_throttle + "\nb: " + m_brake + 
+                    "\ns: " + m_vehicleRigidBody.velocity.magnitude * MS_TO_KMPH + "\nrps: " + m_radps + "\n w: " + Wheel.frontCount + " " + Wheel.rearCount);
         }
 
         private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
@@ -413,7 +447,7 @@ namespace IOperateIt
             {
                 var relativeVel = m_vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
 
-                Vector3 longImpulse = Vector3.forward * m_gear * m_throttle * (Settings.ModSettings.EnginePower * KW_TO_W * M_TO_UNIT / (vehicleVel.magnitude + 1.0f)) * Time.fixedDeltaTime;
+                Vector3 longImpulse = Vector3.forward * m_gear * m_throttle * (Settings.ModSettings.EnginePower * KW_TO_W / (vehicleVel.magnitude + 1.0f)) * Time.fixedDeltaTime;
 
                 if (m_gear == 0)
                 {
@@ -472,7 +506,7 @@ namespace IOperateIt
                 }
             }
 
-            foreach (Wheel w in m_wheelObjects) // calculate the road normals and normal impulses. Update wheel suspension position.
+            foreach (Wheel w in m_wheelObjects) // calculate the road normals. apply angular friction from previous tick. calculate normal impulses. Update wheel suspension position.
             {
                 if (w.isSteerable)
                 {
@@ -484,8 +518,19 @@ namespace IOperateIt
                 }
 
                 w.CalcRoadTBN();
+
+                if (w.onGround)
+                {
+                    Vector3 prelimContactVel = m_vehicleRigidBody.GetPointVelocity(w.contactPoint);
+                    Vector2 flatImpulses = new Vector2(w.binormalImpulse, w.tangentImpulse);
+                    float radDelta = Vector3.Dot(prelimContactVel, w.tangent) / w.radius - w.radps;
+                    w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), w.normalImpulse * w.radius * w.frictionCoeff / w.mass);
+                }
+                w.radps *= 1.0f - (DRAG_WHEEL * Time.fixedDeltaTime);
+
                 w.onGround = false;
                 w.normalImpulse = 0.0f;
+                w.frictionCoeff = ModSettings.GripCoeffK;
                 float normDotUp = Vector3.Dot(w.normal, upVec);
                 if (normDotUp > VALID_INCLINE)
                 {
@@ -494,93 +539,84 @@ namespace IOperateIt
                     float springVel = (compression - w.compression) / Time.fixedDeltaTime;
                     float deltaVel = -ModSettings.SpringDamp * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime) * (compression + springVel * Time.fixedDeltaTime) + springVel * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime) - springVel;
 
+                    w.gameObject.transform.localPosition = new Vector3(w.origin.x, w.origin.y + compression, w.origin.z);
+                    w.compression = compression;
+
                     if (deltaVel < 0.0f)
                     {
                         w.onGround = true;
                         w.normalImpulse = m_vehicleRigidBody.mass * (-deltaVel) / (Wheel.wheelCount * normDotUp);
+                        w.contactPoint = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));
+                        w.contactVelocity = m_vehicleRigidBody.GetPointVelocity(w.contactPoint);
+                        w.frictionCoeff = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK,
+                            Mathf.Clamp(Vector3.Magnitude(w.contactVelocity - (w.radps * w.radius * w.tangent)) / (w.contactVelocity.magnitude + FLOAT_ERROR), 0.0f, 1.0f));
                     }
-
-                    w.gameObject.transform.localPosition = new Vector3(w.origin.x, w.origin.y + compression, w.origin.z);
-                    w.compression = compression;
                 }
                 else
                 {
                     w.compression = 0.0f;
                     w.gameObject.transform.localPosition = w.origin;
                 }
+
             }
 
-            float frontSpin = 0.0f;
-            float rearSpin = 0.0f;
+            // calculate new engine angular velocity
+            float engineRps = 0.0f;
             foreach (Wheel w in m_wheelObjects)
             {
-                w.contactPoint = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));
+                engineRps += w.radps * w.torqueFract;
             }
+            m_radps = engineRps;
+            m_torque = ModSettings.EnginePower * KW_TO_W / (Mathf.Abs(m_radps) + 1.0f);
+
+
 
             foreach(Wheel w in m_wheelObjects) // calculate the lateral and longitudinal forces. Apply all forces.
             {
                 if (w.onGround)
                 {
-                    Vector3 netImpulse = Vector3.zero;
-                    Vector3 worldContact = w.contactPoint;                
-                    Vector3 worldVelocity = m_vehicleRigidBody.GetPointVelocity(worldContact);
+                    Vector3 netImpulse = Vector3.zero;             
 
-                    float lateralFract = 0.0f;
+                    float normalContribution = 0.0f;
                     foreach(Wheel wAlt in m_wheelObjects)
                     {
-                        lateralFract += Vector3.Dot(w.binormal, wAlt.binormal) * wAlt.normalImpulse;
+                        normalContribution += Vector3.Dot(w.binormal, wAlt.binormal) * wAlt.normalImpulse;
                     }
-                    lateralFract = w.normalImpulse / lateralFract;
+                    normalContribution = w.normalImpulse / normalContribution;
 
-                    float lateralSpeed = Vector3.Dot(worldVelocity, w.binormal);
-                    float lateralComponent = lateralFract * m_vehicleRigidBody.mass * lateralSpeed;
-                    netImpulse -= lateralComponent * w.binormal;
+                    Vector2 flatImpulses = Vector2.zero;
 
+                    float lateralSpeed = Vector3.Dot(w.contactVelocity, w.binormal);
+                    float lateralComponent = -normalContribution * m_vehicleRigidBody.mass * lateralSpeed;
 
-                    float longSpeed = Vector3.Dot(worldVelocity, w.tangent);
-                    float longComponent = 0.0f;
+                    flatImpulses.x = lateralComponent;
 
-                    if (m_gear == 0)
+                    float wheelTorque;
+                    wheelTorque = m_gear * m_throttle * w.torqueFract * m_torque;
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
+                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(m_brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.mass / Time.fixedDeltaTime);
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
+
+                    float longSpeed = Vector3.Dot(w.contactVelocity, w.tangent);
+                    float longComponent = normalContribution * m_vehicleRigidBody.mass * (w.radps * w.radius - longSpeed);
+
+                    flatImpulses.y = longComponent;
+
+                    if (w.frictionCoeff < (ModSettings.GripCoeffS + ModSettings.GripCoeffK) / 2.0f)
                     {
-                        longComponent -= Mathf.Sign(longSpeed) * Mathf.Min(m_brake * w.brakeForce * Time.fixedDeltaTime, Mathf.Abs(longSpeed) * m_vehicleRigidBody.mass / Wheel.wheelCount);
-                    }
-                    else
-                    {
-                        longComponent -= m_gear * m_brake * w.brakeForce * Time.fixedDeltaTime;
-                    }
-                    longComponent += m_gear * m_throttle * w.torqueFract / (Mathf.Abs(longSpeed) + 1.0f) * Time.fixedDeltaTime;
-
-                    Vector3 longImpulse = w.tangent * longComponent;
-                    netImpulse += (1.0f - ModSettings.GripOvermatch) * longImpulse;
-
-                    if (m_brake > 0.0f && Mathf.Abs(m_steer) > 0.85 && vehicleVel.magnitude > 25.0f) // kick out rear if braking while steering hard.
-                    {
-                        m_vehicleRigidBody.AddTorque(upVec * Mathf.Sign(m_steer) * (Mathf.Abs(m_steer) - 0.85f) * 0.06f, ForceMode.VelocityChange);
+                        DebugHelper.DrawDebugMarker(2.0f, w.contactPoint, Color.yellow);
                     }
 
-                    float gripCoefficient = ModSettings.GripCoeffS;
-                    
-                    if (w.isSteerable)
-                    {
-                        gripCoefficient = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK, Mathf.Abs(lateralSpeed) * 0.05f);
-                    }
-                    else
-                    {
-                        gripCoefficient = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK, Mathf.Abs(lateralSpeed) * 0.1f);
-                    }
+                    float frictionScale = Mathf.Min(w.normalImpulse * w.frictionCoeff, flatImpulses.magnitude) / (flatImpulses.magnitude + FLOAT_ERROR);
 
-                    if (gripCoefficient < (ModSettings.GripCoeffS + ModSettings.GripCoeffK) / 2.0f)
-                    {
-                        DebugHelper.DrawDebugMarker(2.0f, w.transform.position, Color.yellow);
-                    }
-
-                    netImpulse = Vector3.Normalize(netImpulse) * Mathf.Min(w.normalImpulse * ModSettings.GripCoeffS, netImpulse.magnitude);
-
-                    netImpulse += ModSettings.GripOvermatch * longImpulse;
+                    w.binormalImpulse = lateralComponent * frictionScale;
+                    w.tangentImpulse = longComponent * frictionScale;
 
                     netImpulse += w.normalImpulse * w.normal;
+                    netImpulse += w.binormalImpulse * w.binormal;
+                    netImpulse += w.tangentImpulse * w.tangent;
 
-                    m_vehicleRigidBody.AddForceAtPosition(netImpulse, worldContact, ForceMode.Impulse);
+                    m_vehicleRigidBody.AddForceAtPosition(netImpulse, w.contactPoint, ForceMode.Impulse);
                 }
                 else
                 {
@@ -601,6 +637,12 @@ namespace IOperateIt
                             m_vehicleRigidBody.AddTorque(Vector3.Normalize(Vector3.Cross(upVec, w.normal)) * 0.25f, ForceMode.VelocityChange);
                         }
                     }
+
+                    float wheelTorque;
+                    wheelTorque = m_gear * m_throttle * w.torqueFract * m_torque;
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
+                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(m_brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.mass / Time.fixedDeltaTime);
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
                 }
             }
         }
@@ -675,29 +717,36 @@ namespace IOperateIt
                 foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
                 {
                     m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + ModSettings.SpringOffset, tirepos.z), MASS_WHEEL, tirepos.w, 
-                        true, true, 0, 0, true));
-                }
-
-                float frontPower = ModSettings.DriveBias / Wheel.frontCount;
-                float rearPower = 1.0f - ModSettings.DriveBias / Wheel.rearCount;
-                float frontBraking = ModSettings.BrakeBias * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.frontCount;
-                float rearBraking = (1.0f - ModSettings.BrakeBias) * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.rearCount;
-
-                foreach (Wheel w in m_wheelObjects)
-                {
-                    if (w.isFront)
-                    {
-                        w.torqueFract = frontPower;
-                        w.brakeForce = frontBraking;
-                    }
-                    else
-                    {
-                        w.torqueFract = rearPower;
-                        w.brakeForce = rearBraking;
-                    }
+                        true, true, 0, 0, tirepos.z > 0.0f));
                 }
 
                 m_physicsFallback = false;
+
+                if (Wheel.rearCount == 0 || Wheel.frontCount == 0) 
+                {
+                    m_physicsFallback = true;
+                }
+                else
+                {
+                    float frontTorque = ModSettings.DriveBias / Wheel.frontCount;
+                    float rearTorque = (1.0f - ModSettings.DriveBias) / Wheel.rearCount;
+                    float frontBraking = ModSettings.BrakeBias * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.frontCount;
+                    float rearBraking = (1.0f - ModSettings.BrakeBias) * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.rearCount;
+
+                    foreach (Wheel w in m_wheelObjects)
+                    {
+                        if (w.isFront)
+                        {
+                            w.torqueFract = frontTorque;
+                            w.brakeForce = frontBraking;
+                        }
+                        else
+                        {
+                            w.torqueFract = rearTorque;
+                            w.brakeForce = rearBraking;
+                        }
+                    }
+                }
 
                 foreach (Wheel w in m_wheelObjects)
                 {
