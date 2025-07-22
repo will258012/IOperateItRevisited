@@ -16,7 +16,7 @@ namespace IOperateIt
         private const float GEAR_RESP = 0.25f;
         private const float PARK_SPEED = 0.5f;
         private const float STEER_MAX = 37.0f;
-        private const float STEER_DECAY = 0.006f;
+        private const float STEER_DECAY = 0.01f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
         private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
         private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
@@ -27,10 +27,10 @@ namespace IOperateIt
         private const float SPRING_MAX_COMPRESS = 0.2f;
         //private const float MASS_FACTOR = 85.0f;
         private const float DRAG_FACTOR = 0.25f;
-        private const float DRAG_WHEEL = 0.05f;
+        private const float DRAG_WHEEL = 0.04f;
         //private const float MASS_COM_HEIGHT = 0.1f;
         //private const float MASS_COM_BIAS = 0.6f;
-        private const float MASS_WHEEL = 10.0f;
+        private const float MOMENT_WHEEL = 1.5f;
         //private const float DOWN_FORCE = 5.0f;
         //private const float DRIVE_BIAS = 0.5f; 
         //private const float BRAKE_BIAS = 0.7f;
@@ -38,9 +38,9 @@ namespace IOperateIt
         //private const float GRIP_OVERMATCH = 0.3f;
         //private const float GRIP_COEFF = 1.0f;
         //private const float GRIP_COEFF_K = 0.8f;
-        private const float GRIP_MAX_SLIP = 0.1f;
-        private const float ENGINE_RPM_IDLE = 300.0f;
-        private const float GEAR_RATIO_1 = 1.0f / 300.0f;
+        private const float GRIP_MAX_SLIP = 0.2f;
+        private const float ENGINE_PEAK_POWER_RPS = 600.0f;
+        private const float ENGINE_GEAR_RATIO = 4.0f;
         private const float ACCEL_G = 10f;
         const float MS_TO_KMPH = 3.6f;
         const float UNIT_TO_M = 25.0f / 54.0f;
@@ -80,7 +80,7 @@ namespace IOperateIt
             public Vector3 contactPoint;
             public Vector3 contactVelocity;
             public Vector3 origin;
-            public float mass;
+            public float moment;
             public float radius;
             public float torqueFract;
             public float radps;
@@ -103,7 +103,7 @@ namespace IOperateIt
             private bool inverted;
             private bool front;
             private bool registered;
-            public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
+            public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float moment, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
             {
                 GameObject go = new GameObject("Wheel");
                 Wheel w = go.AddComponent<Wheel>();
@@ -118,7 +118,7 @@ namespace IOperateIt
                 w.contactPoint = Vector3.zero;
                 w.contactVelocity = Vector3.zero;
                 w.origin = localpos;
-                w.mass = mass;
+                w.moment = moment;
                 w.radius = radius;
                 w.torqueFract = torque;
                 w.radps = 0.0f;
@@ -510,7 +510,7 @@ namespace IOperateIt
             {
                 if (w.isSteerable)
                 {
-                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.isInvertedSteer ? -1.0f : 1.0f) * STEER_MAX * m_steer * Mathf.Clamp(1.0f - STEER_DECAY * vehicleVel.magnitude, 0.1f, 1.0f), 0);
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.isInvertedSteer ? -1.0f : 1.0f) * STEER_MAX * m_steer * Mathf.Clamp(1.0f - STEER_DECAY * vehicleVel.magnitude, 0.04f, 1.0f), 0);
                 }
                 else
                 {
@@ -524,7 +524,7 @@ namespace IOperateIt
                     Vector3 prelimContactVel = m_vehicleRigidBody.GetPointVelocity(w.contactPoint);
                     Vector2 flatImpulses = new Vector2(w.binormalImpulse, w.tangentImpulse);
                     float radDelta = Vector3.Dot(prelimContactVel, w.tangent) / w.radius - w.radps;
-                    w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), w.normalImpulse * w.radius * w.frictionCoeff / w.mass);
+                    w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), w.normalImpulse * w.radius * w.frictionCoeff / w.moment);
                 }
                 w.radps *= 1.0f - (DRAG_WHEEL * Time.fixedDeltaTime);
 
@@ -549,7 +549,7 @@ namespace IOperateIt
                         w.contactPoint = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));
                         w.contactVelocity = m_vehicleRigidBody.GetPointVelocity(w.contactPoint);
                         w.frictionCoeff = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK,
-                            Mathf.Clamp(Vector3.Magnitude(w.contactVelocity - (w.radps * w.radius * w.tangent)) / (w.contactVelocity.magnitude + FLOAT_ERROR), 0.0f, 1.0f));
+                            Mathf.Clamp(Vector3.Magnitude(w.contactVelocity - (w.radps * w.radius * w.tangent)) / Mathf.Max(w.contactVelocity.magnitude, 1.0f) / GRIP_MAX_SLIP, 0.0f, 1.0f));
                     }
                 }
                 else
@@ -566,8 +566,8 @@ namespace IOperateIt
             {
                 engineRps += w.radps * w.torqueFract;
             }
-            m_radps = engineRps;
-            m_torque = ModSettings.EnginePower * KW_TO_W / (Mathf.Abs(m_radps) + 1.0f);
+            m_radps = engineRps * ENGINE_GEAR_RATIO;
+            m_torque = -ModSettings.EnginePower * KW_TO_W * (Mathf.Abs(m_radps) - 2.0f * ENGINE_PEAK_POWER_RPS) / (ENGINE_PEAK_POWER_RPS * ENGINE_PEAK_POWER_RPS);
 
 
 
@@ -593,9 +593,9 @@ namespace IOperateIt
 
                     float wheelTorque;
                     wheelTorque = m_gear * m_throttle * w.torqueFract * m_torque;
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
-                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(m_brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.mass / Time.fixedDeltaTime);
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(m_brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
 
                     float longSpeed = Vector3.Dot(w.contactVelocity, w.tangent);
                     float longComponent = normalContribution * m_vehicleRigidBody.mass * (w.radps * w.radius - longSpeed);
@@ -607,7 +607,7 @@ namespace IOperateIt
                         DebugHelper.DrawDebugMarker(2.0f, w.contactPoint, Color.yellow);
                     }
 
-                    float frictionScale = Mathf.Min(w.normalImpulse * w.frictionCoeff, flatImpulses.magnitude) / (flatImpulses.magnitude + FLOAT_ERROR);
+                    float frictionScale = Mathf.Min(w.normalImpulse * w.frictionCoeff, flatImpulses.magnitude) / Mathf.Max(flatImpulses.magnitude, FLOAT_ERROR);
 
                     w.binormalImpulse = lateralComponent * frictionScale;
                     w.tangentImpulse = longComponent * frictionScale;
@@ -640,18 +640,18 @@ namespace IOperateIt
 
                     float wheelTorque;
                     wheelTorque = m_gear * m_throttle * w.torqueFract * m_torque;
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
-                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(m_brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.mass / Time.fixedDeltaTime);
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.mass;
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(m_brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
                 }
             }
         }
 
         private void LimitVelocity()
         {
-            if (m_vehicleRigidBody.velocity.magnitude > Settings.ModSettings.MaxVelocity / MS_TO_KMPH * M_TO_UNIT)
+            if (m_vehicleRigidBody.velocity.magnitude > Settings.ModSettings.MaxVelocity / MS_TO_KMPH)
             {
-                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * Settings.ModSettings.MaxVelocity / MS_TO_KMPH * M_TO_UNIT - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
+                m_vehicleRigidBody.AddForce(m_vehicleRigidBody.velocity.normalized * Settings.ModSettings.MaxVelocity / MS_TO_KMPH - m_vehicleRigidBody.velocity, ForceMode.VelocityChange);
             }
         }
 
@@ -716,7 +716,7 @@ namespace IOperateIt
 
                 foreach (Vector4 tirepos in m_vehicleInfo.m_generatedInfo.m_tyres)
                 {
-                    m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + ModSettings.SpringOffset, tirepos.z), MASS_WHEEL, tirepos.w, 
+                    m_wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + ModSettings.SpringOffset, tirepos.z), MOMENT_WHEEL, tirepos.w, 
                         true, true, 0, 0, tirepos.z > 0.0f));
                 }
 
