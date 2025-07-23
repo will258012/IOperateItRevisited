@@ -12,7 +12,7 @@ namespace IOperateIt
     {
         private const float FLOAT_ERROR = 0.01f;
         private const float THROTTLE_RESP = 0.5f;
-        private const float STEER_RESP = 0.35f;
+        private const float STEER_RESP = 0.5f;
         private const float GEAR_RESP = 0.25f;
         private const float PARK_SPEED = 0.5f;
         private const float STEER_MAX = 37.0f;
@@ -38,7 +38,7 @@ namespace IOperateIt
         //private const float GRIP_OVERMATCH = 0.3f;
         //private const float GRIP_COEFF = 1.0f;
         //private const float GRIP_COEFF_K = 0.8f;
-        private const float GRIP_MAX_SLIP = 0.2f;
+        private const float GRIP_MAX_SLIP = 0.4f;
         private const float ENGINE_PEAK_POWER_RPS = 600.0f;
         private const float ENGINE_GEAR_RATIO = 4.0f;
         private const float ACCEL_G = 10f;
@@ -510,7 +510,7 @@ namespace IOperateIt
             {
                 if (w.isSteerable)
                 {
-                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.isInvertedSteer ? -1.0f : 1.0f) * STEER_MAX * m_steer * Mathf.Clamp(1.0f - STEER_DECAY * vehicleVel.magnitude, 0.04f, 1.0f), 0);
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.isInvertedSteer ? -1.0f : 1.0f) * STEER_MAX * m_steer, 0);
                 }
                 else
                 {
@@ -567,7 +567,7 @@ namespace IOperateIt
                 engineRps += w.radps * w.torqueFract;
             }
             m_radps = engineRps * ENGINE_GEAR_RATIO;
-            m_torque = -ModSettings.EnginePower * KW_TO_W * (Mathf.Abs(m_radps) - 2.0f * ENGINE_PEAK_POWER_RPS) / (ENGINE_PEAK_POWER_RPS * ENGINE_PEAK_POWER_RPS);
+            m_torque = -ENGINE_GEAR_RATIO * ModSettings.EnginePower * KW_TO_W * (Mathf.Abs(m_radps) - 2.0f * ENGINE_PEAK_POWER_RPS) / (ENGINE_PEAK_POWER_RPS * ENGINE_PEAK_POWER_RPS);
 
 
 
@@ -1263,25 +1263,26 @@ namespace IOperateIt
             }
 
             bool steering = false;
+            float steerLimit = Mathf.Clamp(1.0f - STEER_DECAY * m_vehicleRigidBody.velocity.magnitude, 0.04f, 1.0f);
             if (Input.GetKey((KeyCode)Settings.ModSettings.KeyMoveRight.Key))
             {
-                m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
+                m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
                 steering = true;
             }
             if (Input.GetKey((KeyCode)Settings.ModSettings.KeyMoveLeft.Key))
             {
-                m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, -1.0f, 1.0f);
+                m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
                 steering = true;
             }
             if (!steering)
             {
                 if (m_steer > 0.0f)
                 {
-                    m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, 0.0f, 1.0f);
+                    m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, 0.0f, steerLimit);
                 }
                 if (m_steer < 0.0f)
                 {
-                    m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -1.0f, 0.0f);
+                    m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, 0.0f);
                 }
             }
         }
