@@ -3,9 +3,14 @@
 "WHATSNEW_L2","For a detailed list of changes, please visit the Steam Workshop or GitHub.",""
 "WHATSNEW_L3","Thank you for your use and support!",""
 MOD_DESCRIPTION,Drive vehicles around your very own city!
+SETTINGS_GROUP_GENERAL,General Settings
+SETTINGS_GROUP_VEHICLE,Vehicle Settings
+SETTINGS_GROUP_CAMERA,Camera Settings
+SETTINGS_GROUP_GAME,Gameplay Settings
+SETTINGS_GROUP_KEYS,Keybinds
 SETTINGS_MAXVELOCITY,Maximum velocity
-SETTINGS_ACCELERATIONFORCE,Acceleration force
-SETTINGS_BREAKINGFORCE,Steering braking force
+SETTINGS_ENGINEPOWER,Engine power
+SETTINGS_BRAKINGFORCE,Braking force
 SETTINGS_BUILDINGCOLLISION,Building collision
 SETTINGS_VEHICLECOLLISION,Vehicle collision
 SETTINGS_OFFSET,Camera offset
@@ -17,3 +22,4 @@ DRIVEBTN_TOOLTIP,Start driving
 SPAWNBTN_TEXT,Spawn vehicle
 MODSETTINGSBTN_TEXT,Mod settings
 ROAD_SELECT,Select a road segment to start driving
+DRIVINGMODE,Driving mode
