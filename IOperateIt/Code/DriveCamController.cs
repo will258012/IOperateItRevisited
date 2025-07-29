@@ -1,5 +1,6 @@
 ﻿extern alias FPC;
 using AlgernonCommons;
+using AlgernonCommons.Translation;
 using ColossalFramework;
 using FPC.FPSCamera.Game;
 using FPC.FPSCamera.Utils;
@@ -13,6 +14,7 @@ namespace IOperateIt
     {
         public class DriveCam : FPC.FPSCamera.Cam.IFPSCam
         {
+            public string Name => Translations.Translate("DRIVINGMODE");
             public void DisableCam() => DriveController.instance.StopDriving();
             public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new FPC.FPSCamera.Utils.MathUtils.Positioning(instance.m_targetRigidBody.transform.position, instance.m_targetRigidBody.transform.rotation);
             public float GetSpeed() => instance.m_targetRigidBody.velocity.magnitude;
