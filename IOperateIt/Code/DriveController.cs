@@ -256,9 +256,10 @@ namespace IOperateIt
 
         private void OnGUI()
         {
-            if (Logging.DetailLogging)
-                GUI.Label(new Rect(50f, 50f, 500f, 500f), "g: " + m_gear + "\nt: " + m_throttle + "\nb: " + m_brake + 
+#if DEBUG
+            GUI.Label(new Rect(50f, 50f, 500f, 500f), "g: " + m_gear + "\nt: " + m_throttle + "\nb: " + m_brake + 
                     "\ns: " + m_vehicleRigidBody.velocity.magnitude * MS_TO_KMPH + "\nrps: " + m_radps + "\n w: " + Wheel.frontCount + " " + Wheel.rearCount);
+#endif
         }
 
         private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
@@ -459,12 +460,12 @@ namespace IOperateIt
                     float longComponent = normalContribution * m_vehicleRigidBody.mass * (w.radps * w.radius - longSpeed);
 
                     flatImpulses.y = longComponent;
-
+#if DEBUG
                     if (w.frictionCoeff < (ModSettings.GripCoeffS + ModSettings.GripCoeffK) / 2.0f)
                     {
                         DebugHelper.DrawDebugMarker(2.0f, w.contactPoint, Color.yellow);
                     }
-
+#endif
                     float frictionScale = Mathf.Min(w.normalImpulse * w.frictionCoeff, flatImpulses.magnitude) / Mathf.Max(flatImpulses.magnitude, FLOAT_ERROR);
 
                     w.binormalImpulse = lateralComponent * frictionScale;
