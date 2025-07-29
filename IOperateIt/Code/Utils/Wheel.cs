@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using IOperateIt.Settings;
+using UnityEngine;
 
 namespace IOperateIt.Utils
 {
@@ -19,14 +20,18 @@ namespace IOperateIt.Utils
         public Vector3 normal;
         public Vector3 heightSample;
         public Vector3 contactPoint;
+        public Vector3 contactVelocity;
         public Vector3 origin;
-        public float mass;
+        public float moment;
         public float radius;
         public float torqueFract;
         public float radps;
         public float brakeForce;
         public float normalImpulse;
+        public float binormalImpulse;
+        public float tangentImpulse;
         public float compression;
+        public float frictionCoeff;
         public bool onGround;
         public bool isSimulated { get => simulated; private set => simulated = value; }
         public bool isPowered { get => powered; private set => powered = value; }
@@ -39,7 +44,8 @@ namespace IOperateIt.Utils
         private bool steerable;
         private bool inverted;
         private bool front;
-        public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float mass, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
+        private bool registered;
+        public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float moment, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
         {
             GameObject go = new GameObject("Wheel");
             Wheel w = go.AddComponent<Wheel>();
@@ -52,47 +58,39 @@ namespace IOperateIt.Utils
             w.normal = Vector3.zero;
             w.heightSample = Vector3.zero;
             w.contactPoint = Vector3.zero;
+            w.contactVelocity = Vector3.zero;
             w.origin = localpos;
-            w.mass = mass;
+            w.moment = moment;
             w.radius = radius;
             w.torqueFract = torque;
             w.radps = 0.0f;
             w.brakeForce = brakeForce;
             w.normalImpulse = 0.0f;
+            w.binormalImpulse = 0.0f;
+            w.tangentImpulse = 0.0f;
             w.compression = 0.0f;
+            w.frictionCoeff = ModSettings.GripCoeffK;
             w.onGround = false;
             w.isSimulated = isSimulated;
             w.isPowered = isPowered;
             w.isSteerable = isSteerable;
             w.isInvertedSteer = isInvertedSteer;
             w.isFront = localpos.z > 0.0f;
+            w.registered = false;
+
+            w.Register();
 
             return w;
         }
 
         public void OnEnable()
         {
-            if (isSimulated)
-            {
-                wheelCount++;
-            }
-
-            if (isFront)
-            {
-                fronts++;
-            }
+            Register();
         }
 
         public void OnDisable()
         {
-            if (isSimulated)
-            {
-                wheelCount--;
-            }
-            if (isFront)
-            {
-                fronts--;
-            }
+            DeRegister();
         }
 
         public void CalcRoadTBN()
@@ -111,6 +109,40 @@ namespace IOperateIt.Utils
             normal = tmp;
             binormal = Vector3.Normalize(Vector3.Cross(gameObject.transform.TransformDirection(Vector3.forward), normal));
             tangent = Vector3.Normalize(Vector3.Cross(normal, binormal));
+        }
+
+        private void Register()
+        {
+            if (!registered)
+            {
+                if (isSimulated)
+                {
+                    wheelCount++;
+                }
+
+                if (isFront)
+                {
+                    fronts++;
+                }
+                registered = true;
+            }
+        }
+
+        private void DeRegister()
+        {
+            if (registered)
+            {
+                if (isSimulated)
+                {
+                    wheelCount--;
+                }
+
+                if (isFront)
+                {
+                    fronts--;
+                }
+                registered = false;
+            }
         }
     }
 
