@@ -11,6 +11,22 @@ SETTINGS_GROUP_KEYS,Keybinds
 SETTINGS_MAXVELOCITY,Maximum velocity
 SETTINGS_ENGINEPOWER,Engine power
 SETTINGS_BRAKINGFORCE,Braking force
+SETTINGS_DOWNFORCE,Downforce
+SETTINGS_DRIVEBIAS,Drive bias
+SETTINGS_DRIVEBIAS_DETAIL,"Indicate whether the vehicle is front-, rear-, or four-wheel drive.
+0 = full front drive; 1 = full rear drive.
+The value between the two indicates the front and rear power distribution ratio of 4WD."
+SETTINGS_BRAKEBIAS,Brake bias
+SETTINGS_BRAKEBIAS_DETAIL,"Distribution of braking force between front and rear wheels.
+0 = fully front brakes, 1 = fully rear brakes."
+SETTINGS_GRIPOVERMATCH,Grip overmatch
+SETTINGS_GRIPCOEFFS,Static grip coefficient
+SETTINGS_GRIPCOEFFK,Kinetic grip coefficient
+SETTINGS_SPRINGDAMP,Spring damping
+SETTINGS_SPRINGOFFSET,Spring offset
+SETTINGS_MASSFACTOR,Mass factor
+SETTINGS_MASSCENTERHEIGHT,Mass center height
+SETTINGS_MASSCENTERBIAS,Mass center bias
 SETTINGS_BUILDINGCOLLISION,Building collision
 SETTINGS_VEHICLECOLLISION,Vehicle collision
 SETTINGS_OFFSET,Camera offset

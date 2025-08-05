@@ -74,10 +74,12 @@ namespace IOperateIt
             currentY += downForce_Slider.height + SliderMargin;
 
             var driveBias_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_DRIVEBIAS"), 0.0f, 1.0f, 0.05f, ModSettings.DriveBias, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            driveBias_Slider.tooltip = Translations.Translate("SETTINGS_DRIVEBIAS_DETAIL");
             driveBias_Slider.eventValueChanged += (_, value) => ModSettings.DriveBias = value;
             currentY += driveBias_Slider.height + SliderMargin;
 
             var brakeBias_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_BRAKEBIAS"), 0.0f, 1.0f, 0.05f, ModSettings.BrakeBias, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
+            brakeBias_Slider.tooltip = Translations.Translate("SETTINGS_BRAKEBIAS_DETAIL");
             brakeBias_Slider.eventValueChanged += (_, value) => ModSettings.BrakeBias = value;
             currentY += brakeBias_Slider.height + SliderMargin;
 
