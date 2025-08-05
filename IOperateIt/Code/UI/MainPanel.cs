@@ -3,8 +3,8 @@ using AlgernonCommons.Translation;
 using AlgernonCommons.UI;
 using AlgernonCommons.Utils;
 using ColossalFramework.UI;
-using IOperateIt.Utils;
 using IOperateIt.Settings;
+using IOperateIt.Utils;
 using UnifiedUI.GUI;
 using UnityEngine;
 
@@ -62,7 +62,7 @@ namespace IOperateIt.UI
 
             Panel.eventVisibilityChanged += (component, vis) =>
             {
-                if ((bool)vis == true && _vehicleList.SelectedIndex >= 0)
+                if (vis == true && _vehicleList.SelectedIndex >= 0)
                 {
                     UpdateListEvent((uint)_vehicleList.SelectedItem);
                 }

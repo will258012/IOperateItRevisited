@@ -1,6 +1,5 @@
 ﻿#if DEBUG
 using AlgernonCommons;
-using ColossalFramework;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,54 +34,48 @@ namespace IOperateIt.Utils
 {
     internal class DebugHelper
     {
-        private static bool m_bInit = false;
-        private static Camera m_mainCamera = null;
-        private static Material m_debugMaterialWire = null;
-        private static Material m_debugMaterial = null;
-        private static MaterialPropertyBlock m_debugMaterialBlock = null;
-        private static Mesh m_debugMeshMarker = null;
-        private static Mesh m_debugMeshCube = null;
+        private static Camera mainCamera = null;
+        private static Material debugMaterialWire = null;
+        private static Material debugMaterial = null;
+        private static MaterialPropertyBlock debugMaterialBlock = null;
+        private static Mesh debugMeshMarker = null;
+        private static Mesh debugMeshCube = null;
 
         static DebugHelper()
         {
-            if (!m_bInit)
+
+            mainCamera = RenderManager.instance.CurrentCameraInfo.m_camera;
+
+            /* Loading Audio Clips:
+            string path = Path.Combine(AssemblyUtils.AssemblyPath, "Resources/Sounds/soundfile.ogg");
+            WWW www = new WWW(new Uri(path).AbsoluteUri);
+            www.GetAudioClip(true, false);
+                */
+
+            /* Loading Textures:
+            CreateSpriteAtlas("IOperateIt Sprites", 1, "Textures");
+                */
+
+            string path = Path.Combine(AssemblyUtils.AssemblyPath, "Resources/Shaders/wireframeshader.asset");
+            WWW www = new WWW(new Uri(path).AbsoluteUri);
+            AssetBundle shaderBundle = www.assetBundle;
+            Shader s = shaderBundle.LoadAsset<Shader>("Wireframe");
+            if (s != null)
             {
-                m_bInit = true;
-
-                m_mainCamera = Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera;
-
-                /* Loading Audio Clips:
-                string path = Path.Combine(AssemblyUtils.AssemblyPath, "Resources/Sounds/soundfile.ogg");
-                WWW www = new WWW(new Uri(path).AbsoluteUri);
-                www.GetAudioClip(true, false);
-                 */
-
-                /* Loading Textures:
-                CreateSpriteAtlas("IOperateIt Sprites", 1, "Textures");
-                 */
-
-                string path = Path.Combine(AssemblyUtils.AssemblyPath, "Resources/Shaders/wireframeshader.asset");
-                WWW www = new WWW(new Uri(path).AbsoluteUri);
-                AssetBundle shaderBundle = www.assetBundle;
-                Shader s = shaderBundle.LoadAsset<Shader>("Wireframe");
-                if (s != null)
-                {
-                    m_debugMaterialWire = new Material(s);
-                }
-
-                m_debugMaterialBlock = new MaterialPropertyBlock();
-
-                m_debugMaterial = new Material(Shader.Find("Custom/Citizens/Citizen/Underground"));
-
-                InitMarkerMesh();
-                InitCubeMesh();
+                debugMaterialWire = new Material(s);
             }
 
+            debugMaterialBlock = new MaterialPropertyBlock();
+
+            debugMaterial = new Material(Shader.Find("Custom/Citizens/Citizen/Underground"));
+
+            InitMarkerMesh();
+            InitCubeMesh();
         }
 
         private static void InitMarkerMesh()
         {
-            m_debugMeshMarker = new Mesh();
+            debugMeshMarker = new Mesh();
 
             //Create vertices
             List<Vector3> generatedVertices = new List<Vector3>();
@@ -128,13 +121,13 @@ namespace IOperateIt.Utils
                 generatedTriangles.Add(4 * i + 3);
             }
 
-            m_debugMeshMarker.vertices = generatedVertices.ToArray();
-            m_debugMeshMarker.triangles = generatedTriangles.ToArray();
+            debugMeshMarker.vertices = generatedVertices.ToArray();
+            debugMeshMarker.triangles = generatedTriangles.ToArray();
         }
 
         private static void InitCubeMesh()
         {
-            m_debugMeshCube = new Mesh();
+            debugMeshCube = new Mesh();
 
             Vector3[] vertices = {
                 new Vector3 (-0.5f, -0.5f,- 0.5f),
@@ -162,48 +155,48 @@ namespace IOperateIt.Utils
 			    0, 1, 6
             };
 
-            m_debugMeshCube.vertices = vertices;
-            m_debugMeshCube.triangles = triangles;
+            debugMeshCube.vertices = vertices;
+            debugMeshCube.triangles = triangles;
         }
-        
+
         public static void DrawDebugMarker(float size, Vector3 position, Color color = default)
         {
-            Material debugMat = m_debugMaterial;
+            Material debugMat = debugMaterial;
 
             debugMat.renderQueue = 4000;
 
-            m_debugMaterialBlock.Clear();
-            m_debugMaterialBlock.SetColor("_Color", color);
+            debugMaterialBlock.Clear();
+            debugMaterialBlock.SetColor("_Color", color);
 
             Matrix4x4 matrix = Matrix4x4.TRS(position, Quaternion.identity, new Vector3(1.0f, size, 1.0f));
 
-            Graphics.DrawMesh(m_debugMeshMarker, matrix, debugMat, 24, m_mainCamera, 0, m_debugMaterialBlock);
+            Graphics.DrawMesh(debugMeshMarker, matrix, debugMat, 24, mainCamera, 0, debugMaterialBlock);
         }
 
         public static void DrawDebugBox(Vector3 size, Vector3 center, Quaternion rotation, Color color = default)
         {
             Material debugMat;
-            if (m_debugMaterialWire != null)
+            if (debugMaterialWire != null)
             {
-                debugMat = m_debugMaterialWire;
+                debugMat = debugMaterialWire;
             }
             else
             {
-                debugMat = m_debugMaterial;
+                debugMat = debugMaterial;
             }
             debugMat.renderQueue = 4000;
 
-            m_debugMaterialBlock.Clear();
-            m_debugMaterialBlock.SetFloat("_WireThickness", 400f);
-            m_debugMaterialBlock.SetFloat("_WireSmoothness", 3f);
-            m_debugMaterialBlock.SetColor("_WireColor", color);
-            m_debugMaterialBlock.SetColor("_Color", color);
-            m_debugMaterialBlock.SetColor("_BaseColor", Color.clear);
-            m_debugMaterialBlock.SetFloat("_MaxTriSize", 200f);
+            debugMaterialBlock.Clear();
+            debugMaterialBlock.SetFloat("_WireThickness", 400f);
+            debugMaterialBlock.SetFloat("_WireSmoothness", 3f);
+            debugMaterialBlock.SetColor("_WireColor", color);
+            debugMaterialBlock.SetColor("_Color", color);
+            debugMaterialBlock.SetColor("_BaseColor", Color.clear);
+            debugMaterialBlock.SetFloat("_MaxTriSize", 200f);
 
             Matrix4x4 matrix = Matrix4x4.TRS(center, rotation, size);
 
-            Graphics.DrawMesh(m_debugMeshCube, matrix, debugMat, 24, m_mainCamera, 0, m_debugMaterialBlock);
+            Graphics.DrawMesh(debugMeshCube, matrix, debugMat, 24, mainCamera, 0, debugMaterialBlock);
         }
     }
 }

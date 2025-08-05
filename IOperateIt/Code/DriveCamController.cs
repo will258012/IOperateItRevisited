@@ -16,8 +16,8 @@ namespace IOperateIt
         {
             public string Name => Translations.Translate("DRIVINGMODE");
             public void DisableCam() => DriveController.instance.StopDriving();
-            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new FPC.FPSCamera.Utils.MathUtils.Positioning(instance.m_targetRigidBody.transform.position, instance.m_targetRigidBody.transform.rotation);
-            public float GetSpeed() => instance.m_targetRigidBody.velocity.magnitude;
+            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new FPC.FPSCamera.Utils.MathUtils.Positioning(instance.targetRigidBody.transform.position, instance.targetRigidBody.transform.rotation);
+            public float GetSpeed() => instance.targetRigidBody.velocity.magnitude;
             public bool IsValid() => true;
         }
 
@@ -31,21 +31,21 @@ namespace IOperateIt
 
         public static DriveCamController instance { get; private set; }
 
-        private Rigidbody m_targetRigidBody;
-        private Vector3 m_lastValidDir;
-        private Quaternion m_rotation;
-        private Quaternion m_rotationOffset;
-        private float m_lastMovedTime;
-        private float m_followDistance;
+        private Rigidbody targetRigidBody;
+        private Vector3 lastValidDir;
+        private Quaternion rotation;
+        private Quaternion rotationOffset;
+        private float lastMovedTime;
+        private float followDistance;
 
-        private Camera m_mainCamera;
-        private int m_cachedRenderMask;
+        private Camera mainCamera;
+        private int cachedRenderMask;
 
         private void Awake()
         {
             instance = this;
             enabled = false;
-            m_mainCamera = FPC.FPSCamera.Cam.Controller.GameCamController.Instance.MainCamera;
+            mainCamera = FPC.FPSCamera.Cam.Controller.GameCamController.Instance.MainCamera;
         }
 
         public void EnableCam(Rigidbody rigidBody, float distance)
@@ -53,22 +53,22 @@ namespace IOperateIt
             enabled = true;
             FPC.FPSCamera.Cam.Controller.FPSCamController.Instance.FPSCam = new DriveCam();
 
-            m_cachedRenderMask = m_mainCamera.cullingMask;
-            m_targetRigidBody = rigidBody;
-            m_followDistance = Mathf.Clamp(distance, 0.0f, LOOK_MAX_DIST);
-            m_lastValidDir = m_mainCamera.transform.TransformDirection(Vector3.forward);
-            m_rotation = m_mainCamera.transform.rotation;
-            m_rotationOffset = Quaternion.identity;
+            cachedRenderMask = mainCamera.cullingMask;
+            targetRigidBody = rigidBody;
+            followDistance = Mathf.Clamp(distance, 0.0f, LOOK_MAX_DIST);
+            lastValidDir = mainCamera.transform.TransformDirection(Vector3.forward);
+            rotation = mainCamera.transform.rotation;
+            rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam enabled");
         }
         public void DisableCam()
         {
             enabled = false;
-            m_mainCamera.cullingMask = m_cachedRenderMask;
-            m_targetRigidBody = null;
-            m_lastValidDir = Vector3.zero;
-            m_rotation = Quaternion.identity;
-            m_rotationOffset = Quaternion.identity;
+            mainCamera.cullingMask = cachedRenderMask;
+            targetRigidBody = null;
+            lastValidDir = Vector3.zero;
+            rotation = Quaternion.identity;
+            rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam disabled");
         }
         private void Update()
@@ -82,41 +82,41 @@ namespace IOperateIt
         }
         public void UpdateCameraPos()
         {
-            Vector3 vehiclePosition = m_targetRigidBody.transform.TransformPoint(ModSettings.Offset);
+            Vector3 vehiclePosition = targetRigidBody.transform.TransformPoint(ModSettings.Offset);
 
-            if (Time.time > m_lastMovedTime + LOOK_RESET_TIME)
+            if (Time.time > lastMovedTime + LOOK_RESET_TIME)
             {
-                Vector3 vehicleVelocity = m_targetRigidBody.velocity;
+                Vector3 vehicleVelocity = targetRigidBody.velocity;
                 Vector3 vehicleDir = Vector3.Normalize(vehicleVelocity);
 
-                m_rotation = m_mainCamera.transform.rotation;
+                rotation = mainCamera.transform.rotation;
 
                 if (Vector3.Magnitude(vehicleVelocity) < 1.0 || vehicleDir.y > 0.99f || vehicleDir.y < -0.99f)
                 {
-                    vehicleDir = m_lastValidDir;
+                    vehicleDir = lastValidDir;
                 }
-                m_lastValidDir = vehicleDir;
+                lastValidDir = vehicleDir;
 
                 Quaternion targetRotation = Quaternion.identity;
                 targetRotation.SetLookRotation(vehicleDir);
 
-                var eulerTmp = m_rotationOffset.eulerAngles;
+                var eulerTmp = rotationOffset.eulerAngles;
                 eulerTmp.y = 0f;
                 eulerTmp.z = 0f;
 
-                m_rotationOffset = Quaternion.Euler(eulerTmp);
+                rotationOffset = Quaternion.Euler(eulerTmp);
 
-                targetRotation = targetRotation * m_rotationOffset;
+                targetRotation = targetRotation * rotationOffset;
 
-                m_rotation = Quaternion.Slerp(m_rotation, targetRotation, Time.deltaTime * Mathf.Max(Time.deltaTime, FPCModSettings.Instance.XMLTransSpeed));
+                rotation = Quaternion.Slerp(rotation, targetRotation, Time.deltaTime * Mathf.Max(Time.deltaTime, FPCModSettings.Instance.XMLTransSpeed));
             }
             else
             {
-                m_rotation = m_rotationOffset;
+                rotation = rotationOffset;
             }
 
-            float finalFollowDist = m_followDistance;
-            Utils.MapUtils.RaycastInput input = Utils.MapUtils.GetRaycastInput(vehiclePosition, m_rotation * Vector3.back, 1000.0f, false);
+            float finalFollowDist = followDistance;
+            Utils.MapUtils.RaycastInput input = Utils.MapUtils.GetRaycastInput(vehiclePosition, rotation * Vector3.back, 1000.0f, false);
             input.m_netService.m_service = ItemClass.Service.Road;
             input.m_netService.m_itemLayers = ItemClass.Layer.Default |
                                               ItemClass.Layer.MetroTunnels;
@@ -127,15 +127,15 @@ namespace IOperateIt
             }
 
             // Apply the calculated position and rotation to the camera. Limit the camera's position to the allowed area.
-            m_mainCamera.transform.rotation = m_rotation;
-            m_mainCamera.transform.position = CameraController.ClampCameraPosition(vehiclePosition + m_rotation * new Vector3(0.0f, 0.0f, -finalFollowDist));
+            mainCamera.transform.rotation = rotation;
+            mainCamera.transform.position = CameraController.ClampCameraPosition(vehiclePosition + rotation * new Vector3(0.0f, 0.0f, -finalFollowDist));
         }
 
         private void UpdateCameraRendering()
         {
-            var terrainHeight = Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(m_mainCamera.transform.position);
+            var terrainHeight = Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(mainCamera.transform.position);
 
-            if (terrainHeight + UNDERGROUND_RENDER_BIAS > m_mainCamera.transform.position.y)
+            if (terrainHeight + UNDERGROUND_RENDER_BIAS > mainCamera.transform.position.y)
             {
                 Singleton<RenderManager>.instance.CurrentCameraInfo.m_camera.cullingMask |= (1 << Singleton<VehicleManager>.instance.m_undergroundLayer);
             }
@@ -155,22 +155,22 @@ namespace IOperateIt
             if (Input.GetMouseButtonDown(2) || // middle click
                    FPCModSettings.Instance.XMLKeyCamReset.KeyTriggered())
             {
-                m_rotationOffset = Quaternion.identity;
-                m_lastMovedTime = 0f;
+                rotationOffset = Quaternion.identity;
+                lastMovedTime = 0f;
             }
 
             // mouse zoom
-            m_followDistance = m_followDistance - ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
-            m_followDistance = Mathf.Clamp(m_followDistance, 0.0f, LOOK_MAX_DIST);
+            followDistance = followDistance - ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
+            followDistance = Mathf.Clamp(followDistance, 0.0f, LOOK_MAX_DIST);
 
             {
                 // key movement
                 var movementFactor = ((FPCModSettings.Instance.XMLKeySpeedUp.IsPressed() ? FPCModSettings.Instance.XMLSpeedUpFactor : 1f)
                                      * FPCModSettings.Instance.XMLMovementSpeed * Time.deltaTime).FromKmph();
 
-                Vector3 camForward = m_mainCamera.transform.forward;
-                Vector3 camRight = m_mainCamera.transform.right;
-                Vector3 camUp = m_mainCamera.transform.up;
+                Vector3 camForward = mainCamera.transform.forward;
+                Vector3 camRight = mainCamera.transform.right;
+                Vector3 camUp = mainCamera.transform.up;
 
                 var movement = Vector3.zero;
                 if (!(KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed()))
@@ -184,7 +184,7 @@ namespace IOperateIt
                 if (FPCModSettings.Instance.XMLKeyMoveUp.IsPressed()) movement += camUp * movementFactor;
                 if (FPCModSettings.Instance.XMLKeyMoveDown.IsPressed()) movement -= camUp * movementFactor;
 
-                ModSettings.Offset += m_targetRigidBody.transform.InverseTransformDirection(movement);
+                ModSettings.Offset += targetRigidBody.transform.InverseTransformDirection(movement);
             }
 
             float yawDegree = 0f, pitchDegree = 0f;
@@ -204,24 +204,24 @@ namespace IOperateIt
 
             if (yawDegree != 0f || pitchDegree != 0f)
             {
-                if (Time.time > m_lastMovedTime + LOOK_RESET_TIME)
+                if (Time.time > lastMovedTime + LOOK_RESET_TIME)
                 {
-                    m_rotationOffset = m_rotation;
+                    rotationOffset = rotation;
                 }
 
-                m_lastMovedTime = Time.time;
+                lastMovedTime = Time.time;
 
                 var yawRotation = Quaternion.Euler(0f, yawDegree, 0f);
                 var pitchRotation = Quaternion.Euler(pitchDegree, 0f, 0f);
-                m_rotationOffset = yawRotation * m_rotationOffset * pitchRotation;
+                rotationOffset = yawRotation * rotationOffset * pitchRotation;
             }
 
             // Limit pitch
-            var eulerAngles = m_rotationOffset.eulerAngles;
+            var eulerAngles = rotationOffset.eulerAngles;
             if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
             eulerAngles.x = Mathf.Clamp(eulerAngles.x, -FPCModSettings.Instance.XMLMaxPitchDeg, FPCModSettings.Instance.XMLMaxPitchDeg);
             eulerAngles.z = 0f;
-            m_rotationOffset = Quaternion.Euler(eulerAngles);
+            rotationOffset = Quaternion.Euler(eulerAngles);
         }
     }
 }

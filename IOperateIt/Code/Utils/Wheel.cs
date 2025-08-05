@@ -6,12 +6,9 @@ namespace IOperateIt.Utils
     public class Wheel : MonoBehaviour
     {
         //public TrailRenderer skidTrail;
-        public static int wheelCount { get => wheels; private set => wheels = value; }
-        public static int frontCount { get => fronts; private set => fronts = value; }
-        public static int rearCount { get => wheels - fronts; }
-
-        private static int wheels = 0;
-        private static int fronts = 0;
+        public static int WheelCount { get; private set; } = 0;
+        public static int FrontCount { get; private set; } = 0;
+        public static int RearCount => WheelCount - FrontCount;
 
         public Wheel xWheel;
         public Wheel zWheel;
@@ -33,17 +30,12 @@ namespace IOperateIt.Utils
         public float compression;
         public float frictionCoeff;
         public bool onGround;
-        public bool isSimulated { get => simulated; private set => simulated = value; }
-        public bool isPowered { get => powered; private set => powered = value; }
-        public bool isSteerable { get => steerable; private set => steerable = value; }
-        public bool isInvertedSteer { get => inverted; private set => inverted = value; }
-        public bool isFront { get => front; private set => front = value; }
+        public bool IsSimulated { get; private set; }
+        public bool IsPowered { get; private set; }
+        public bool IsSteerable { get; private set; }
+        public bool IsInvertedSteer { get; private set; }
+        public bool IsFront { get; private set; }
 
-        private bool simulated;
-        private bool powered;
-        private bool steerable;
-        private bool inverted;
-        private bool front;
         private bool registered;
         public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float moment, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
         {
@@ -71,11 +63,11 @@ namespace IOperateIt.Utils
             w.compression = 0.0f;
             w.frictionCoeff = ModSettings.GripCoeffK;
             w.onGround = false;
-            w.isSimulated = isSimulated;
-            w.isPowered = isPowered;
-            w.isSteerable = isSteerable;
-            w.isInvertedSteer = isInvertedSteer;
-            w.isFront = localpos.z > 0.0f;
+            w.IsSimulated = isSimulated;
+            w.IsPowered = isPowered;
+            w.IsSteerable = isSteerable;
+            w.IsInvertedSteer = isInvertedSteer;
+            w.IsFront = localpos.z > 0.0f;
             w.registered = false;
 
             w.Register();
@@ -115,14 +107,14 @@ namespace IOperateIt.Utils
         {
             if (!registered)
             {
-                if (isSimulated)
+                if (IsSimulated)
                 {
-                    wheelCount++;
+                    WheelCount++;
                 }
 
-                if (isFront)
+                if (IsFront)
                 {
-                    fronts++;
+                    FrontCount++;
                 }
                 registered = true;
             }
@@ -132,14 +124,14 @@ namespace IOperateIt.Utils
         {
             if (registered)
             {
-                if (isSimulated)
+                if (IsSimulated)
                 {
-                    wheelCount--;
+                    WheelCount--;
                 }
 
-                if (isFront)
+                if (IsFront)
                 {
-                    fronts--;
+                    FrontCount--;
                 }
                 registered = false;
             }

@@ -18,7 +18,7 @@ namespace IOperateIt.Utils
         private const float ROAD_RAYCAST_UPPER = 1.5f;
         private const float ROAD_RAYCAST_LOWER = -7.5f;
         private const float ROAD_VALID_LANE_DIST_MULT = 1.25f;
-        public static bool RayCast(RaycastInput rayCastInput, out RaycastOutput result)
+        public static new bool RayCast(RaycastInput rayCastInput, out RaycastOutput result)
         {
             result = default;
             // Perform a single raycast if no offset is provided
@@ -50,10 +50,6 @@ namespace IOperateIt.Utils
         public static float CalculateHeight(Vector3 position, float objectHeight)
         {
             bool roadFound = false;
-            ToolBase.RaycastInput input;
-            ToolBase.RaycastOutput output;
-            Vector3 roadPos;
-
             var height = Mathf.Max(Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(position), Singleton<TerrainManager>.instance.WaterLevel(new Vector2(position.x, position.z)));
 
             if (Physics.Raycast(position + Vector3.up * objectHeight, Vector3.down, out RaycastHit hitInfo, objectHeight - ROAD_RAYCAST_LOWER, LayerMask.GetMask(MapUtils.LAYER_VEHICLES_NAME, MapUtils.LAYER_BUILDINGS_NAME)))
@@ -61,7 +57,7 @@ namespace IOperateIt.Utils
                 height = Mathf.Max(height, hitInfo.point.y);
             }
 
-            input = GetRaycastInput(position, ROAD_RAYCAST_LOWER, objectHeight + ROAD_RAYCAST_UPPER); // Configure raycast input parameters.
+            var input = GetRaycastInput(position, ROAD_RAYCAST_LOWER, objectHeight + ROAD_RAYCAST_UPPER);
             input.m_netService.m_service = ItemClass.Service.Road;
             input.m_netService.m_itemLayers = ItemClass.Layer.Default |// ItemClass.Layer.PublicTransport is only for TransportLine, not for Road.
                                               ItemClass.Layer.MetroTunnels;
@@ -73,7 +69,7 @@ namespace IOperateIt.Utils
             input.m_ignoreTerrain = true;
 
             // Perform the raycast and check for a result:
-            if (RayCast(input, out output))
+            if (RayCast(input, out var output))
             {
                 height = Mathf.Max(height, output.m_hitPos.y);
                 roadFound = true;
@@ -101,7 +97,7 @@ namespace IOperateIt.Utils
                     int lane = 0;
                     ref NetSegment segment = ref Singleton<NetManager>.instance.m_segments.m_buffer[output.m_netSegment];
 
-                    if (GetClosestLanePositionFiltered(ref segment, position, out roadPos, out offset, out lane))
+                    if (GetClosestLanePositionFiltered(ref segment, position, out var roadPos, out offset, out lane))
                     {
                         height = roadPos.y;
 

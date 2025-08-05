@@ -1,7 +1,7 @@
 ﻿using AlgernonCommons;
 using ColossalFramework;
-using IOperateIt.Utils;
 using IOperateIt.Settings;
+using IOperateIt.Utils;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -30,9 +30,9 @@ namespace IOperateIt
         private const float SCAN_DISTANCE = 50f;
         private const float COLLIDER_JUMP_DISTANCE = 10f;
 
-        private ColliderContainer[] m_BuildingColliders;
-        private ColliderContainer[] m_VehicleColliders;
-        private ColliderContainer[] m_ParkedVehicleColliders;
+        private ColliderContainer[] buildingColliders;
+        private ColliderContainer[] vehicleColliders;
+        private ColliderContainer[] parkedVehicleColliders;
 
         private class MapElem
         {
@@ -46,8 +46,8 @@ namespace IOperateIt
             }
         }
 
-        private Dictionary<ushort, MapElem> m_VehicleToColliderMap;
-        private Queue<ushort> m_VehicleQueue;
+        private Dictionary<ushort, MapElem> vehicleToColliderMap;
+        private Queue<ushort> vehicleQueue;
 
         private int m_updateId = 0;
 
@@ -56,12 +56,12 @@ namespace IOperateIt
         /// </summary>
         public IEnumerator InitializeColliders()
         {
-            m_BuildingColliders = new ColliderContainer[NUM_BUILDING_COLLIDERS];
-            m_VehicleColliders = new ColliderContainer[NUM_VEHICLE_COLLIDERS];
-            m_ParkedVehicleColliders = new ColliderContainer[NUM_PARKED_VEHICLE_COLLIDERS];
+            buildingColliders = new ColliderContainer[NUM_BUILDING_COLLIDERS];
+            vehicleColliders = new ColliderContainer[NUM_VEHICLE_COLLIDERS];
+            parkedVehicleColliders = new ColliderContainer[NUM_PARKED_VEHICLE_COLLIDERS];
 
-            m_VehicleToColliderMap = new Dictionary<ushort, MapElem>();
-            m_VehicleQueue = new Queue<ushort>();
+            vehicleToColliderMap = new Dictionary<ushort, MapElem>();
+            vehicleQueue = new Queue<ushort>();
 
             PhysicMaterial material = new PhysicMaterial();
             material.bounciness = 0.05f;
@@ -76,7 +76,7 @@ namespace IOperateIt
                 buildingCollider.MeshCollider.convex = false;
                 buildingCollider.MeshCollider.enabled = true;
                 buildingCollider.MeshCollider.sharedMaterial = material;
-                m_BuildingColliders[i] = buildingCollider;
+                buildingColliders[i] = buildingCollider;
                 gameObject.SetActive(false);
             }
 
@@ -92,7 +92,7 @@ namespace IOperateIt
                 vehicleCollider.Rigidbody.isKinematic = true;
                 vehicleCollider.Rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
                 vehicleCollider.Type = ColliderContainer.ContainerType.TYPE_VEHICLE;
-                m_VehicleColliders[i] = vehicleCollider;
+                vehicleColliders[i] = vehicleCollider;
                 gameObject.SetActive(false);
             }
 
@@ -104,7 +104,7 @@ namespace IOperateIt
                 parkedVehicleCollider.BoxCollider = gameObject.AddComponent<BoxCollider>();
                 parkedVehicleCollider.BoxCollider.enabled = true;
                 parkedVehicleCollider.BoxCollider.sharedMaterial = material;
-                m_ParkedVehicleColliders[i] = parkedVehicleCollider;
+                parkedVehicleColliders[i] = parkedVehicleCollider;
                 gameObject.SetActive(false);
             }
             yield return null;
@@ -117,24 +117,24 @@ namespace IOperateIt
             if (isParked)
             {
                 ref var parkedVehicle = ref Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[vehicleId];
-                if (((VehicleParked.Flags) parkedVehicle.m_flags & VehicleParked.Flags.Parking) == 0)
+                if (((VehicleParked.Flags)parkedVehicle.m_flags & VehicleParked.Flags.Parking) == 0)
                 {
                     vehicleRotation = parkedVehicle.m_rotation;
                     vehiclePosition = parkedVehicle.m_position;
-                    m_ParkedVehicleColliders[colliderIndex].gameObject.SetActive(true);
-                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_lodMesh.bounds.size;
-                    m_ParkedVehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * parkedVehicle.Info.m_lodMesh.bounds.size.y, 0.0f);
-                    m_ParkedVehicleColliders[colliderIndex].gameObject.transform.position = vehiclePosition;
-                    m_ParkedVehicleColliders[colliderIndex].gameObject.transform.rotation = vehicleRotation;
+                    parkedVehicleColliders[colliderIndex].gameObject.SetActive(true);
+                    parkedVehicleColliders[colliderIndex].BoxCollider.size = parkedVehicle.Info.m_lodMesh.bounds.size;
+                    parkedVehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * parkedVehicle.Info.m_lodMesh.bounds.size.y, 0.0f);
+                    parkedVehicleColliders[colliderIndex].gameObject.transform.position = vehiclePosition;
+                    parkedVehicleColliders[colliderIndex].gameObject.transform.rotation = vehicleRotation;
 
-                    BoxCollider bc = m_ParkedVehicleColliders[colliderIndex].BoxCollider;
+                    BoxCollider bc = parkedVehicleColliders[colliderIndex].BoxCollider;
 #if DEBUG
                     DebugHelper.DrawDebugBox(bc.size, bc.transform.TransformPoint(bc.center), bc.transform.rotation, Color.red);
 #endif
-                    }
+                }
                 else
                 {
-                    m_ParkedVehicleColliders[colliderIndex].gameObject.SetActive(false);
+                    parkedVehicleColliders[colliderIndex].gameObject.SetActive(false);
                 }
             }
             else
@@ -147,24 +147,24 @@ namespace IOperateIt
                     vehicleRotation = new Quaternion(0, 1, 0, 0) * vehicleRotation;
                 }
 
-                if (vehicleId == m_VehicleColliders[colliderIndex].ID 
-                    && Vector3.Magnitude(vehiclePosition - m_VehicleColliders[colliderIndex].Rigidbody.transform.position) < COLLIDER_JUMP_DISTANCE)
+                if (vehicleId == vehicleColliders[colliderIndex].ID
+                    && Vector3.Magnitude(vehiclePosition - vehicleColliders[colliderIndex].Rigidbody.transform.position) < COLLIDER_JUMP_DISTANCE)
                 {
-                    m_VehicleColliders[colliderIndex].Rigidbody.MovePosition(vehiclePosition);
-                    m_VehicleColliders[colliderIndex].Rigidbody.MoveRotation(vehicleRotation);
+                    vehicleColliders[colliderIndex].Rigidbody.MovePosition(vehiclePosition);
+                    vehicleColliders[colliderIndex].Rigidbody.MoveRotation(vehicleRotation);
                 }
                 else
                 {
-                    m_VehicleColliders[colliderIndex].Rigidbody.transform.position = vehiclePosition;
-                    m_VehicleColliders[colliderIndex].Rigidbody.transform.rotation = vehicleRotation;
+                    vehicleColliders[colliderIndex].Rigidbody.transform.position = vehiclePosition;
+                    vehicleColliders[colliderIndex].Rigidbody.transform.rotation = vehicleRotation;
                 }
 
-                m_VehicleColliders[colliderIndex].gameObject.SetActive(true);
-                m_VehicleColliders[colliderIndex].ID = vehicleId;
-                m_VehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_lodMesh.bounds.size;
-                m_VehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * vehicle.Info.m_lodMesh.bounds.size.y, 0.0f);
+                vehicleColliders[colliderIndex].gameObject.SetActive(true);
+                vehicleColliders[colliderIndex].ID = vehicleId;
+                vehicleColliders[colliderIndex].BoxCollider.size = vehicle.Info.m_lodMesh.bounds.size;
+                vehicleColliders[colliderIndex].BoxCollider.center = new Vector3(0.0f, 0.5f * vehicle.Info.m_lodMesh.bounds.size.y, 0.0f);
 
-                BoxCollider bc = m_VehicleColliders[colliderIndex].BoxCollider;
+                BoxCollider bc = vehicleColliders[colliderIndex].BoxCollider;
 #if DEBUG
                 DebugHelper.DrawDebugBox(bc.size, bc.transform.TransformPoint(bc.center), bc.transform.rotation, Color.green);
                 DebugHelper.DrawDebugMarker(5f, vehicle.GetLastFramePosition(), Color.green);
@@ -214,10 +214,10 @@ namespace IOperateIt
                             buildingPosition.y -= 1.0f;
                         }
 
-                        m_BuildingColliders[i].gameObject.SetActive(true);
-                        m_BuildingColliders[i].MeshCollider.sharedMesh = building.Info.m_mesh;
-                        m_BuildingColliders[i].gameObject.transform.position = buildingPosition;
-                        m_BuildingColliders[i].gameObject.transform.rotation = buildingRotation;
+                        buildingColliders[i].gameObject.SetActive(true);
+                        buildingColliders[i].MeshCollider.sharedMesh = building.Info.m_mesh;
+                        buildingColliders[i].gameObject.transform.position = buildingPosition;
+                        buildingColliders[i].gameObject.transform.rotation = buildingRotation;
                         hitBuildings.Add(buildingIndex);
                     }
                 }
@@ -229,7 +229,7 @@ namespace IOperateIt
         {
             int gridX = Mathf.Clamp((int)(transform.position.x / 32f + 270f), 0, 539);
             int gridZ = Mathf.Clamp((int)(transform.position.z / 32f + 270f), 0, 539);
-           
+
             UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX);
             UpdateVehicleCollidersInGridSpace(gridZ * 540 + gridX - 1);
             UpdateVehicleCollidersInGridSpace((gridZ - 1) * 540 + gridX);
@@ -240,44 +240,44 @@ namespace IOperateIt
             UpdateVehicleCollidersInGridSpace((gridZ - 1) * 540 + gridX + 1);
             UpdateVehicleCollidersInGridSpace((gridZ + 1) * 540 + gridX - 1);
 
-            var tmpMap = new Dictionary<ushort, MapElem>(m_VehicleToColliderMap);
+            var tmpMap = new Dictionary<ushort, MapElem>(vehicleToColliderMap);
             foreach (var pair in tmpMap)
             {
                 if (pair.Value.updateId != m_updateId)
                 {
-                    m_VehicleColliders[pair.Value.index].ID = 0;
-                    m_VehicleToColliderMap.Remove(pair.Key);
+                    vehicleColliders[pair.Value.index].ID = 0;
+                    vehicleToColliderMap.Remove(pair.Key);
                 }
             }
 
             int colliderCounter = 0;
             while (colliderCounter < NUM_VEHICLE_COLLIDERS)
             {
-                if (m_VehicleColliders[colliderCounter].ID == 0)
+                if (vehicleColliders[colliderCounter].ID == 0)
                 {
-                    if (m_VehicleQueue.Count == 0)
+                    if (vehicleQueue.Count == 0)
                     {
-                        m_VehicleColliders[colliderCounter].gameObject.SetActive(false);
+                        vehicleColliders[colliderCounter].gameObject.SetActive(false);
                     }
                     else
                     {
-                        ushort vehicleId = m_VehicleQueue.Dequeue();
+                        ushort vehicleId = vehicleQueue.Dequeue();
                         SetVehicleCollider(vehicleId, colliderCounter, false);
-                        m_VehicleToColliderMap[vehicleId] = new MapElem(m_updateId, colliderCounter);
+                        vehicleToColliderMap[vehicleId] = new MapElem(m_updateId, colliderCounter);
                     }
                 }
                 else
                 {
-                    SetVehicleCollider((ushort)m_VehicleColliders[colliderCounter].ID, colliderCounter, false);
+                    SetVehicleCollider((ushort)vehicleColliders[colliderCounter].ID, colliderCounter, false);
                 }
                 colliderCounter++;
             }
 
-            if (m_VehicleQueue.Count > 0)
+            if (vehicleQueue.Count > 0)
             {
                 Logging.Error("Vehicle Colliders Full!");
             }
-            m_VehicleQueue.Clear();
+            vehicleQueue.Clear();
         }
 
         private void UpdateVehicleCollidersInGridSpace(int index)
@@ -286,13 +286,13 @@ namespace IOperateIt
             while (vehicleId != 0)
             {
                 MapElem tmpElem;
-                if (m_VehicleToColliderMap.TryGetValue(vehicleId, out tmpElem))
+                if (vehicleToColliderMap.TryGetValue(vehicleId, out tmpElem))
                 {
                     tmpElem.updateId = m_updateId;
                 }
                 else
                 {
-                    m_VehicleQueue.Enqueue(vehicleId);
+                    vehicleQueue.Enqueue(vehicleId);
                 }
                 vehicleId = Singleton<VehicleManager>.instance.m_vehicles.m_buffer[vehicleId].m_nextGridVehicle;
             }
@@ -324,7 +324,7 @@ namespace IOperateIt
 
             for (int i = colliderCounter; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
             {
-                m_ParkedVehicleColliders[i].gameObject.SetActive(false);
+                parkedVehicleColliders[i].gameObject.SetActive(false);
             }
         }
 
@@ -344,23 +344,23 @@ namespace IOperateIt
         {
             for (int i = 0; i < NUM_BUILDING_COLLIDERS; i++)
             {
-                m_BuildingColliders[i].gameObject.SetActive(false);
+                buildingColliders[i].gameObject.SetActive(false);
             }
 
             for (int i = 0; i < NUM_VEHICLE_COLLIDERS; i++)
             {
-                m_VehicleColliders[i].gameObject.SetActive(false);
+                vehicleColliders[i].gameObject.SetActive(false);
             }
 
             for (int i = 0; i < NUM_PARKED_VEHICLE_COLLIDERS; i++)
             {
-                m_ParkedVehicleColliders[i].gameObject.SetActive(false);
+                parkedVehicleColliders[i].gameObject.SetActive(false);
             }
             yield return null;
         }
         public void DestroyColliders()
         {
-            foreach (var collider in m_BuildingColliders)
+            foreach (var collider in buildingColliders)
             {
                 if (collider != null && collider.gameObject != null)
                 {
@@ -368,7 +368,7 @@ namespace IOperateIt
                 }
             }
 
-            foreach (var collider in m_VehicleColliders)
+            foreach (var collider in vehicleColliders)
             {
                 if (collider != null && collider.gameObject != null)
                 {
@@ -376,7 +376,7 @@ namespace IOperateIt
                 }
             }
 
-            foreach (var collider in m_ParkedVehicleColliders)
+            foreach (var collider in parkedVehicleColliders)
             {
                 if (collider != null && collider.gameObject != null)
                 {
