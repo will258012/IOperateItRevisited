@@ -1,4 +1,5 @@
-﻿using AlgernonCommons.Keybinding;
+﻿using AlgernonCommons;
+using AlgernonCommons.Keybinding;
 using AlgernonCommons.XML;
 using ColossalFramework.IO;
 using System.IO;
@@ -16,6 +17,35 @@ namespace IOperateIt.Settings
         internal static void Load() => XMLFileUtils.Load<ModSettings>(SettingsFileName);
 
         internal static void Save() => XMLFileUtils.Save<ModSettings>(SettingsFileName);
+
+        // Remember edit values here if the settings have edited!
+        internal static void ResetToDefaults()
+        {
+            AlgernonCommons.Translation.Translations.CurrentLanguage = "default";
+            Logging.DetailLogging = false;
+            AlgernonCommons.Notifications.WhatsNew.LastNotifiedVersionString = "0.0";
+
+            MaxVelocity = 125f;
+            EnginePower = 225f;
+            BrakingForce = 30f;
+            BrakingABS = true;
+            DownForce = 5.0f;
+            DriveBias = 0.5f;
+            BrakeBias = 0.7f;
+            GripCoeffS = 1.0f;
+            GripCoeffK = 0.8f;
+            SpringDamp = 6.0f;
+            SpringOffset = -0.1f;
+            MassFactor = 85.0f;
+            MassCenterHeight = 0.1f;
+            MassCenterBias = 0.6f;
+            Offset = new Vector3(0f, 2f, -5f);
+            BuildingCollision = true;
+            VehicleCollision = true;
+            KeyLightToggle = new KeyOnlyBinding(KeyCode.H);
+            KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
+            MainButtonPos = new Vector3(0f, 0f);
+        }
 
         [XmlElement("MaxVelocity")]
         public float XMLMaxVelocity { get => MaxVelocity; set => MaxVelocity = value; }

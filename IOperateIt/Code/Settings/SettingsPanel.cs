@@ -5,6 +5,7 @@ using AlgernonCommons.Translation;
 using AlgernonCommons.UI;
 using ColossalFramework.UI;
 using IOperateIt.Settings;
+using IOperateIt.UI;
 using UnityEngine;
 
 namespace IOperateIt
@@ -156,6 +157,20 @@ namespace IOperateIt
             var keySirenToggle = OptionsKeymapping.AddKeymapping(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_KEYSIRENTOGGLE"), ModSettings.KeySirenToggle);
             currentY += keySirenToggle.Panel.height + Margin;
             #endregion
+
+            var reset_Button = UIButtons.AddButton(scrollPanel, Margin, currentY, Translations.Translate("SETTINGS_RESETBTN"));
+            reset_Button.eventClicked += (c, _) => ResetModSettings();
+        }
+        /// <summary>
+        /// <see cref="ResetModSettings()"/> for default button in <see cref="GeneralOptions"/>.
+        /// default values are in <seealso cref="ModSettings"/>.
+        /// </summary>
+        internal static void ResetModSettings()
+        {
+            ModSettings.ResetToDefaults();
+            ModSettings.Save();
+            OptionsPanelManager<SettingsPanel>.LocaleChanged();
+            MainPanel.instance?.LocaleChanged();
         }
     }
 }
