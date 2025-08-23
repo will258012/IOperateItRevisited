@@ -11,6 +11,7 @@ SETTINGS_GROUP_KEYS,Keybinds
 SETTINGS_MAXVELOCITY,Maximum velocity
 SETTINGS_ENGINEPOWER,Engine power
 SETTINGS_BRAKINGFORCE,Braking force
+SETTINGS_BRAKINGABS,ABS
 SETTINGS_DOWNFORCE,Downforce
 SETTINGS_DRIVEBIAS,Drive bias
 SETTINGS_DRIVEBIAS_DETAIL,"Indicate whether the vehicle is front-, rear-, or four-wheel drive.
@@ -33,6 +34,7 @@ SETTINGS_OFFSET,Camera offset
 SETTINGS_KEYUUITOGGLE,Toggle main panel (requires UUI mod)
 SETTINGS_KEYLIGHTTOGGLE,Toggle head light
 SETTINGS_KEYSIRENTOGGLE,Toggle siren for special vehicles
+SETTINGS_RESETBTN,Reset Settings
 MAINPANELBTN_TOOLTIP,IOperateIt Revisited
 DRIVEBTN_TOOLTIP,Start driving
 SPAWNBTN_TEXT,Spawn vehicle
