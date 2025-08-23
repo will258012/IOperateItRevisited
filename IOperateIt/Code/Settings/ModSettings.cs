@@ -32,6 +32,11 @@ namespace IOperateIt.Settings
         [XmlIgnore]
         internal static float BrakingForce = 30f;
 
+        [XmlElement("BrakingABS")]
+        public bool XMLBrakingABS { get => BrakingABS; set => BrakingABS = value; }
+        [XmlIgnore]
+        internal static bool BrakingABS = true;
+
         [XmlElement("DownForce")]
         public float XMLDownForce { get => DownForce; set => DownForce = value; }
         [XmlIgnore]
@@ -46,11 +51,6 @@ namespace IOperateIt.Settings
         public float XMLBrakeBias { get => BrakeBias; set => BrakeBias = value; }
         [XmlIgnore]
         internal static float BrakeBias = 0.7f;
-
-        [XmlElement("GripOvermatch")]
-        public float XMLGripOvermatch { get => GripOvermatch; set => GripOvermatch = value; }
-        [XmlIgnore]
-        internal static float GripOvermatch = 0.3f;
 
         [XmlElement("GripCoeffS")]
         public float XMLGripCoeffS { get => GripCoeffS; set => GripCoeffS = value; }

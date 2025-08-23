@@ -57,17 +57,22 @@ namespace IOperateIt
             UISpacers.AddTitleSpacer(scrollPanel, Margin, currentY, headerWidth, Translations.Translate("SETTINGS_GROUP_VEHICLE"));
             currentY += LargeMargin;
 
-            var maxVelocity_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_MAXVELOCITY"), 50f, 200f, 1f, ModSettings.MaxVelocity, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: " km/h"));
+            var maxVelocity_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_MAXVELOCITY"), 25f, 300f, 1f, ModSettings.MaxVelocity, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: " km/h"));
             maxVelocity_Slider.eventValueChanged += (_, value) => ModSettings.MaxVelocity = value;
             currentY += maxVelocity_Slider.height + SliderMargin;
 
-            var enginePower_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_ENGINEPOWER"), 10f, 1500f, 1f, ModSettings.EnginePower, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 10, numberFormat: "N0", suffix: " KW"));
+            var enginePower_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_ENGINEPOWER"), 10f, 1000f, 1f, ModSettings.EnginePower, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 10, numberFormat: "N0", suffix: " KW"));
             enginePower_Slider.eventValueChanged += (_, value) => ModSettings.EnginePower = value;
             currentY += enginePower_Slider.height + SliderMargin;
 
-            var brakingForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_BRAKINGFORCE"), 5f, 150f, 1f, ModSettings.BrakingForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: " KN"));
+            var brakingForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_BRAKINGFORCE"), 5f, 200f, 1f, ModSettings.BrakingForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N0", suffix: " KN"));
             brakingForce_Slider.eventValueChanged += (_, value) => ModSettings.BrakingForce = value;
             currentY += brakingForce_Slider.height + SliderMargin;
+
+            var brakingABS_CheckBox = UICheckBoxes.AddPlainCheckBox(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_BRAKINGABS"));
+            brakingABS_CheckBox.isChecked = ModSettings.BrakingABS;
+            brakingABS_CheckBox.eventCheckChanged += (_, isChecked) => ModSettings.BrakingABS = isChecked;
+            currentY += brakingABS_CheckBox.height + Margin;
 
             var downForce_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_DOWNFORCE"), 0.0f, 50.0f, 1f, ModSettings.DownForce, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 1, numberFormat: "N"));
             downForce_Slider.eventValueChanged += (_, value) => ModSettings.DownForce = value;
@@ -82,10 +87,6 @@ namespace IOperateIt
             brakeBias_Slider.tooltip = Translations.Translate("SETTINGS_BRAKEBIAS_DETAIL");
             brakeBias_Slider.eventValueChanged += (_, value) => ModSettings.BrakeBias = value;
             currentY += brakeBias_Slider.height + SliderMargin;
-
-            var gripOvermatch_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_GRIPOVERMATCH"), 0.0f, 1.0f, 0.05f, ModSettings.GripOvermatch, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
-            gripOvermatch_Slider.eventValueChanged += (_, value) => ModSettings.GripOvermatch = value;
-            currentY += gripOvermatch_Slider.height + SliderMargin;
 
             var gripCoeffS_Slider = UISliders.AddPlainSliderWithValue(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_GRIPCOEFFS"), 0.0f, 2.0f, 0.05f, ModSettings.GripCoeffS, new UISliders.SliderValueFormat(valueMultiplier: 1, roundToNearest: 0.05f, numberFormat: "N"));
             gripCoeffS_Slider.eventValueChanged += (_, value) => ModSettings.GripCoeffS = value;

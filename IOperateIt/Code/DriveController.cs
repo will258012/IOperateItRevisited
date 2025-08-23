@@ -16,36 +16,28 @@ namespace IOperateIt
         private const float STEER_RESP = 0.5f;
         private const float GEAR_RESP = 0.25f;
         private const float PARK_SPEED = 0.5f;
-        private const float STEER_MAX = 37f;
+        private const float STEER_MAX = 37.0f;
         private const float STEER_DECAY = 0.01f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
-        private const float LIGHT_HEADLIGHT_INTENSITY = 5f;
-        private const float LIGHT_BRAKELIGHT_INTENSITY = 5f;
+        private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
+        private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
         private const float LIGHT_REARLIGHT_INTENSITY = 0.5f;
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
-        //private const float SPRING_DAMP = 6f;
-        //private const float SPRING_OFFSET = -0.1f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
-        //private const float MASS_FACTOR = 85f;
         private const float DRAG_FACTOR = 0.25f;
-        private const float DRAG_WHEEL = 0.04f;
-        //private const float MASS_COM_HEIGHT = 0.1f;
-        //private const float MASS_COM_BIAS = 0.6f;
+        private const float DRAG_DRIVETRAIN = 0.2f;
+        private const float DRAG_WHEEL_POWERED = 0.05f;
+        private const float DRAG_WHEEL = 0.01f;
         private const float MOMENT_WHEEL = 1.5f;
-        //private const float DOWN_FORCE = 5f;
-        //private const float DRIVE_BIAS = 0.5f; 
-        //private const float BRAKE_BIAS = 0.7f;
         private const float VALID_INCLINE = 0.5f;
-        //private const float GRIP_OVERMATCH = 0.3f;
-        //private const float GRIP_COEFF = 1f;
-        //private const float GRIP_COEFF_K = 0.8f;
-        private const float GRIP_MAX_SLIP = 0.4f;
-        private const float ENGINE_PEAK_POWER_RPS = 600f;
-        private const float ENGINE_GEAR_RATIO = 4f;
+        private const float GRIP_MAX_SLIP = 1.0f;
+        private const float GRIP_OPTIM_SLIP = 0.2f;
+        private const float ENGINE_PEAK_POWER_RPS = 600.0f;
+        private const float ENGINE_GEAR_RATIO = 7.0f;
         private const float ACCEL_G = 10f;
         const float MS_TO_KMPH = 3.6f;
-        const float UNIT_TO_M = 25f / 54f;
-        const float M_TO_UNIT = 54f / 25f;
+        const float UNIT_TO_M = 25.0f / 54.0f;
+        const float M_TO_UNIT = 54.0f / 25.0f;
         const float UNIT_TO_MPH = UNIT_TO_M * 2.23694f;
         const float KN_TO_N = 1000f;
         const float KW_TO_W = 1000f;
@@ -61,7 +53,6 @@ namespace IOperateIt
             public NetInfo.Node[] nodes;
             public NetInfo.Segment[] segments;
         }
-
         public static DriveController instance { get; private set; }
 
         private Rigidbody vehicleRigidBody;
@@ -91,10 +82,10 @@ namespace IOperateIt
         private bool isLightEnabled = false;
         private bool physicsFallback = false;
 
-        private int m_gear = 0;
-        private float m_terrainHeight = 0f;
-        private float m_distanceTravelled = 0f;
-        private float m_steer = 0f;
+        private int gear = 0;
+        private float terrainHeight = 0f;
+        private float distanceTravelled = 0f;
+        private float steer = 0f;
         private float brake = 0f;
         private float throttle = 0f;
         private float rideHeight = 0f;
@@ -151,8 +142,8 @@ namespace IOperateIt
             materialBlock.Clear();
             //materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, value);
             Vector4 tyrePosition = default;
-            tyrePosition.x = m_steer * STEER_MAX / 180f * Mathf.PI;
-            tyrePosition.y = m_distanceTravelled;
+            tyrePosition.x = steer * STEER_MAX / 180f * Mathf.PI;
+            tyrePosition.y = distanceTravelled;
             tyrePosition.z = 0f;
             tyrePosition.w = 0f;
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
@@ -167,7 +158,7 @@ namespace IOperateIt
 
             if (physicsFallback)
             {
-                materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0f, Mathf.Clamp(m_terrainHeight - vehicleRigidBody.transform.position.y, ModSettings.SpringOffset, 0f), 0f), Quaternion.identity, Vector3.one));
+                materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0f, Mathf.Clamp(terrainHeight - vehicleRigidBody.transform.position.y, ModSettings.SpringOffset, 0f), 0f), Quaternion.identity, Vector3.one));
             }
             else
             {
@@ -195,14 +186,13 @@ namespace IOperateIt
             }
             else
             {
-                WheelPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel);
+                WheelPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel);     
             }
 
             LimitVelocity();
 
             collidersManager.UpdateColliders(vehicleRigidBody.transform);
 
-            m_distanceTravelled += invert * Vector3.Magnitude(vehiclePos - prevPosition);
             prevVelocity = vehicleVel;
             prevPosition = vehiclePos;
         }
@@ -257,8 +247,12 @@ namespace IOperateIt
         private void OnGUI()
         {
 #if DEBUG
-            GUI.Label(new Rect(50f, 50f, 500f, 500f), "g: " + m_gear + "\nt: " + throttle + "\nb: " + brake +
-                    "\ns: " + vehicleRigidBody.velocity.magnitude * MS_TO_KMPH + "\nrps: " + radps + "\n w: " + Wheel.FrontCount + " " + Wheel.RearCount);
+            GUI.Label(new Rect(100f, 100f, 700f, 700f), "g: " + gear + "\nt: " + throttle + "\nb: " + brake + 
+                "\ns: " + vehicleRigidBody.velocity.magnitude * MS_TO_KMPH + "\nrps: " + radps +
+                "\nw0: " + wheelObjects[0].origin + " " + wheelObjects[0].slip + " " + wheelObjects[0].radps +
+                "\nw1: " + wheelObjects[1].origin + " " + wheelObjects[1].slip + " " + wheelObjects[1].radps +
+                "\nw2: " + wheelObjects[2].origin + " " + wheelObjects[2].slip + " " + wheelObjects[2].radps +
+                "\nw3: " + wheelObjects[3].origin + " " + wheelObjects[3].slip + " " + wheelObjects[3].radps);
 #endif
         }
 
@@ -267,13 +261,13 @@ namespace IOperateIt
             vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
             float height = MapUtils.CalculateHeight(vehiclePos, roofHeight);
-            bool onGround = vehiclePos.y + ModSettings.SpringOffset < m_terrainHeight;
+            bool onGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
 
             CalculateSlope(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, height, onGround);
-            m_terrainHeight = height;
+            terrainHeight = height;
 
 
-            if (vehiclePos.y + ROAD_WALL_HEIGHT < m_terrainHeight)
+            if (vehiclePos.y + ROAD_WALL_HEIGHT < terrainHeight)
             {
                 vehiclePos = prevPosition;
                 vehicleVel = Vector3.zero;
@@ -282,13 +276,13 @@ namespace IOperateIt
             }
             else if (onGround)
             {
-                if (vehiclePos.y + SPRING_MAX_COMPRESS < m_terrainHeight)
+                if (vehiclePos.y + SPRING_MAX_COMPRESS < terrainHeight)
                 {
-                    vehiclePos = new Vector3(vehiclePos.x, m_terrainHeight - SPRING_MAX_COMPRESS, vehiclePos.z);
+                    vehiclePos = new Vector3(vehiclePos.x, terrainHeight - SPRING_MAX_COMPRESS, vehiclePos.z);
                     vehicleRigidBody.transform.position = vehiclePos;
                 }
 
-                float compression = Mathf.Max(m_terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0f);
+                float compression = Mathf.Max(terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0f);
                 float springVel = (compression - this.compression) / Time.fixedDeltaTime;
                 float deltaVel = -ModSettings.SpringDamp * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime) * (compression + springVel * Time.fixedDeltaTime) + springVel * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime) - springVel;
 
@@ -306,39 +300,38 @@ namespace IOperateIt
             {
                 var relativeVel = vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
 
-                Vector3 longImpulse = Vector3.forward * m_gear * throttle * (Settings.ModSettings.EnginePower * KW_TO_W / (vehicleVel.magnitude + 1f)) * Time.fixedDeltaTime;
+                Vector3 longImpulse = Vector3.forward * gear * throttle * (ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) / (vehicleVel.magnitude + 1.0f)) * Time.fixedDeltaTime;
 
-                if (m_gear == 0)
+                if (gear == 0)
                 {
-                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(brake * (Settings.ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime, Mathf.Abs(relativeVel.z) * vehicleRigidBody.mass);
+                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime, Mathf.Abs(relativeVel.z) * vehicleRigidBody.mass);
                 }
                 else
                 {
-                    longImpulse -= Vector3.forward * m_gear * brake * (Settings.ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
+                    longImpulse -= Vector3.forward * gear * brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
                 }
 
                 relativeVel.z = 0f;
                 relativeVel.y = 0f;
 
-                Vector3 netImpulse = (1f - ModSettings.GripOvermatch) * longImpulse;
-
-                netImpulse -= relativeVel * (1f - FLOAT_ERROR) * vehicleRigidBody.mass;
+                Vector3 netImpulse = longImpulse;
+                netImpulse -= relativeVel * (1.0f - FLOAT_ERROR) * vehicleRigidBody.mass;
                 netImpulse = Mathf.Min(netImpulse.magnitude, normalImpulse * ModSettings.GripCoeffS) * Vector3.Normalize(netImpulse);
-                netImpulse += ModSettings.GripOvermatch * longImpulse;
                 netImpulse += Vector3.up * normalImpulse;
                 netImpulse = vehicleRigidBody.transform.TransformDirection(netImpulse);
-                vehicleRigidBody.AddForceAtPosition(netImpulse, new Vector3(vehiclePos.x, m_terrainHeight, vehiclePos.z), ForceMode.Impulse);
+                vehicleRigidBody.AddForceAtPosition(netImpulse, new Vector3(vehiclePos.x, terrainHeight, vehiclePos.z), ForceMode.Impulse);
 
                 float speedsteer = Mathf.Min(Mathf.Max(vehicleVel.magnitude * 80f / vehicleCollider.size.z, 0f), 60f);
-                speedsteer = Mathf.Sign(m_steer) * Mathf.Min(Mathf.Abs(60f * m_steer), speedsteer);
+                speedsteer = Mathf.Sign(steer) * Mathf.Min(Mathf.Abs(60f * steer), speedsteer);
 
                 Vector3 angularTarget = (1f - FLOAT_ERROR) * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime) - vehicleRigidBody.transform.InverseTransformDirection(vehicleAngularVel);
 
                 vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
             }
 
+            compression = Mathf.Max(terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0.0f);
 
-            compression = Mathf.Max(m_terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0f);
+            distanceTravelled += invert * Vector3.Magnitude(vehiclePos - prevPosition);
         }
 
         private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
@@ -365,11 +358,11 @@ namespace IOperateIt
                 }
             }
 
-            foreach (Wheel w in wheelObjects) // calculate the road normals. apply angular friction from previous tick. calculate normal impulses. Update wheel suspension position.
+            foreach (Wheel w in wheelObjects) // calculate the road normals. apply angular friction from previous tick. 
             {
                 if (w.IsSteerable)
                 {
-                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.IsInvertedSteer ? -1f : 1f) * STEER_MAX * m_steer, 0);
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.IsInvertedSteer ? -1f : 1f) * STEER_MAX * steer, 0);
                 }
                 else
                 {
@@ -385,10 +378,15 @@ namespace IOperateIt
                     float radDelta = Vector3.Dot(prelimContactVel, w.tangent) / w.radius - w.radps;
                     w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), w.normalImpulse * w.radius * w.frictionCoeff / w.moment);
                 }
-                w.radps *= 1f - (DRAG_WHEEL * Time.fixedDeltaTime);
 
+                w.radps *= 1.0f - ((w.IsPowered ? DRAG_WHEEL_POWERED : DRAG_WHEEL) * Time.fixedDeltaTime);
+            }
+
+            foreach(Wheel w in wheelObjects) // calculate normal impulses.Update wheel suspension position.
+            {
                 w.onGround = false;
-                w.normalImpulse = 0f;
+                w.normalImpulse = 0.0f;
+                w.slip = 1.0f;
                 w.frictionCoeff = ModSettings.GripCoeffK;
                 float normDotUp = Vector3.Dot(w.normal, upVec);
                 if (normDotUp > VALID_INCLINE)
@@ -405,10 +403,10 @@ namespace IOperateIt
                     {
                         w.onGround = true;
                         w.normalImpulse = vehicleRigidBody.mass * (-deltaVel) / (Wheel.WheelCount * normDotUp);
-                        w.contactPoint = w.gameObject.transform.TransformPoint(new Vector3(0f, -w.radius, 0f));
+                        w.contactPoint = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));
                         w.contactVelocity = vehicleRigidBody.GetPointVelocity(w.contactPoint);
-                        w.frictionCoeff = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK,
-                            Mathf.Clamp(Vector3.Magnitude(w.contactVelocity - (w.radps * w.radius * w.tangent)) / Mathf.Max(w.contactVelocity.magnitude, 1f) / GRIP_MAX_SLIP, 0f, 1f));
+                        w.slip = Mathf.Clamp(Vector3.Magnitude(w.contactVelocity - (w.radps * w.radius * w.tangent)) / Mathf.Max(w.contactVelocity.magnitude, 1.0f) / GRIP_MAX_SLIP, 0.0f, 1.0f);
+                        w.frictionCoeff = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK, Mathf.Max((w.slip - GRIP_OPTIM_SLIP) / (1.0f - GRIP_OPTIM_SLIP), 0.0f));
                     }
                 }
                 else
@@ -423,12 +421,31 @@ namespace IOperateIt
             float engineRps = 0f;
             foreach (Wheel w in wheelObjects)
             {
+                distanceTravelled += w.radps * w.torqueFract * w.radius * Time.fixedDeltaTime;
                 engineRps += w.radps * w.torqueFract;
             }
             radps = engineRps * ENGINE_GEAR_RATIO;
-            torque = -ENGINE_GEAR_RATIO * ModSettings.EnginePower * KW_TO_W * (Mathf.Abs(radps) - 2f * ENGINE_PEAK_POWER_RPS) / (ENGINE_PEAK_POWER_RPS * ENGINE_PEAK_POWER_RPS);
+            torque = -ENGINE_GEAR_RATIO * ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) * (Mathf.Abs(radps) - 2.0f * ENGINE_PEAK_POWER_RPS) / (ENGINE_PEAK_POWER_RPS * ENGINE_PEAK_POWER_RPS);
 
+            float avgFrontRps = 0.0f;
+            float avgRearRps = 0.0f;
+            foreach (Wheel w in wheelObjects) // calcuate first pass wheel angular velocity
+            {
+                float wheelTorque = gear * throttle * w.torqueFract * torque;
+                w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
 
+                if (w.IsFront)
+                {
+                    avgFrontRps += w.radps;
+                }
+                else
+                {
+                    avgRearRps += w.radps;
+                }
+            }
+
+            avgFrontRps /= Wheel.FrontCount;
+            avgRearRps /= Wheel.RearCount;
 
             foreach (Wheel w in wheelObjects) // calculate the lateral and longitudinal forces. Apply all forces.
             {
@@ -445,23 +462,34 @@ namespace IOperateIt
 
                     Vector2 flatImpulses = Vector2.zero;
 
-                    float lateralSpeed = Vector3.Dot(w.contactVelocity, w.binormal);
-                    float lateralComponent = -normalContribution * vehicleRigidBody.mass * lateralSpeed;
-
-                    flatImpulses.x = lateralComponent;
-
-                    float wheelTorque;
-                    wheelTorque = m_gear * throttle * w.torqueFract * torque;
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
-                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
-
                     float longSpeed = Vector3.Dot(w.contactVelocity, w.tangent);
+                    float lateralSpeed = Vector3.Dot(w.contactVelocity, w.binormal);
+
+                    // limited slip diff
+                    float radDelta = w.IsFront ? avgFrontRps : avgRearRps;
+                    radDelta = (radDelta - w.radps);
+                    w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), radDelta * radDelta * 10.0f);
+
+                    // braking ABS
+                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS) ? brake : 0.0f;
+
+                    // basic traction control
+                    float actionableDelta = Mathf.Max(Mathf.Sign(w.radps) * (w.radps - longSpeed / w.radius) - (w.normalImpulse * w.frictionCoeff * Time.fixedDeltaTime * w.radius / w.moment), 0.0f);
+                    totalBrake += actionableDelta * w.moment / (w.radius * Time.fixedDeltaTime * w.brakeForce);
+
+                    totalBrake = Mathf.Clamp(totalBrake, 0.0f, 1.0f);
+                    float wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(totalBrake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+
                     float longComponent = normalContribution * vehicleRigidBody.mass * (w.radps * w.radius - longSpeed);
 
                     flatImpulses.y = longComponent;
+
+                    float lateralComponent = -normalContribution * vehicleRigidBody.mass * lateralSpeed;
+
+                    flatImpulses.x = lateralComponent;
 #if DEBUG
-                    if (w.frictionCoeff < (ModSettings.GripCoeffS + ModSettings.GripCoeffK) / 2f)
+                    if (w.slip > GRIP_OPTIM_SLIP)
                     {
                         DebugHelper.DrawDebugMarker(2f, w.contactPoint, Color.yellow);
                     }
@@ -498,7 +526,7 @@ namespace IOperateIt
                     }
 
                     float wheelTorque;
-                    wheelTorque = m_gear * throttle * w.torqueFract * torque;
+                    wheelTorque = gear * throttle * w.torqueFract * torque;
                     w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
                     wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
                     w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
@@ -508,9 +536,9 @@ namespace IOperateIt
 
         private void LimitVelocity()
         {
-            if (vehicleRigidBody.velocity.magnitude > Settings.ModSettings.MaxVelocity / MS_TO_KMPH)
+            if (vehicleRigidBody.velocity.magnitude > ModSettings.MaxVelocity / MS_TO_KMPH)
             {
-                vehicleRigidBody.AddForce(vehicleRigidBody.velocity.normalized * Settings.ModSettings.MaxVelocity / MS_TO_KMPH - vehicleRigidBody.velocity, ForceMode.VelocityChange);
+                vehicleRigidBody.AddForce(vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity / MS_TO_KMPH - vehicleRigidBody.velocity, ForceMode.VelocityChange);
             }
         }
 
@@ -557,10 +585,10 @@ namespace IOperateIt
             prevVelocity = Vector3.zero;
             lightState = Vector4.zero;
             this.vehicleInfo = vehicleInfo;
-            m_gear = 0;
-            m_terrainHeight = 0f;
-            m_distanceTravelled = 0f;
-            m_steer = 0f;
+            gear = 0;
+            terrainHeight = 0f;
+            distanceTravelled = 0f;
+            steer = 0f;
             brake = 0f;
             throttle = 0f;
             compression = 0f;
@@ -589,8 +617,8 @@ namespace IOperateIt
                 {
                     float frontTorque = ModSettings.DriveBias / Wheel.FrontCount;
                     float rearTorque = (1f - ModSettings.DriveBias) / Wheel.RearCount;
-                    float frontBraking = ModSettings.BrakeBias * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.FrontCount;
-                    float rearBraking = (1f - ModSettings.BrakeBias) * Settings.ModSettings.BrakingForce * KN_TO_N / Wheel.RearCount;
+                    float frontBraking = ModSettings.BrakeBias * ModSettings.BrakingForce * KN_TO_N / Wheel.FrontCount;
+                    float rearBraking = (1f - ModSettings.BrakeBias) * ModSettings.BrakingForce * KN_TO_N / Wheel.RearCount;
 
                     foreach (Wheel w in wheelObjects)
                     {
@@ -654,15 +682,15 @@ namespace IOperateIt
             vehicleRigidBody.transform.rotation = rotation;
             vehicleRigidBody.centerOfMass = new Vector3(0f, rideHeight + adjustedBounds.y * ModSettings.MassCenterHeight, (ModSettings.MassCenterBias - 0.5f) * adjustedBounds.z * 0.5f);
             Vector3 squares = new Vector3(adjustedBounds.x * adjustedBounds.x, adjustedBounds.y * adjustedBounds.y, adjustedBounds.z * adjustedBounds.z);
-            vehicleRigidBody.inertiaTensor = 1f / 12f * vehicleRigidBody.mass * new Vector3(squares.y + squares.z, squares.x + squares.z, squares.x + squares.y);
+            //m_vehicleRigidBody.inertiaTensor = 1.0f / 12.0f * m_vehicleRigidBody.mass * new Vector3(squares.y + squares.z, squares.x + squares.z, squares.x + squares.y);
             vehicleRigidBody.velocity = Vector3.zero;
 
             vehicleCollider.size = adjustedBounds;
             vehicleCollider.center = new Vector3(0f, 0.5f * adjustedBounds.y + rideHeight, 0f);
 
             gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
-            gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = this.vehicleInfo.m_material;
-            gameObject.GetComponent<MeshRenderer>().sortingLayerID = this.vehicleInfo.m_prefabDataLayer;
+            gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
+            //gameObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
 
             if (this.setColor)
             {
@@ -685,7 +713,7 @@ namespace IOperateIt
             RemoveEffects();
             foreach (Wheel w in wheelObjects)
             {
-                Object.DestroyImmediate(w.gameObject);
+                DestroyImmediate(w.gameObject);
             }
             wheelObjects.Clear();
             gameObject.SetActive(false);
@@ -704,10 +732,10 @@ namespace IOperateIt
             isSirenEnabled = false;
             isLightEnabled = false;
             physicsFallback = false;
-            m_gear = 0;
-            m_terrainHeight = 0f;
-            m_distanceTravelled = 0f;
-            m_steer = 0f;
+            gear = 0;
+            terrainHeight = 0f;
+            distanceTravelled = 0f;
+            steer = 0f;
             brake = 0f;
             throttle = 0f;
             rideHeight = 0f;
@@ -719,6 +747,7 @@ namespace IOperateIt
 
         private void OverridePrefabs()
         {
+            // override the underground material for all vehicles.
             for (uint prefabIndex = 0; prefabIndex < PrefabCollection<VehicleInfo>.PrefabCount(); prefabIndex++)
             {
                 VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(prefabIndex);
@@ -738,104 +767,115 @@ namespace IOperateIt
 
             int prefabCount = PrefabCollection<NetInfo>.PrefabCount();
 
+            // only modify prefabs with MetroTunnels item layer or underground render layer.
             for (uint prefabIndex = 0; prefabIndex < prefabCount; prefabIndex++)
             {
                 NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
                 if (prefabNetInfo == null) continue;
-                NetInfo prefabReplaceInfo = null;
+                NetInfo prefabReplaceInfo = prefabNetInfo;
+                bool bHasUnderground = false;
+                bool bForceUnderground = false;
+
+                for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
+                {
+                    bHasUnderground |= prefabReplaceInfo.m_segments[index].m_layer == MapUtils.LAYER_UNDERGROUND;
+                }
+
+                for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
+                {
+                    bHasUnderground |= prefabReplaceInfo.m_nodes[index].m_layer == MapUtils.LAYER_UNDERGROUND;
+                }
 
                 if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels)
                 {
-                    string replaceName;
-                    // get underground to elvated mapping.
-                    if (!customUndergroundMappings.TryGetValue(prefabNetInfo.name, out replaceName))
-                    {
-                        replaceName = prefabNetInfo.name.Replace(" Tunnel", " Elevated");
-                    }
+                    bool bCanReplace = true;
 
-                    // find the elevated counterpart prefab to be used as a reference.
-                    for (uint otherPrefabIndex = 0; otherPrefabIndex < prefabCount; otherPrefabIndex++)
+                    foreach (NetInfo.Segment s in prefabNetInfo.m_segments)
                     {
-                        NetInfo tmpInfo = PrefabCollection<NetInfo>.GetPrefab(otherPrefabIndex);
-                        if (tmpInfo.m_class.m_layer == ItemClass.Layer.Default && tmpInfo.name == replaceName)
+                        if (s.m_material && (!s.m_material.shader || s.m_material.shader.name != "Custom/Net/Metro"))
                         {
-                            prefabReplaceInfo = tmpInfo;
-                            break;
+                            bCanReplace = false;
                         }
                     }
 
-                    // replace all underground segments and nodes with the elevated couterparts.
-                    if (prefabReplaceInfo != null)
+                    // replace the prefab with elevated variant if no visible meshes are found.
+                    if (bCanReplace)
                     {
-                        backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
-
-                        NetInfo.Segment[] segments = new NetInfo.Segment[prefabReplaceInfo.m_segments.Length];
-
-                        for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
+                        string replaceName = "";
+                    
+                        // get underground to elvated mapping.
+                        if (!customUndergroundMappings.TryGetValue(prefabNetInfo.name, out replaceName))
                         {
-                            NetInfo.Segment newSegment = CopySegment(prefabReplaceInfo.m_segments[index]);
-                            newSegment.m_layer = MapUtils.LAYER_UNDERGROUND;
-                            segments[index] = newSegment;
+                            replaceName = prefabNetInfo.name.Replace(" Tunnel", " Elevated");
                         }
 
-                        NetInfo.Node[] nodes = new NetInfo.Node[prefabReplaceInfo.m_nodes.Length];
-
-                        for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
+                        // find the elevated counterpart prefab to be used as a reference.
+                        for (uint otherPrefabIndex = 0; otherPrefabIndex < prefabCount; otherPrefabIndex++)
                         {
-                            NetInfo.Node newNode = CopyNode(prefabReplaceInfo.m_nodes[index]);
-                            newNode.m_layer = MapUtils.LAYER_UNDERGROUND;
-                            newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
-                            nodes[index] = newNode;
+                            NetInfo tmpInfo = PrefabCollection<NetInfo>.GetPrefab(otherPrefabIndex);
+                            if (tmpInfo.m_class.m_layer == ItemClass.Layer.Default && tmpInfo.name == replaceName)
+                            {
+                                prefabReplaceInfo = tmpInfo;
+                                bForceUnderground = true;
+                                break;
+                            }
                         }
-
-                        prefabNetInfo.m_segments = segments;
-                        prefabNetInfo.m_nodes = nodes;
-                    }
-                    else
-                    {
-                        Logging.Error("Failed to replace " + prefabNetInfo.name + " with " + replaceName);
                     }
                 }
-                else if (prefabNetInfo.name.Contains("Slope")) // only slope components have underground transition elements.
+                
+                
+                if (bHasUnderground)
                 {
                     backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
+                    NetInfo.Segment[] segments = new NetInfo.Segment[prefabReplaceInfo.m_segments.Length];
+                    NetInfo.Node[] nodes = new NetInfo.Node[prefabReplaceInfo.m_nodes.Length];
 
-                    NetInfo.Segment[] segments = new NetInfo.Segment[prefabNetInfo.m_segments.Length];
-
-                    for (int index = 0; index < prefabNetInfo.m_segments.Length; index++)
+                    for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
                     {
-                        NetInfo.Segment currSegment = prefabNetInfo.m_segments[index];
-                        if (currSegment.m_layer == MapUtils.LAYER_UNDERGROUND) // disable slope underground component from rendering.
+                        NetInfo.Segment newSegment = CopySegment(prefabReplaceInfo.m_segments[index]);
+
+                        if (newSegment.m_layer == MapUtils.LAYER_UNDERGROUND)
                         {
-                            NetInfo.Segment newSegment = CopySegment(currSegment);
-                            newSegment.m_forwardForbidden = NetSegment.Flags.All;
-                            newSegment.m_forwardRequired = NetSegment.Flags.None;
-                            newSegment.m_backwardForbidden = NetSegment.Flags.All;
-                            newSegment.m_backwardRequired = NetSegment.Flags.None;
-                            segments[index] = newSegment;
+                            // disable segment underground xray component from rendering.
+                            if (newSegment.m_material && newSegment.m_material.shader && newSegment.m_material.shader.name == "Custom/Net/Metro")
+                            {
+                                newSegment.m_forwardForbidden = NetSegment.Flags.All;
+                                newSegment.m_forwardRequired = NetSegment.Flags.None;
+                                newSegment.m_backwardForbidden = NetSegment.Flags.All;
+                                newSegment.m_backwardRequired = NetSegment.Flags.None;
+                            }
                         }
-                        else
+                        // apply underground layer if the segment is being replaced from an overground component.
+                        else if (bForceUnderground)
                         {
-                            segments[index] = currSegment;
+                            newSegment.m_layer = MapUtils.LAYER_UNDERGROUND;
                         }
+
+                        segments[index] = newSegment;
                     }
 
-                    NetInfo.Node[] nodes = new NetInfo.Node[prefabNetInfo.m_nodes.Length];
-
-                    for (int index = 0; index < prefabNetInfo.m_nodes.Length; index++)
+                    for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
                     {
-                        NetInfo.Node newNode = CopyNode(prefabNetInfo.m_nodes[index]);
-                        if (newNode.m_layer == MapUtils.LAYER_UNDERGROUND) // disable node underground component from rendering.
+                        NetInfo.Node newNode = CopyNode(prefabReplaceInfo.m_nodes[index]);
+
+                        if (newNode.m_layer == MapUtils.LAYER_UNDERGROUND)
                         {
-                            newNode.m_flagsForbidden = NetNode.Flags.All;
-                            newNode.m_flagsRequired = NetNode.Flags.None;
-                            nodes[index] = newNode;
+                            // disable node underground xray component from rendering.
+                            if (newNode.m_material && newNode.m_material.shader && newNode.m_material.shader.name == "Custom/Net/Metro")
+                            {
+                                newNode.m_flagsForbidden = NetNode.Flags.All;
+                                newNode.m_flagsRequired = NetNode.Flags.None;
+                            }
                         }
-                        else // allow the surface node to be rendered underground.
+                        // apply underground layer if the node is being replaced from an overground component.
+                        else if (bForceUnderground)
                         {
-                            newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
-                            nodes[index] = newNode;
+                            newNode.m_layer = MapUtils.LAYER_UNDERGROUND;
                         }
+                        
+                        newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
+
+                        nodes[index] = newNode;
                     }
 
                     prefabNetInfo.m_segments = segments;
@@ -876,7 +916,8 @@ namespace IOperateIt
             {
                 NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
                 if (prefabNetInfo == null) continue;
-                if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels || prefabNetInfo.name.Contains("Slope"))
+
+                if (backupPrefabData.ContainsKey(prefabNetInfo))
                 {
                     if (backupPrefabData.TryGetValue(prefabNetInfo, out NetInfoBackup backupData))
                     {
@@ -993,7 +1034,7 @@ namespace IOperateIt
                 {
                     tangent = -tangent;
                 }
-                tangent.y = height - m_terrainHeight;
+                tangent.y = height - terrainHeight;
                 tangent = tangent - Vector3.Dot(tangent, lateral) * lateral;
                 tangent = Vector3.Normalize(tangent);
                 if (tangent.magnitude < 0.5f || Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) < FLOAT_ERROR)
@@ -1065,20 +1106,20 @@ namespace IOperateIt
             {
                 if (invert < 0)
                 {
-                    if (m_gear <= 0)
+                    if (gear <= 0)
                     {
                         throttle = 0f;
                         brake = Mathf.Clamp(brake + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
                         braking = true;
                     }
                 }
-                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && m_gear <= 0)
+                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear <= 0)
                 {
-                    m_gear++;
+                    gear++;
                     prevGearChange = Time.time;
                 }
 
-                if (m_gear > 0)
+                if (gear > 0)
                 {
                     brake = 0f;
                     throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
@@ -1089,29 +1130,29 @@ namespace IOperateIt
             {
                 if (invert > 0)
                 {
-                    if (m_gear >= 0)
+                    if (gear >= 0)
                     {
                         throttle = 0f;
                         brake = Mathf.Clamp(brake + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
                         braking = true;
                     }
                 }
-                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && m_gear >= 0)
+                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear >= 0)
                 {
-                    m_gear--;
+                    gear--;
                     prevGearChange = Time.time;
                 }
 
-                if (m_gear < 0)
+                if (gear < 0)
                 {
                     brake = 0f;
                     throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
                     throttling = true;
                 }
             }
-            else if (invert == 0 && throttle == 0f && Time.time > prevGearChange + GEAR_RESP && m_gear >= 0)
+            else if (invert == 0 && throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear >= 0)
             {
-                m_gear = 0;
+                gear = 0;
                 prevGearChange = Time.time;
                 brake = 1f;
                 braking = true;
@@ -1129,33 +1170,33 @@ namespace IOperateIt
             float steerLimit = Mathf.Clamp(1f - STEER_DECAY * vehicleRigidBody.velocity.magnitude, 0.04f, 1f);
             if (FPCModSettings.Instance.XMLKeyMoveRight.IsPressed())
             {
-                m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
+                steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
                 steering = true;
             }
             if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
             {
-                m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
+                steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
                 steering = true;
             }
             if (!steering)
             {
-                if (m_steer > 0f)
+                if (steer > 0f)
                 {
-                    m_steer = Mathf.Clamp(m_steer - Time.fixedDeltaTime / STEER_RESP, 0f, steerLimit);
+                    steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, 0f, steerLimit);
                 }
-                if (m_steer < 0f)
+                if (steer < 0f)
                 {
-                    m_steer = Mathf.Clamp(m_steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, 0f);
+                    steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, 0f);
                 }
             }
         }
 
         private void HandleInputOnUpdate()
         {
-            if (Input.GetKeyDown((KeyCode)Settings.ModSettings.KeyLightToggle.Key))
+            if (Input.GetKeyDown((KeyCode)ModSettings.KeyLightToggle.Key))
                 isLightEnabled = !isLightEnabled;
 
-            if (Input.GetKeyDown((KeyCode)Settings.ModSettings.KeySirenToggle.Key))
+            if (Input.GetKeyDown((KeyCode)ModSettings.KeySirenToggle.Key))
                 isSirenEnabled = !isSirenEnabled;
         }
         private void AddEffects()
