@@ -29,13 +29,15 @@ namespace IOperateIt.Utils
         public float tangentImpulse;
         public float compression;
         public float frictionCoeff;
+        public float slip;
         public bool onGround;
         public bool IsSimulated { get; private set; }
-        public bool IsPowered { get; private set; }
+        public bool IsPowered { get => powered && (torqueFract > 0.0f); private set => powered = value; }
         public bool IsSteerable { get; private set; }
         public bool IsInvertedSteer { get; private set; }
         public bool IsFront { get; private set; }
 
+        private bool powered;
         private bool registered;
         public static Wheel InstanceWheel(Transform parent, Vector3 localpos, float moment, float radius, bool isSimulated = true, bool isPowered = true, float torque = 0.0f, float brakeForce = 0.0f, bool isSteerable = false, bool isInvertedSteer = false)
         {
@@ -62,6 +64,7 @@ namespace IOperateIt.Utils
             w.tangentImpulse = 0.0f;
             w.compression = 0.0f;
             w.frictionCoeff = ModSettings.GripCoeffK;
+            w.slip = 0.0f;
             w.onGround = false;
             w.IsSimulated = isSimulated;
             w.IsPowered = isPowered;
