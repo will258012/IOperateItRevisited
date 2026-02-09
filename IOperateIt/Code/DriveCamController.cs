@@ -15,9 +15,9 @@ namespace IOperateIt
         public class DriveCam : FPC.FPSCamera.Cam.IFPSCam
         {
             public string Name => Translations.Translate("DRIVINGMODE");
-            public void DisableCam() => DriveController.instance.StopDriving();
-            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new FPC.FPSCamera.Utils.MathUtils.Positioning(instance.targetRigidBody.transform.position, instance.targetRigidBody.transform.rotation);
-            public float GetSpeed() => instance.targetRigidBody.velocity.magnitude;
+            public void DisableCam() => DriveController.Instance.StopDriving();
+            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new FPC.FPSCamera.Utils.MathUtils.Positioning(Instance.targetRigidBody.transform.position, Instance.targetRigidBody.transform.rotation);
+            public float GetSpeed() => Instance.targetRigidBody.velocity.magnitude;
             public bool IsValid() => true;
         }
 
@@ -29,10 +29,9 @@ namespace IOperateIt
         private const float LOOK_MAX_DIST = 100.0f;
         private const float LOOK_RESET_TIME = 5.0f;
 
-        public static DriveCamController instance { get; private set; }
+        public static DriveCamController Instance { get; private set; }
 
         private Rigidbody targetRigidBody;
-        private Vector3 lastValidDir;
         private Quaternion rotation;
         private Quaternion rotationOffset;
         private float lastMovedTime;
@@ -40,10 +39,12 @@ namespace IOperateIt
 
         private Camera mainCamera;
         private int cachedRenderMask;
+        private float targetFollowDistance;
+        private float followDistanceVelocity;
 
         private void Awake()
         {
-            instance = this;
+            Instance = this;
             enabled = false;
             mainCamera = FPC.FPSCamera.Cam.Controller.GameCamController.Instance.MainCamera;
         }
@@ -55,8 +56,7 @@ namespace IOperateIt
 
             cachedRenderMask = mainCamera.cullingMask;
             targetRigidBody = rigidBody;
-            followDistance = Mathf.Clamp(distance, 0.0f, LOOK_MAX_DIST);
-            lastValidDir = mainCamera.transform.TransformDirection(Vector3.forward);
+            followDistance = targetFollowDistance = Mathf.Clamp(distance, 2f, LOOK_MAX_DIST);
             rotation = mainCamera.transform.rotation;
             rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam enabled");
@@ -66,10 +66,14 @@ namespace IOperateIt
             enabled = false;
             mainCamera.cullingMask = cachedRenderMask;
             targetRigidBody = null;
-            lastValidDir = Vector3.zero;
             rotation = Quaternion.identity;
             rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam disabled");
+        }
+        public void ResetCamera()
+        {
+            rotationOffset = Quaternion.identity;
+            lastMovedTime = 0f;
         }
         private void Update()
         {
@@ -80,7 +84,7 @@ namespace IOperateIt
         {
             UpdateCameraRendering();
         }
-        public void UpdateCameraPos()
+        private void UpdateCameraPos()
         {
             Vector3 vehiclePosition = targetRigidBody.transform.TransformPoint(ModSettings.Offset);
 
@@ -91,11 +95,10 @@ namespace IOperateIt
 
                 rotation = mainCamera.transform.rotation;
 
-                if (Vector3.Magnitude(vehicleVelocity) < 1.0 || vehicleDir.y > 0.99f || vehicleDir.y < -0.99f)
+                if (vehicleVelocity.sqrMagnitude < 1.0f || Mathf.Abs(vehicleDir.y) > 0.99f)
                 {
-                    vehicleDir = lastValidDir;
+                    vehicleDir = Quaternion.Euler(0f, targetRigidBody.rotation.eulerAngles.y, 0f) * Vector3.forward;
                 }
-                lastValidDir = vehicleDir;
 
                 Quaternion targetRotation = Quaternion.identity;
                 targetRotation.SetLookRotation(vehicleDir);
@@ -108,7 +111,9 @@ namespace IOperateIt
 
                 targetRotation = targetRotation * rotationOffset;
 
-                rotation = Quaternion.Slerp(rotation, targetRotation, Time.deltaTime * Mathf.Max(Time.deltaTime, FPCModSettings.Instance.XMLTransSpeed));
+                rotation = FPCModSettings.Instance.XMLSmoothTransition
+                    ? Quaternion.Slerp(rotation, targetRotation, Time.deltaTime * Mathf.Max(Time.deltaTime, FPCModSettings.Instance.XMLTransSpeed))
+                    : targetRotation;
             }
             else
             {
@@ -160,9 +165,22 @@ namespace IOperateIt
             }
 
             // mouse zoom
-            followDistance = followDistance - ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
-            followDistance = Mathf.Clamp(followDistance, 0.0f, LOOK_MAX_DIST);
-
+            if (FPCModSettings.Instance.XMLSmoothTransition)
+            {
+                targetFollowDistance -= ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
+                targetFollowDistance = Mathf.Clamp(targetFollowDistance, 0.0f, LOOK_MAX_DIST);
+                followDistance = Mathf.SmoothDamp(
+                    followDistance,
+                    targetFollowDistance,
+                    ref followDistanceVelocity,
+                    .1f
+                );
+            }
+            else
+            {
+                followDistance -= ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
+                followDistance = Mathf.Clamp(followDistance, 0.0f, LOOK_MAX_DIST);
+            }
             {
                 // key movement
                 var movementFactor = ((FPCModSettings.Instance.XMLKeySpeedUp.IsPressed() ? FPCModSettings.Instance.XMLSpeedUpFactor : 1f)

@@ -49,7 +49,7 @@ namespace IOperateIt.Utils
                             {
                                 netSegment.GetClosestPositionAndDirection(netSegment.m_middlePosition, out _, out var dir);
                                 var rotation = Quaternion.LookRotation(dir);
-                                DriveController.instance.StartDriving(netSegment.m_middlePosition, rotation);
+                                DriveController.Instance.StartDriving(netSegment.m_middlePosition, rotation);
                                 ShowToolInfo(false, null, Vector3.zero);
                             }
                             else

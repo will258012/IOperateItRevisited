@@ -43,7 +43,7 @@ namespace IOperateIt
             {
                 Translations.Index = index;
                 OptionsPanelManager<SettingsPanel>.LocaleChanged();
-                UI.MainPanel.instance?.LocaleChanged();
+                UI.MainPanel.Instance?.LocaleChanged();
             };
             language_DropDown.parent.relativePosition = new Vector2(MediumMargin, currentY);
             currentY += language_DropDown.parent.height + MediumMargin;
@@ -141,7 +141,13 @@ namespace IOperateIt
             var vehicleCollision_CheckBox = UICheckBoxes.AddPlainCheckBox(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_VEHICLECOLLISION"));
             vehicleCollision_CheckBox.isChecked = ModSettings.VehicleCollision;
             vehicleCollision_CheckBox.eventCheckChanged += (_, isChecked) => ModSettings.VehicleCollision = isChecked;
-            currentY += vehicleCollision_CheckBox.height + MediumMargin;
+            currentY += vehicleCollision_CheckBox.height + Margin;
+
+            var undergroundRendering_CheckBox = UICheckBoxes.AddPlainCheckBox(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_UNDERGROUNDRENDERING"));
+            undergroundRendering_CheckBox.tooltip = Translations.Translate("SETTINGS_UNDERGROUNDRENDERING_DETAIL");
+            undergroundRendering_CheckBox.isChecked = ModSettings.UndergroundRendering;
+            undergroundRendering_CheckBox.eventCheckChanged += (_, isChecked) => ModSettings.UndergroundRendering = isChecked;
+            currentY += undergroundRendering_CheckBox.height + MediumMargin;
             #endregion
 
             #region Keybind Group
@@ -156,6 +162,9 @@ namespace IOperateIt
 
             var keySirenToggle = OptionsKeymapping.AddKeymapping(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_KEYSIRENTOGGLE"), ModSettings.KeySirenToggle);
             currentY += keySirenToggle.Panel.height + Margin;
+
+            var keyUnstuck = OptionsKeymapping.AddKeymapping(scrollPanel, MediumMargin, currentY, Translations.Translate("SETTINGS_KEYUNSTUCK"), ModSettings.KeyUnstuck);
+            currentY += keyUnstuck.Panel.height + Margin;
             #endregion
 
             var reset_Button = UIButtons.AddButton(scrollPanel, Margin, currentY, Translations.Translate("SETTINGS_RESETBTN"));
@@ -170,7 +179,7 @@ namespace IOperateIt
             ModSettings.ResetToDefaults();
             ModSettings.Save();
             OptionsPanelManager<SettingsPanel>.LocaleChanged();
-            MainPanel.instance?.LocaleChanged();
+            MainPanel.Instance?.LocaleChanged();
         }
     }
 }

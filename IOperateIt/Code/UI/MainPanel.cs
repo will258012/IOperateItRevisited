@@ -13,7 +13,7 @@ namespace IOperateIt.UI
     public class MainPanel : MonoBehaviour
     {
 
-        public static MainPanel instance { get; private set; }
+        public static MainPanel Instance { get; private set; }
         public UIPanel Panel { get; set; }
         public UIButton GetMainButton() => _mainBtn ?? UUISupport.UUIButton as UIButton;
 
@@ -28,7 +28,7 @@ namespace IOperateIt.UI
 
         private void Awake()
         {
-            instance = this;
+            Instance = this;
             #region Main Panel
             Panel = UIView.GetAView().AddUIComponent(typeof(UIPanel)) as UIPanel;
             Panel.autoLayout = false;
@@ -166,20 +166,20 @@ namespace IOperateIt.UI
                     Color adjustedColor = selectedVehicle.m_color0;
                     adjustedColor.a = 0;
                     _previewPanel.SetTarget(selectedVehicle, adjustedColor, true);
-                    DriveController.instance.UpdateColor(adjustedColor, true);
+                    DriveController.Instance.UpdateColor(adjustedColor, true);
                 }
                 else
                 {
                     _previewPanel.SetTarget(selectedVehicle);
-                    DriveController.instance.UpdateColor(default, false);
+                    DriveController.Instance.UpdateColor(default, false);
                 }
-                DriveController.instance.UpdateVehicleInfo(selectedVehicle);
+                DriveController.Instance.UpdateVehicleInfo(selectedVehicle);
                 _spawnBtn.isEnabled = true;
             }
         }
         private void SpawnBtnClickEvent(UIComponent component, UIMouseEventParameter eventParam)
         {
-            if (DriveController.instance.IsVehicleInfoSet())
+            if (DriveController.Instance.IsVehicleInfoSet())
             {
                 if (ToolsModifierControl.GetCurrentTool<RoadSelectTool>() == null)
                 {

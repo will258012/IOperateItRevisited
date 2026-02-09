@@ -22,7 +22,7 @@ namespace IOperateIt.Patches
         [HarmonyPrefix]
         private static bool HandleEscape()
         {
-            if (MainPanel.instance?.OnEsc() ?? false) return false;
+            if (MainPanel.Instance?.OnEsc() ?? false) return false;
             if (ToolsModifierControl.GetCurrentTool<RoadSelectTool>() != null)
             {
                 ToolsModifierControl.SetTool<DefaultTool>();

@@ -25,6 +25,8 @@ namespace IOperateIt.Settings
             Logging.DetailLogging = false;
             AlgernonCommons.Notifications.WhatsNew.LastNotifiedVersionString = "0.0";
 
+            UndergroundRendering = true;
+
             MaxVelocity = 125f;
             EnginePower = 225f;
             BrakingForce = 30f;
@@ -42,10 +44,16 @@ namespace IOperateIt.Settings
             Offset = new Vector3(0f, 2f, -5f);
             BuildingCollision = true;
             VehicleCollision = true;
+            Utils.UUISupport.UUIKey.Keybinding = new Keybinding(KeyCode.D, false, true, false);
             KeyLightToggle = new KeyOnlyBinding(KeyCode.H);
             KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
+            KeyUnstuck = new KeyOnlyBinding(KeyCode.R);
             MainButtonPos = new Vector3(0f, 0f);
         }
+        [XmlElement("UndergroundRendering")]
+        public bool XMLUndergroundRendering { get => UndergroundRendering; set => UndergroundRendering = value; }
+        [XmlIgnore]
+        internal static bool UndergroundRendering = true;
 
         [XmlElement("MaxVelocity")]
         public float XMLMaxVelocity { get => MaxVelocity; set => MaxVelocity = value; }
@@ -144,6 +152,11 @@ namespace IOperateIt.Settings
         public KeyOnlyBinding XMLKeySirenToggle { get => KeySirenToggle; set => KeySirenToggle = value; }
         [XmlIgnore]
         internal static KeyOnlyBinding KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
+
+        [XmlElement("KeyUnstuck")]
+        public KeyOnlyBinding XMLKeyUnstuck { get => KeyUnstuck; set => KeyUnstuck = value; }
+        [XmlIgnore]
+        internal static KeyOnlyBinding KeyUnstuck = new KeyOnlyBinding(KeyCode.R);
 
         [XmlElement("MainButtonPos")]
         public Vector2 XMLMainButtonPos { get => MainButtonPos; set => MainButtonPos = value; }

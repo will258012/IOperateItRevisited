@@ -30,10 +30,14 @@ SETTINGS_MASSCENTERHEIGHT,Mass center height
 SETTINGS_MASSCENTERBIAS,Mass center bias
 SETTINGS_BUILDINGCOLLISION,Building collision
 SETTINGS_VEHICLECOLLISION,Vehicle collision
+SETTINGS_UNDERGROUNDRENDERING,Underground Road Rendering
+SETTINGS_UNDERGROUNDRENDERING_DETAIL,"Render underground roads without tunnel textures like vanilla roads for easier driving.
+Disable this if it conflicts with existing tunnels or causes visual issues."
 SETTINGS_OFFSET,Camera offset
 SETTINGS_KEYUUITOGGLE,Toggle main panel (requires UUI mod)
 SETTINGS_KEYLIGHTTOGGLE,Toggle head light
 SETTINGS_KEYSIRENTOGGLE,Toggle siren for special vehicles
+SETTINGS_KEYUNSTUCK,Unstuck
 SETTINGS_RESETBTN,Reset Settings
 MAINPANELBTN_TOOLTIP,IOperateIt Revisited
 DRIVEBTN_TOOLTIP,Start driving

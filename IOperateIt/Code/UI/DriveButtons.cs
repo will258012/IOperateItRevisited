@@ -7,7 +7,7 @@ namespace IOperateIt.UI
 {
     public class DriveButtons : MonoBehaviour
     {
-        public static DriveButtons instance { get; private set; }
+        public static DriveButtons Instance { get; private set; }
 
         private CitizenVehicleWorldInfoPanel citizenVehicleInfo_Panel;
         private UIButton citizenVehicleInfo_Button;
@@ -20,7 +20,7 @@ namespace IOperateIt.UI
 
         private void Awake()
         {
-            instance = this;
+            Instance = this;
             citizenVehicleInfo_Button = Initialize(ref citizenVehicleInfo_Panel);
             cityServiceVehicleInfo_Button = Initialize(ref cityServiceVehicleInfo_Panel);
             publicTransportVehicleInfo_Button = Initialize(ref publicTransportVehicleInfo_Panel);
@@ -74,15 +74,15 @@ namespace IOperateIt.UI
                 {
                     ref var vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[instanceID.Vehicle];
                     Color color = vehicle.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicle, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
-                    DriveController.instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info, color, true);
-                    MainPanel.instance._vehicleList.FindItem<uint>(vehicle.m_infoIndex);
+                    DriveController.Instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info, color, true);
+                    MainPanel.Instance._vehicleList.FindItem<uint>(vehicle.m_infoIndex);
                 }
                 else if (instanceID.Type == InstanceType.ParkedVehicle)
                 {
                     ref var vehicleParked = ref Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[instanceID.ParkedVehicle];
                     Color color = vehicleParked.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicleParked, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
-                    DriveController.instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info, color, true);
-                    MainPanel.instance._vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
+                    DriveController.Instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info, color, true);
+                    MainPanel.Instance._vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
                 }
                 panel.component.isVisible = false;
             };
