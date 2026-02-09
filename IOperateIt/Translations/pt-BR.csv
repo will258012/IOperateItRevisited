@@ -5,7 +5,7 @@
 "MOD_DESCRIPTION","Ande veículos em volta de sua própria cidade!",""
 "SETTINGS_MAXVELOCITY","Velocidade Máxima",""
 "SETTINGS_ACCELERATIONFORCE","Força de aceleração",""
-"SETTINGS_BREAKINGFORCE","Força de frenagem",""
+"SETTINGS_BRAKINGFORCE","Força de frenagem",""
 "SETTINGS_BUILDINGCOLLISION","Colisão de construções",""
 "SETTINGS_VEHICLECOLLISION","Colisão de veículos",""
 "SETTINGS_OFFSET","Offset da câmera",""
@@ -17,3 +17,4 @@
 "SPAWNBTN_TEXT","Invocar Veículo",""
 "MODSETTINGSBTN_TEXT","Mod settings",""
 "ROAD_SELECT","Clique numa parte de uma estrada para começar a dirigir",""
+"DRIVINGMODE","Driving mode",""

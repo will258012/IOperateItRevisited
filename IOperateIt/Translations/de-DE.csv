@@ -5,7 +5,7 @@
 "MOD_DESCRIPTION","Fahren Sie Fahrzeuge durch Ihre eigene Stadt!",""
 "SETTINGS_MAXVELOCITY","Höchstgeschwindigkeit",""
 "SETTINGS_ACCELERATIONFORCE","Acceleration force",""
-"SETTINGS_BREAKINGFORCE","Steering braking force",""
+"SETTINGS_BRAKINGFORCE","Braking Force",""
 "SETTINGS_BUILDINGCOLLISION","Building collision",""
 "SETTINGS_VEHICLECOLLISION","Vehicle collision",""
 "SETTINGS_OFFSET","Camera offset",""
@@ -17,3 +17,4 @@
 "SPAWNBTN_TEXT","Spawn vehicle",""
 "MODSETTINGSBTN_TEXT","Mod settings",""
 "ROAD_SELECT","Select a road segment to start driving",""
+"DRIVINGMODE","Driving mode",""
