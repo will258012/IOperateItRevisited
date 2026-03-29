@@ -1,6 +1,8 @@
-﻿using AlgernonCommons.Translation;
+﻿using AlgernonCommons;
+using AlgernonCommons.Translation;
 using ColossalFramework;
 using ColossalFramework.UI;
+using System;
 using UnityEngine;
 
 namespace IOperateIt.UI
@@ -18,19 +20,48 @@ namespace IOperateIt.UI
         private PublicTransportVehicleWorldInfoPanel publicTransportVehicleInfo_Panel;
         private UIButton publicTransportVehicleInfo_Button;
 
+        private RaceVehicleWorldInfoPanel raceVehicleInfo_Panel;
+        private UIButton raceVehicleInfo_Button;
+
+        private float nextUpdateTime;
+        private const float updateInterval = .25f;
+
         private void Awake()
         {
-            Instance = this;
-            citizenVehicleInfo_Button = Initialize(ref citizenVehicleInfo_Panel);
-            cityServiceVehicleInfo_Button = Initialize(ref cityServiceVehicleInfo_Panel);
-            publicTransportVehicleInfo_Button = Initialize(ref publicTransportVehicleInfo_Panel);
+            try
+            {
+                Instance = this;
+                citizenVehicleInfo_Button = Initialize(ref citizenVehicleInfo_Panel);
+                cityServiceVehicleInfo_Button = Initialize(ref cityServiceVehicleInfo_Panel);
+                publicTransportVehicleInfo_Button = Initialize(ref publicTransportVehicleInfo_Panel);
+                raceVehicleInfo_Button = Initialize(ref raceVehicleInfo_Panel);
+            }
+            catch (Exception e)
+            {
+                Logging.LogException(e, "Failed to initalize drive buttons");
+            }
         }
 
         private void Update()
         {
-            UpdateButtonVisibility(citizenVehicleInfo_Panel, citizenVehicleInfo_Button);
-            UpdateButtonVisibility(cityServiceVehicleInfo_Panel, cityServiceVehicleInfo_Button);
-            UpdateButtonVisibility(publicTransportVehicleInfo_Panel, publicTransportVehicleInfo_Button);
+            try
+            {
+                if (Time.time < nextUpdateTime)
+                {
+                    return;
+                }
+                nextUpdateTime = Time.time + updateInterval;
+
+                UpdateButtonVisibility(citizenVehicleInfo_Panel, citizenVehicleInfo_Button);
+                UpdateButtonVisibility(cityServiceVehicleInfo_Panel, cityServiceVehicleInfo_Button);
+                UpdateButtonVisibility(publicTransportVehicleInfo_Panel, publicTransportVehicleInfo_Button);
+                UpdateButtonVisibility(raceVehicleInfo_Panel, raceVehicleInfo_Button);
+            }
+            catch (Exception e)
+            {
+                Logging.LogException(e, "Failed to update drive buttons");
+                OnDestroy();
+            }
         }
 
         private void OnDestroy()
@@ -38,19 +69,20 @@ namespace IOperateIt.UI
             Destroy(citizenVehicleInfo_Button);
             Destroy(cityServiceVehicleInfo_Button);
             Destroy(publicTransportVehicleInfo_Button);
+            Destroy(raceVehicleInfo_Button);
         }
 
         public void SetEnable() => enabled = true;
 
         public void SetDisable() => enabled = false;
 
-        private static UIButton Initialize<T>(ref T panel) where T : WorldInfoPanel
+        private static UIButton Initialize<T>(ref T panel) where T : WorldInfoPanel, new()
         {
             panel = UIView.library.Get<T>(typeof(T).Name);
             return CreateDriveButton(panel);
         }
 
-        private static UIButton CreateDriveButton<T>(T panel) where T : WorldInfoPanel
+        private static UIButton CreateDriveButton<T>(T panel) where T : WorldInfoPanel, new()
         {
             var button = panel.component.AddUIComponent<UIButton>();
             button.name = panel.component.name + "_Drive";
@@ -93,7 +125,7 @@ namespace IOperateIt.UI
                 button.relativePosition.y - 60f/*Prevent conflict with FPC's button*/);
             return button;
         }
-        private static void UpdateButtonVisibility<T>(T panel, UIButton button) where T : WorldInfoPanel
+        private static void UpdateButtonVisibility<T>(T panel, UIButton button) where T : WorldInfoPanel, new()
         {
             if (panel.component.isVisible)
             {
