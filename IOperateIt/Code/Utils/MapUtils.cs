@@ -47,9 +47,9 @@ namespace IOperateIt.Utils
         }
 
 
-        public static float CalculateHeight(Vector3 position, float objectHeight)
+        public static float CalculateHeight(Vector3 position, float objectHeight, out bool roadFound)
         {
-            bool roadFound = false;
+            roadFound = false;
             var height = Mathf.Max(Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(position), Singleton<TerrainManager>.instance.WaterLevel(new Vector2(position.x, position.z)));
 
             if (Physics.Raycast(position + Vector3.up * objectHeight, Vector3.down, out RaycastHit hitInfo, objectHeight - ROAD_RAYCAST_LOWER, LayerMask.GetMask(MapUtils.LAYER_VEHICLES_NAME, MapUtils.LAYER_BUILDINGS_NAME)))

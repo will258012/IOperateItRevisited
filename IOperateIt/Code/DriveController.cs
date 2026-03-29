@@ -11,12 +11,12 @@ namespace IOperateIt
     public class DriveController : MonoBehaviour
     {
         private const float FLOAT_ERROR = 0.01f;
-        private const float THROTTLE_RESP = 0.5f;
-        private const float STEER_RESP = 0.5f;
-        private const float GEAR_RESP = 0.25f;
-        private const float PARK_SPEED = 0.5f;
+        private const float THROTTLE_RESP = 2.0f;
+        private const float STEER_RESP = 1.75f;
+        private const float GEAR_RESP = 0.2f;
+        private const float PARK_SPEED = 0.25f;
         private const float STEER_MAX = 37.0f;
-        private const float STEER_DECAY = 0.01f;
+        private const float STEER_DECAY = 0.0075f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
         private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
         private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
@@ -24,7 +24,7 @@ namespace IOperateIt
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         private const float DRAG_FACTOR = 0.25f;
-        private const float DRAG_DRIVETRAIN = 0.2f;
+        private const float DRAG_DRIVETRAIN = 0.15f;
         private const float DRAG_WHEEL_POWERED = 0.05f;
         private const float DRAG_WHEEL = 0.01f;
         private const float MOMENT_WHEEL = 1.5f;
@@ -50,21 +50,15 @@ namespace IOperateIt
         private bool setColor;
         private VehicleInfo vehicleInfo;
 
-        private List<Wheel> wheelObjects = new();
-
-        private List<LightEffect> lightEffects = new();
-        private List<EffectInfo> regularEffects = new();
-        private List<EffectInfo> specialEffects = new();
-
-        private DriveColliders collidersManager = new();
+        private List<Wheel> wheelObjects = [];
+        private CollidersManager collidersManager = new();
+        private EffectManager effectManager = new EffectManager();
         private Vector3 prevPosition;
         private Vector3 prevVelocity;
         private Vector3 tangent;
         private Vector3 binormal;
         private Vector3 normal;
         private Vector4 lightState;
-        private bool isSirenEnabled = false;
-        private bool isLightEnabled = false;
         private bool physicsFallback = false;
 
         private int gear = 0;
@@ -81,7 +75,7 @@ namespace IOperateIt
         private float radps = 0f;
         private float torque = 0f;
 
-        private UndergroundRender undergroundRender = new();
+        private UndergroundRender undergroundRenderer = new();
         private void Awake()
         {
             Instance = this;
@@ -112,11 +106,10 @@ namespace IOperateIt
         private void Update()
         {
             HandleInputOnUpdate();
-            PlayEffects();
+            effectManager.PlayEffects(prevVelocity);
 
             MaterialPropertyBlock materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
             materialBlock.Clear();
-            //materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, value);
             Vector4 tyrePosition = default;
             tyrePosition.x = steer * STEER_MAX / 180f * Mathf.PI;
             tyrePosition.y = distanceTravelled;
@@ -124,8 +117,8 @@ namespace IOperateIt
             tyrePosition.w = 0f;
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
 
-            lightState.x = isLightEnabled ? LIGHT_HEADLIGHT_INTENSITY : 0f;
-            lightState.y = brake > 0f ? LIGHT_BRAKELIGHT_INTENSITY : (isLightEnabled ? LIGHT_REARLIGHT_INTENSITY : 0f);
+            lightState.x = effectManager.IsLightEnabled ? LIGHT_HEADLIGHT_INTENSITY : 0f;
+            lightState.y = brake > 0f ? LIGHT_BRAKELIGHT_INTENSITY : (effectManager.IsLightEnabled ? LIGHT_REARLIGHT_INTENSITY : 0f);
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_LightState, lightState);
             if (setColor)
             {
@@ -236,7 +229,8 @@ namespace IOperateIt
         {
             vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
-            float height = MapUtils.CalculateHeight(vehiclePos, roofHeight);
+            float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var roadFound);
+            effectManager.IsDusty = !roadFound;
             bool onGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
 
             CalculateSlope(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, height, onGround);
@@ -320,7 +314,8 @@ namespace IOperateIt
             {
                 Vector3 wheelPos = w.gameObject.transform.position;
                 w.heightSample = wheelPos;
-                w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight);
+                w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight, out var roadFound);
+                effectManager.IsDusty = !roadFound;
 
                 if (wheelPos.y + ROAD_WALL_HEIGHT < w.heightSample.y)
                 {
@@ -540,7 +535,7 @@ namespace IOperateIt
             enabled = true;
             SpawnVehicle(position + new Vector3(0f, -ModSettings.SpringOffset, 0f), rotation, vehicleInfo, vehicleColor, setColor);
             if (ModSettings.UndergroundRendering)
-                undergroundRender.OverridePrefabs();
+                undergroundRenderer.OverridePrefabs();
             DriveCamController.Instance.EnableCam(vehicleRigidBody, 2f * vehicleCollider.size.z);
             DriveButtons.Instance.SetDisable();
         }
@@ -550,7 +545,7 @@ namespace IOperateIt
             DriveCamController.Instance.DisableCam();
             DriveButtons.Instance.SetEnable();
             if (ModSettings.UndergroundRendering)
-                undergroundRender.RestorePrefabs();
+                undergroundRenderer.RestorePrefabs();
             DestroyVehicle();
             enabled = false;
         }
@@ -643,6 +638,7 @@ namespace IOperateIt
             else
             {
                 rideHeight = 0;
+                physicsFallback = true;
             }
 
             Mesh vehicleMesh = this.vehicleInfo.m_mesh;
@@ -684,11 +680,11 @@ namespace IOperateIt
 
             gameObject.SetActive(true);
 
-            AddEffects();
+            effectManager.AddEffects(vehicleRigidBody, vehicleInfo);
         }
         private void DestroyVehicle()
         {
-            RemoveEffects();
+            effectManager.RemoveEffects();
             foreach (Wheel w in wheelObjects)
             {
                 DestroyImmediate(w.gameObject);
@@ -707,8 +703,8 @@ namespace IOperateIt
             binormal = Vector3.zero;
             normal = Vector3.zero;
             lightState = Vector4.zero;
-            isSirenEnabled = false;
-            isLightEnabled = false;
+            effectManager.IsSirenEnabled = false;
+            effectManager.IsLightEnabled = false;
             physicsFallback = false;
             gear = 0;
             terrainHeight = 0f;
@@ -814,7 +810,7 @@ namespace IOperateIt
                     if (gear <= 0)
                     {
                         throttle = 0f;
-                        brake = Mathf.Clamp(brake + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
+                        brake = Mathf.Clamp01(brake + Time.fixedDeltaTime / THROTTLE_RESP);
                         braking = true;
                     }
                 }
@@ -827,7 +823,7 @@ namespace IOperateIt
                 if (gear > 0)
                 {
                     brake = 0f;
-                    throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
+                    throttle = Mathf.Clamp01(throttle + Time.fixedDeltaTime / THROTTLE_RESP);
                     throttling = true;
                 }
             }
@@ -838,7 +834,7 @@ namespace IOperateIt
                     if (gear >= 0)
                     {
                         throttle = 0f;
-                        brake = Mathf.Clamp(brake + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
+                        brake = Mathf.Clamp01(brake + Time.fixedDeltaTime / THROTTLE_RESP);
                         braking = true;
                     }
                 }
@@ -851,7 +847,7 @@ namespace IOperateIt
                 if (gear < 0)
                 {
                     brake = 0f;
-                    throttle = Mathf.Clamp(throttle + Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
+                    throttle = Mathf.Clamp01(throttle + Time.fixedDeltaTime / THROTTLE_RESP);
                     throttling = true;
                 }
             }
@@ -864,11 +860,11 @@ namespace IOperateIt
             }
             if (!throttling)
             {
-                throttle = Mathf.Clamp(throttle - Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
+                throttle = Mathf.Clamp01(throttle - Time.fixedDeltaTime / THROTTLE_RESP);
             }
             if (!braking)
             {
-                brake = Mathf.Clamp(brake - Time.fixedDeltaTime / THROTTLE_RESP, 0f, 1f);
+                brake = Mathf.Clamp01(brake - Time.fixedDeltaTime / THROTTLE_RESP);
             }
 
             bool steering = false;
@@ -899,10 +895,10 @@ namespace IOperateIt
         private void HandleInputOnUpdate()
         {
             if (Input.GetKeyDown((KeyCode)ModSettings.KeyLightToggle.Key))
-                isLightEnabled = !isLightEnabled;
+                effectManager.IsLightEnabled = !effectManager.IsLightEnabled;
 
             if (Input.GetKeyDown((KeyCode)ModSettings.KeySirenToggle.Key))
-                isSirenEnabled = !isSirenEnabled;
+                effectManager.IsSirenEnabled = !effectManager.IsSirenEnabled;
 
             if (Input.GetKeyDown((KeyCode)ModSettings.KeyUnstuck.Key))
             {
@@ -913,71 +909,6 @@ namespace IOperateIt
                 vehicleRigidBody.Sleep();
                 DriveCamController.Instance.ResetCamera();
             }
-        }
-        private void AddEffects()
-        {
-            if (vehicleInfo.m_effects != null)
-            {
-                foreach (var effect in vehicleInfo.m_effects)
-                {
-                    {
-                        if (effect.m_effect != null)
-                        {
-                            if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2))
-                                specialEffects.Add(effect.m_effect);
-                            else
-                            {
-                                if (effect.m_effect is MultiEffect multiEffect)
-                                {
-                                    foreach (var sub in multiEffect.m_effects)
-                                        if (sub.m_effect is LightEffect lightEffect)
-                                            lightEffects.Add(lightEffect);
-                                }
-                                regularEffects.Add(effect.m_effect);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        private void PlayEffects()
-        {
-            var position = vehicleRigidBody.transform.position;
-            var rotation = vehicleRigidBody.transform.rotation;
-            var velocity = vehicleRigidBody.velocity;
-            var acceleration = ((velocity - prevVelocity) / Time.fixedDeltaTime).magnitude;
-            var swayPosition = Vector3.zero;
-            var scale = Vector3.one;
-            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
-            var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
-            var listenerInfo = Singleton<AudioManager>.instance.CurrentListenerInfo;
-            var audioGroup = Singleton<VehicleManager>.instance.m_audioGroup;
-            RenderGroup.MeshData effectMeshData = vehicleInfo.m_vehicleAI.GetEffectMeshData();
-            var area2 = new EffectInfo.SpawnArea(matrix, effectMeshData, vehicleInfo.m_generatedInfo.m_tyres, vehicleInfo.m_lightPositions);
-
-            foreach (var regularEffect in regularEffects)
-            {
-                regularEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
-            }
-            if (isLightEnabled)
-                foreach (var light in lightEffects)
-                {
-                    light.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, Singleton<SimulationManager>.instance.m_simulationTimeDelta, Singleton<RenderManager>.instance.CurrentCameraInfo);
-                }
-
-            if (isSirenEnabled)
-                foreach (var specialEffect in specialEffects)
-                {
-                    specialEffect.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, Singleton<SimulationManager>.instance.m_simulationTimeDelta, Singleton<RenderManager>.instance.CurrentCameraInfo);
-                    specialEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
-                }
-        }
-
-        private void RemoveEffects()
-        {
-            lightEffects.Clear();
-            regularEffects.Clear();
-            specialEffects.Clear();
         }
     }
 }
