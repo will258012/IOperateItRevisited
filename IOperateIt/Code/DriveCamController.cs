@@ -16,9 +16,9 @@ namespace IOperateIt
         {
             public string Name => Translations.Translate("DRIVINGMODE");
             public void DisableCam() => DriveController.Instance.StopDriving();
-            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new FPC.FPSCamera.Utils.MathUtils.Positioning(Instance.targetRigidBody.transform.position, Instance.targetRigidBody.transform.rotation);
+            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new (Instance.targetRigidBody.transform.position, Instance.targetRigidBody.transform.rotation);
             public float GetSpeed() => Instance.targetRigidBody.velocity.magnitude;
-            public bool IsValid() => true;
+            public bool IsValid() => DriveController.Instance.enabled;
         }
 
         private const float ROTATE_KEY_SCALE = 100.0f;

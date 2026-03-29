@@ -23,6 +23,11 @@ namespace IOperateIt
         protected override void LoadedActions(LoadMode mode)
         {
             base.LoadedActions(mode);
+            if (gameObject != null)
+            {
+                Object.Destroy(gameObject);
+                gameObject = null;
+            }
             gameObject = new GameObject("IOperateIt");
             gameObject.AddComponent<MainPanel>();
             gameObject.AddComponent<DriveButtons>();
