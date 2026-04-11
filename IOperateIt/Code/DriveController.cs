@@ -13,6 +13,7 @@ namespace IOperateIt
         private const float FLOAT_ERROR = 0.01f;
         private const float THROTTLE_RESP = 2.0f;
         private const float STEER_RESP = 1.75f;
+        private const float STEER_REST = 1.75f;
         private const float GEAR_RESP = 0.2f;
         private const float PARK_SPEED = 0.25f;
         private const float STEER_MAX = 37.0f;
@@ -29,9 +30,10 @@ namespace IOperateIt
         private const float DRAG_WHEEL = 0.01f;
         private const float MOMENT_WHEEL = 1.5f;
         private const float VALID_INCLINE = 0.5f;
-        private const float GRIP_MAX_SLIP = 1.0f;
+        private const float GRIP_MAX_SLIP = 0.8f;
         private const float GRIP_OPTIM_SLIP = 0.2f;
-        private const float ENGINE_PEAK_POWER_RPS = 600.0f;
+        private const float ENGINE_PEAK_POWER_RPS = 900.0f;
+        private const float ENGINE_IDLE_RPS = 90.0f;
         private const float ENGINE_GEAR_RATIO = 7.0f;
         private const float ACCEL_G = 10f;
         const float MS_TO_KMPH = 3.6f;
@@ -212,19 +214,24 @@ namespace IOperateIt
         {
             LimitVelocity();
         }
-
+#if DEBUG
         private void OnGUI()
         {
-#if DEBUG
-            GUI.Label(new Rect(100f, 100f, 700f, 700f), "g: " + gear + "\nt: " + throttle + "\nb: " + brake + 
-                "\ns: " + vehicleRigidBody.velocity.magnitude * MS_TO_KMPH + "\nrps: " + radps +
-                "\nw0: " + wheelObjects[0].origin + " " + wheelObjects[0].slip + " " + wheelObjects[0].radps +
-                "\nw1: " + wheelObjects[1].origin + " " + wheelObjects[1].slip + " " + wheelObjects[1].radps +
-                "\nw2: " + wheelObjects[2].origin + " " + wheelObjects[2].slip + " " + wheelObjects[2].radps +
-                "\nw3: " + wheelObjects[3].origin + " " + wheelObjects[3].slip + " " + wheelObjects[3].radps);
-#endif
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"g: {gear}");
+            sb.AppendLine($"t: {throttle:F2}");
+            sb.AppendLine($"b: {brake:F2}");
+            sb.AppendLine($"s: {vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH:F1} km/h");
+            sb.AppendLine($"rps: {radps:F1}");
+            sb.AppendLine($"wct: front={Wheel.FrontCount} rear={Wheel.RearCount}");
+            for (int i = 0; i < wheelObjects.Count; i++)
+            {
+                var w = wheelObjects[i];
+                sb.AppendLine($"w{i}: origin={w.origin} slip={w.slip:F2} radps={w.radps:F1}");
+            }
+            GUI.Label(new Rect(100f, 100f, 700f, 700f), sb.ToString());
         }
-
+#endif
         private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
         {
             vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
@@ -396,7 +403,7 @@ namespace IOperateIt
                 engineRps += w.radps * w.torqueFract;
             }
             radps = engineRps * ENGINE_GEAR_RATIO;
-            torque = -ENGINE_GEAR_RATIO * ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) * (Mathf.Abs(radps) - 2.0f * ENGINE_PEAK_POWER_RPS) / (ENGINE_PEAK_POWER_RPS * ENGINE_PEAK_POWER_RPS);
+            torque = GetTorque(engineRps) * ENGINE_GEAR_RATIO;
 
             float avgFrontRps = 0.0f;
             float avgRearRps = 0.0f;
@@ -718,7 +725,14 @@ namespace IOperateIt
             normalImpulse = 0f;
             prevGearChange = 0f;
         }
-
+        private static float GetTorque(float radps) // Torque curve 27x(k-x)/(4k^3)+max(3(k/2-x)^3/k^4,0)
+        {
+            // Check https://www.desmos.com/calculator/fp0csjaazj for formulation.
+            float k = ENGINE_PEAK_POWER_RPS;
+            float x = Mathf.Max(radps, ENGINE_IDLE_RPS);
+            float rawval = 27.0f * x * (k - x) / (4.0f * k * k * k) + Mathf.Max(3 * Mathf.Pow(k * 0.5f - x, 3.0f) / (k * k * k * k), 0.0f);
+            return ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) * rawval;
+        }
         private void CalculateSlope(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float height, bool onGround) // TODO: fix slope calculation
         {
             Vector3 tangent = Vector3.forward;
@@ -868,26 +882,28 @@ namespace IOperateIt
             }
 
             bool steering = false;
-            float steerLimit = Mathf.Clamp(1f - STEER_DECAY * vehicleRigidBody.velocity.magnitude, 0.04f, 1f);
+            float steerLimit = Mathf.Clamp(1.0f - STEER_DECAY * vehicleRigidBody.velocity.magnitude, 0.01f, 1.0f);
             if (FPCModSettings.Instance.XMLKeyMoveRight.IsPressed())
             {
-                steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
+                float factor = (steer < 0.0f) ? STEER_RESP + STEER_REST : STEER_RESP;
+                steer = Mathf.Clamp(steer + Time.fixedDeltaTime * factor, -steerLimit, steerLimit);
                 steering = true;
             }
             if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
             {
-                steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, -steerLimit, steerLimit);
+                float factor = (steer > 0.0f) ? STEER_RESP + STEER_REST : STEER_RESP;
+                steer = Mathf.Clamp(steer - Time.fixedDeltaTime * factor, -steerLimit, steerLimit);
                 steering = true;
             }
             if (!steering)
             {
-                if (steer > 0f)
+                if (steer > 0.0f)
                 {
-                    steer = Mathf.Clamp(steer - Time.fixedDeltaTime / STEER_RESP, 0f, steerLimit);
+                    steer = Mathf.Clamp(steer - Time.fixedDeltaTime * STEER_REST, 0f, steerLimit);
                 }
-                if (steer < 0f)
+                if (steer < 0.0f)
                 {
-                    steer = Mathf.Clamp(steer + Time.fixedDeltaTime / STEER_RESP, -steerLimit, 0f);
+                    steer = Mathf.Clamp(steer + Time.fixedDeltaTime * STEER_REST, -steerLimit, 0f);
                 }
             }
         }
