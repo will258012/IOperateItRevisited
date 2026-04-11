@@ -16,31 +16,33 @@ namespace IOperateIt
         {
             public string Name => Translations.Translate("DRIVINGMODE");
             public void DisableCam() => DriveController.Instance.StopDriving();
-            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new (Instance.targetRigidBody.transform.position, Instance.targetRigidBody.transform.rotation);
+            public FPC.FPSCamera.Utils.MathUtils.Positioning GetPositioning() => new(Instance.targetRigidBody.transform.position, Instance.targetRigidBody.transform.rotation);
             public float GetSpeed() => Instance.targetRigidBody.velocity.magnitude;
             public bool IsValid() => DriveController.Instance.enabled;
         }
 
-        private const float ROTATE_KEY_SCALE = 100.0f;
-        private const float ROTATE_MOUSE_SCALE = 1.0f;
+        private const float ROTATE_MOUSE_SCALE = .2f;
         private const float ZOOM_KEY_SCALE = 10.0f;
         private const float ZOOM_MOUSE_SCALE = 1.0f;
+
         private const float UNDERGROUND_RENDER_BIAS = 1.0f;
         private const float LOOK_MAX_DIST = 100.0f;
         private const float LOOK_RESET_TIME = 5.0f;
 
+        private const float MIN_FOV = 10f;
+        private const float MAX_FOV = 75f;
         public static DriveCamController Instance { get; private set; }
 
         private Rigidbody targetRigidBody;
         private Quaternion rotation;
         private Quaternion rotationOffset;
         private float lastMovedTime;
-        private float followDistance;
 
         private Camera mainCamera;
         private int cachedRenderMask;
-        private float targetFollowDistance;
-        private float followDistanceVelocity;
+
+        private float targetFoV = FPCModSettings.Instance.XMLCamFieldOfView;
+        private bool isFOVTransitioning;
 
         private void Awake()
         {
@@ -56,7 +58,6 @@ namespace IOperateIt
 
             cachedRenderMask = mainCamera.cullingMask;
             targetRigidBody = rigidBody;
-            followDistance = targetFollowDistance = Mathf.Clamp(distance, 2f, LOOK_MAX_DIST);
             rotation = mainCamera.transform.rotation;
             rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam enabled");
@@ -86,12 +87,11 @@ namespace IOperateIt
         }
         private void UpdateCameraPos()
         {
-            Vector3 vehiclePosition = targetRigidBody.transform.TransformPoint(ModSettings.Offset);
 
             if (Time.time > lastMovedTime + LOOK_RESET_TIME)
             {
-                Vector3 vehicleVelocity = targetRigidBody.velocity;
-                Vector3 vehicleDir = Vector3.Normalize(vehicleVelocity);
+                var vehicleVelocity = targetRigidBody.velocity;
+                var vehicleDir = Vector3.Normalize(vehicleVelocity);
 
                 rotation = mainCamera.transform.rotation;
 
@@ -100,7 +100,7 @@ namespace IOperateIt
                     vehicleDir = Quaternion.Euler(0f, targetRigidBody.rotation.eulerAngles.y, 0f) * Vector3.forward;
                 }
 
-                Quaternion targetRotation = Quaternion.identity;
+                var targetRotation = Quaternion.identity;
                 targetRotation.SetLookRotation(vehicleDir);
 
                 var eulerTmp = rotationOffset.eulerAngles;
@@ -109,35 +109,42 @@ namespace IOperateIt
 
                 rotationOffset = Quaternion.Euler(eulerTmp);
 
-                targetRotation = targetRotation * rotationOffset;
+                targetRotation *= rotationOffset;
 
-                rotation = FPCModSettings.Instance.XMLSmoothTransition
-                    ? Quaternion.Slerp(rotation, targetRotation, Time.deltaTime * Mathf.Max(Time.deltaTime, FPCModSettings.Instance.XMLTransSpeed))
-                    : targetRotation;
+                rotation = targetRotation;
             }
             else
             {
                 rotation = rotationOffset;
             }
 
-            float finalFollowDist = followDistance;
-            Utils.MapUtils.RaycastInput input = Utils.MapUtils.GetRaycastInput(vehiclePosition, rotation * Vector3.back, 1000.0f, false);
-            input.m_netService.m_service = ItemClass.Service.Road;
-            input.m_netService.m_itemLayers = ItemClass.Layer.Default |
-                                              ItemClass.Layer.MetroTunnels;
-            input.m_netService2.m_service = ItemClass.Service.Beautification;
-            if (Utils.MapUtils.RayCast(input, out var output))
-            {
-                finalFollowDist = Mathf.Min(Vector3.Magnitude(output.m_hitPos - vehiclePosition), finalFollowDist);
-            }
+            var vehiclePosition = targetRigidBody.position +
+                ((ModSettings.Offset.z > -1f ? targetRigidBody.rotation /*rotate with the offset position*/ :
+                rotation /*rotate with the vehicle position*/) * ModSettings.Offset);
 
-            // Apply the calculated position and rotation to the camera. Limit the camera's position to the allowed area.
-            mainCamera.transform.rotation = rotation;
-            mainCamera.transform.position = CameraController.ClampCameraPosition(vehiclePosition + rotation * new Vector3(0.0f, 0.0f, -finalFollowDist));
+            // Limit the camera's position to the allowed area.
+            vehiclePosition = CameraController.ClampCameraPosition(vehiclePosition);
+
+            // Apply the calculated position and rotation to the camera.
+            if (FPCModSettings.Instance.XMLSmoothTransition)
+            {
+                mainCamera.transform.position =
+                    mainCamera.transform.position.DistanceTo(vehiclePosition) <= FPCModSettings.Instance.XMLMaxTransDistance
+                ? Vector3.Lerp(mainCamera.transform.position, vehiclePosition, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed)
+                : vehiclePosition;
+                mainCamera.transform.rotation = Quaternion.Slerp(mainCamera.transform.rotation, rotation, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed);
+            }
+            else
+            {
+                mainCamera.transform.position = vehiclePosition;
+                mainCamera.transform.rotation = rotation;
+            }
         }
 
         private void UpdateCameraRendering()
         {
+            if (!ModSettings.UndergroundRendering) return;
+
             var terrainHeight = Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(mainCamera.transform.position);
 
             if (terrainHeight + UNDERGROUND_RENDER_BIAS > mainCamera.transform.position.y)
@@ -152,39 +159,57 @@ namespace IOperateIt
 
         private void HandleInputOnUpdate()
         {
+            var fpcModSettings = FPCModSettings.Instance;
             var cursorVisible =
-             FPCModSettings.Instance.XMLKeyCursorToggle.IsPressed() ^ (FPCModSettings.Instance.XMLShowCursorFollow);
+             fpcModSettings.XMLKeyCursorToggle.IsPressed() ^ fpcModSettings.XMLShowCursorFollow;
 
             InputManager.ToggleCursor(cursorVisible);
 
-            if (Input.GetMouseButtonDown(2) || // middle click
-                   FPCModSettings.Instance.XMLKeyCamReset.KeyTriggered())
+            if (InputManager.MouseButton.Middle.MouseTriggered() ||
+                   fpcModSettings.XMLKeyCamReset.KeyTriggered())
             {
                 rotationOffset = Quaternion.identity;
                 lastMovedTime = 0f;
+
+                if (fpcModSettings.XMLSmoothTransition)
+                    targetFoV = fpcModSettings.XMLCamFieldOfView;
+                else
+                    mainCamera.fieldOfView = fpcModSettings.XMLCamFieldOfView;
             }
 
-            // mouse zoom
-            if (FPCModSettings.Instance.XMLSmoothTransition)
+            // scroll zooming
+            var scroll = InputManager.MouseScroll;
+            if (fpcModSettings.XMLSmoothTransition)
             {
-                targetFollowDistance -= ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
-                targetFollowDistance = Mathf.Clamp(targetFollowDistance, 0.0f, LOOK_MAX_DIST);
-                followDistance = Mathf.SmoothDamp(
-                    followDistance,
-                    targetFollowDistance,
-                    ref followDistanceVelocity,
-                    .1f
-                );
+                var currentFoV = mainCamera.fieldOfView;
+                if (scroll > 0f && currentFoV > MIN_FOV)
+                {
+                    targetFoV = currentFoV / fpcModSettings.XMLFoViewScrollfactor;
+                    isFOVTransitioning = true;
+                }
+                else if (scroll < 0f && currentFoV < MAX_FOV)
+                {
+                    targetFoV = currentFoV * fpcModSettings.XMLFoViewScrollfactor;
+                    isFOVTransitioning = true;
+                }
+                else if (!isFOVTransitioning && currentFoV != targetFoV)
+                    isFOVTransitioning = true;
+
+                UpdateFOVTransition();
             }
             else
             {
-                followDistance -= ZOOM_MOUSE_SCALE * Input.mouseScrollDelta.y;
-                followDistance = Mathf.Clamp(followDistance, 0.0f, LOOK_MAX_DIST);
+                var FoV = mainCamera.fieldOfView;
+
+                if (scroll > 0f && FoV > MIN_FOV)
+                    mainCamera.fieldOfView = FoV / fpcModSettings.XMLFoViewScrollfactor;
+                else if (scroll < 0f && FoV < MAX_FOV)
+                    mainCamera.fieldOfView = FoV * fpcModSettings.XMLFoViewScrollfactor;
             }
             {
                 // key movement
-                var movementFactor = ((FPCModSettings.Instance.XMLKeySpeedUp.IsPressed() ? FPCModSettings.Instance.XMLSpeedUpFactor : 1f)
-                                     * FPCModSettings.Instance.XMLMovementSpeed * Time.deltaTime).FromKmph();
+                var movementFactor = ((fpcModSettings.XMLKeySpeedUp.IsPressed() ? fpcModSettings.XMLSpeedUpFactor : 1f)
+                                     * fpcModSettings.XMLMovementSpeed * Time.deltaTime).FromKmph();
 
                 Vector3 camForward = mainCamera.transform.forward;
                 Vector3 camRight = mainCamera.transform.right;
@@ -194,29 +219,36 @@ namespace IOperateIt
                 if (!(KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed()))
                 {
 
-                    if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) movement += camForward * movementFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) movement -= camForward * movementFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) movement += camRight * movementFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) movement -= camRight * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateUp.IsPressed()) movement += camForward * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateDown.IsPressed()) movement -= camForward * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateRight.IsPressed()) movement += camRight * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateLeft.IsPressed()) movement -= camRight * movementFactor;
                 }
-                if (FPCModSettings.Instance.XMLKeyMoveUp.IsPressed()) movement += camUp * movementFactor;
-                if (FPCModSettings.Instance.XMLKeyMoveDown.IsPressed()) movement -= camUp * movementFactor;
+                if (fpcModSettings.XMLKeyMoveUp.IsPressed()) movement += camUp * movementFactor;
+                if (fpcModSettings.XMLKeyMoveDown.IsPressed()) movement -= camUp * movementFactor;
 
                 ModSettings.Offset += targetRigidBody.transform.InverseTransformDirection(movement);
             }
 
             float yawDegree = 0f, pitchDegree = 0f;
+            var rotateFactor = fpcModSettings.XMLRotateKeyFactor * Time.deltaTime;
             {
-                // mouse rotation
-                yawDegree = Input.GetAxis("Mouse X") * ROTATE_MOUSE_SCALE * FPCModSettings.Instance.XMLRotateSensitivity;
-                pitchDegree = -Input.GetAxis("Mouse Y") * ROTATE_MOUSE_SCALE * FPCModSettings.Instance.XMLRotateSensitivity;
+
                 // key rotation
                 if (KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed())
                 {
-                    if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) yawDegree += FPCModSettings.Instance.XMLRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
-                    if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) yawDegree -= FPCModSettings.Instance.XMLRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
-                    if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) pitchDegree -= FPCModSettings.Instance.XMLRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
-                    if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) pitchDegree += FPCModSettings.Instance.XMLRotateSensitivity * ROTATE_KEY_SCALE * Time.deltaTime;
+                    if (fpcModSettings.XMLKeyRotateRight.IsPressed()) yawDegree += rotateFactor;
+                    if (fpcModSettings.XMLKeyRotateLeft.IsPressed()) yawDegree -= rotateFactor;
+                    if (fpcModSettings.XMLKeyRotateUp.IsPressed()) pitchDegree -= rotateFactor;
+                    if (fpcModSettings.XMLKeyRotateDown.IsPressed()) pitchDegree += rotateFactor;
+                }
+                if (yawDegree == 0f && pitchDegree == 0f && !cursorVisible)
+                {
+                    // mouse rotation   
+                    yawDegree = InputManager.MouseMoveHori * fpcModSettings.XMLRotateSensitivity *
+                                (fpcModSettings.XMLInvertRotateHorizontal ? -1f : 1f) * ROTATE_MOUSE_SCALE;
+                    pitchDegree = InputManager.MouseMoveVert * fpcModSettings.XMLRotateSensitivity *
+                                  (fpcModSettings.XMLInvertRotateVertical ? 1f : -1f) * ROTATE_MOUSE_SCALE;
                 }
             }
 
@@ -237,9 +269,25 @@ namespace IOperateIt
             // Limit pitch
             var eulerAngles = rotationOffset.eulerAngles;
             if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
-            eulerAngles.x = Mathf.Clamp(eulerAngles.x, -FPCModSettings.Instance.XMLMaxPitchDeg, FPCModSettings.Instance.XMLMaxPitchDeg);
+            eulerAngles.x = eulerAngles.x.Clamp(ModSettings.Offset.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
             eulerAngles.z = 0f;
             rotationOffset = Quaternion.Euler(eulerAngles);
+        }
+
+        /// <summary>
+        /// Updates the camera's FOV during a scroll transition to smoothly adjust to the target FOV.
+        /// </summary>
+        private void UpdateFOVTransition()
+        {
+            if (!isFOVTransitioning)
+                return;
+
+            if (mainCamera.fieldOfView.AlmostEquals(targetFoV, .1f))
+            {
+                mainCamera.fieldOfView = targetFoV;
+                isFOVTransitioning = false;
+            }
+            mainCamera.fieldOfView = Mathf.Lerp(mainCamera.fieldOfView, targetFoV, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed);
         }
     }
 }
