@@ -16,9 +16,23 @@ namespace IOperateIt.UI
         public static MainPanel Instance { get; private set; }
         public UIPanel Panel { get; set; }
         public UIButton GetMainButton() => _mainBtn ?? UUISupport.UUIButton as UIButton;
+        /// <summary>
+        /// Gets or sets the panel's last saved position.
+        /// </summary>
+        public static Vector3 SavedPanelPosition { get; set; } = DefaultPosition;
+        /// <summary>
+        /// Gets or sets the button's last saved position.
+        /// </summary>
+        public static Vector3 SavedButtonPosition { get; set; } = DefaultPosition;
+
+        public static Vector3 DefaultPosition => Vector3.left;
 
         private const float Margin = 10f;
         private const float VehicleRowHeight = 40f;
+        
+        private const float CloseButtonSize = 35f;
+        private const float MainButtonSize = 40f;
+        private const float TitleHeight = 13f;
 
         private UIButton _mainBtn;
         private UIButton _modSettingsBtn;
@@ -38,7 +52,7 @@ namespace IOperateIt.UI
             Panel.backgroundSprite = "UnlockingPanel2";
             Panel.width = 800f;
 
-            var currentY = Margin;
+            var currentY = CloseButtonSize + Margin;
             _vehicleList = UIList.AddUIList<MainPanelRow>(Panel, Margin, currentY, 400f, 320f, VehicleRowHeight);
             var vehicleInfos = new FastList<object>();
 
@@ -66,6 +80,11 @@ namespace IOperateIt.UI
                 {
                     UpdateListEvent((uint)_vehicleList.SelectedItem);
                 }
+                else
+                {
+                    SavedPanelPosition = Panel.absolutePosition;
+                    ModSettings.Save();
+                }
             };
 
             _previewPanel = Panel.AddUIComponent<PreviewPanel>();
@@ -80,6 +99,30 @@ namespace IOperateIt.UI
             _modSettingsBtn = UIButtons.AddButton(Panel, _previewPanel.relativePosition.x + (_previewPanel.width - 200f) / 2f, currentY, Translations.Translate("MODSETTINGSBTN_TEXT"));
             _modSettingsBtn.eventClick += (_, e) => FPC.FPSCamera.UI.MainPanel.OpenSettingsPanel(Mod.Instance.Name);
             Panel.height = currentY + _spawnBtn.height + Margin;
+
+            // Title
+            {
+                // Drag bar.
+                var dragHandle = Panel.AddUIComponent<UIDragHandle>();
+                dragHandle.size = Panel.size;
+                dragHandle.relativePosition = Vector3.zero;
+                dragHandle.target = Panel;
+                dragHandle.SendToBack();
+
+                // Title label.
+                var titleLabel = UILabels.AddLabel(Panel, CloseButtonSize, TitleHeight, Translations.Translate("MAINPANELBTN_TOOLTIP"), Panel.width - CloseButtonSize - CloseButtonSize, alignment: UIHorizontalAlignment.Center);
+                titleLabel.SendToBack();
+
+                // Close button.
+                var closeButton = Panel.AddUIComponent<UIButton>();
+                closeButton.relativePosition = new Vector2(Panel.width - CloseButtonSize, 2);
+                closeButton.atlas = UITextures.InGameAtlas;
+                closeButton.normalBgSprite = "buttonclose";
+                closeButton.hoveredBgSprite = "buttonclosehover";
+                closeButton.pressedBgSprite = "buttonclosepressed";
+                closeButton.eventClick += (c, p) => OnEsc();
+            }
+
             Panel.Hide();
 
             if (FPC.FPSCamera.Utils.ModSupport.FoundUUI)
@@ -90,20 +133,20 @@ namespace IOperateIt.UI
             #endregion
 
             #region Main Button
-            float x = ModSettings.MainButtonPos.x, y = ModSettings.MainButtonPos.y;
+            float x = SavedButtonPosition.x, y = SavedButtonPosition.y;
             if (x < 0f || y < 0f)
             {
                 var escbutton = UIView.GetAView().FindUIComponent("Esc");
                 x = escbutton.absolutePosition.x;
-                y = escbutton.absolutePosition.y + escbutton.height * 1.5f;
+                y = escbutton.absolutePosition.y + escbutton.height * 1.5f + MainButtonSize + Margin;
 
-                ModSettings.MainButtonPos = new Vector2(x, y);
+                SavedButtonPosition = new Vector2(x, y);
             }
             _mainBtn = UIView.GetAView().AddUIComponent(typeof(UIButton)) as UIButton;
             _mainBtn.name = "MainButton";
             _mainBtn.tooltip = Translations.Translate("MAINPANELBTN_TOOLTIP");
             _mainBtn.absolutePosition = new Vector3(x, y);
-            _mainBtn.size = new Vector2(40f, 40f);
+            _mainBtn.size = new Vector2(MainButtonSize, MainButtonSize);
             _mainBtn.scaleFactor = .8f;
             _mainBtn.pressedBgSprite = "OptionBasePressed";
             _mainBtn.normalBgSprite = "OptionBase";
@@ -117,10 +160,8 @@ namespace IOperateIt.UI
             _mainBtn.pressedTextColor = new Color32(30, 30, 44, 255);
             _mainBtn.eventClick += (_, m) =>
             {
-                Panel.absolutePosition = new Vector3(_mainBtn.absolutePosition.x +
-                    (_mainBtn.absolutePosition.x < Screen.height / 2f ? _mainBtn.width - 10f : -Panel.width + 10f),
-                                                           _mainBtn.absolutePosition.y +
-                (_mainBtn.absolutePosition.y < Screen.height / 2f ? _mainBtn.height - 15f : -Panel.height + 15f));
+                if (!Panel.isVisible) LoadPanelPosition();
+
                 Panel.isVisible = !Panel.isVisible;
             };
 
@@ -132,7 +173,7 @@ namespace IOperateIt.UI
             mainBtn_drag.target = _mainBtn;
             mainBtn_drag.transform.parent = _mainBtn.transform;
             mainBtn_drag.eventMouseDown += (_, p) => Panel.isVisible = false;
-            mainBtn_drag.eventMouseUp += (_, p) => { ModSettings.MainButtonPos = _mainBtn.absolutePosition; ModSettings.Save(); };
+            mainBtn_drag.eventMouseUp += (_, p) => { SavedButtonPosition = _mainBtn.absolutePosition; ModSettings.Save(); };
             #endregion
         }
 
@@ -154,6 +195,20 @@ namespace IOperateIt.UI
                 return true;
             }
             return false;
+        }
+        public void LoadPanelPosition()
+        {
+            if (Panel == null) return;
+            var view = UIView.GetAView();
+
+            Panel.absolutePosition = SavedPanelPosition.x >= 0f
+                ? SavedPanelPosition
+                : new Vector3(Mathf.Floor((view.fixedWidth - Panel.width) / 2), Mathf.Floor((view.fixedHeight - Panel.height) / 2));
+
+            // Ensure panel is fully visible on screen (in case of e.g. UI scaling changes).
+            float clampedXpos = Mathf.Clamp(Panel.absolutePosition.x, 0f, view.fixedWidth - Panel.width);
+            float clampedYpos = Mathf.Clamp(Panel.absolutePosition.y, 0f, view.fixedHeight - Panel.height);
+            Panel.absolutePosition = new Vector2(clampedXpos, clampedYpos);
         }
 
         private void UpdateListEvent(uint index)

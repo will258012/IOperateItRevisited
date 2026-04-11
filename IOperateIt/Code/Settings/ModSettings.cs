@@ -2,6 +2,7 @@
 using AlgernonCommons.Keybinding;
 using AlgernonCommons.XML;
 using ColossalFramework.IO;
+using IOperateIt.UI;
 using System.IO;
 using System.Xml.Serialization;
 using UnityEngine;
@@ -48,7 +49,8 @@ namespace IOperateIt.Settings
             KeyLightToggle = new KeyOnlyBinding(KeyCode.H);
             KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
             KeyUnstuck = new KeyOnlyBinding(KeyCode.R);
-            MainButtonPos = new Vector3(0f, 0f);
+            MainPanel.SavedButtonPosition = MainPanel.DefaultPosition;
+            MainPanel.SavedPanelPosition = MainPanel.DefaultPosition;
         }
         [XmlElement("UndergroundRendering")]
         public bool XMLUndergroundRendering { get => UndergroundRendering; set => UndergroundRendering = value; }
@@ -159,8 +161,9 @@ namespace IOperateIt.Settings
         internal static KeyOnlyBinding KeyUnstuck = new KeyOnlyBinding(KeyCode.R);
 
         [XmlElement("MainButtonPos")]
-        public Vector2 XMLMainButtonPos { get => MainButtonPos; set => MainButtonPos = value; }
-        [XmlIgnore]
-        internal static Vector2 MainButtonPos = new Vector2(0f, 0f);
+        public Vector2 XMLMainButtonPos { get => MainPanel.SavedButtonPosition; set => MainPanel.SavedButtonPosition = value; }
+
+        [XmlElement("MainPanelPos")]
+        public Vector3 XMLMainPanelPos { get => MainPanel.SavedPanelPosition; set => MainPanel.SavedPanelPosition = value; }
     }
 }
