@@ -67,6 +67,8 @@ namespace IOperateIt.Utils
                 Logging.LogException(e, "Failed to register UUI button");
             }
         }
+        internal static void UpdateTooltip() => UUIButton?.tooltip = $"{Translations.Translate("MAINPANELBTN_TOOLTIP")} ({UUIKey?.ToString()})";
+
         internal class UnsavedInputKey : UnifiedUI.Helpers.UnsavedInputKey
         {
             public UnsavedInputKey(string keyName, Keybinding inputKey) : base(keyName, "IOperateIt", inputKey.Encode()) { }
@@ -75,10 +77,31 @@ namespace IOperateIt.Utils
             /// </summary>
             public Keybinding Keybinding
             {
-                get => new Keybinding(Key, Control, Shift, Alt);
+                get => new(Key, Control, Shift, Alt);
                 set => this.value = value.Encode();
             }
             public override void OnConflictResolved() => ModSettings.Save();
+
+            public override string ToString()
+            {
+                string text = string.Empty;
+                if (Control)
+                {
+                    text += "Ctrl+";
+                }
+
+                if (Alt)
+                {
+                    text += "Alt+";
+                }
+
+                if (Shift)
+                {
+                    text += "Shift+";
+                }
+
+                return text + Key;
+            }
         }
 
         internal class UUIKeymapping : OptionsKeymapping
@@ -97,6 +120,7 @@ namespace IOperateIt.Utils
                 newKeymapping.Label = Translations.Translate("SETTINGS_KEYUUITOGGLE");
                 newKeymapping.Binding = UUIKey.Keybinding;
                 newKeymapping.Panel.relativePosition = new Vector2(xPos, yPos);
+                UpdateTooltip();
 
                 return newKeymapping;
             }
@@ -110,6 +134,7 @@ namespace IOperateIt.Utils
                 {
                     UUIKey.value = value;
                     ButtonLabel = SavedInputKey.ToLocalizedString("KEYNAME", KeySetting);
+                    UpdateTooltip();
                 }
             }
         }
