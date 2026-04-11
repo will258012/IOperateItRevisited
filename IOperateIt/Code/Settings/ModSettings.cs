@@ -28,23 +28,23 @@ namespace IOperateIt.Settings
 
             UndergroundRendering = true;
 
-            MaxVelocity = 125f;
-            EnginePower = 225f;
-            BrakingForce = 30f;
+            MaxVelocity = 250f;
+            EnginePower = 350f;
+            BrakingForce = 50f;
             BrakingABS = true;
-            DownForce = 5.0f;
-            DriveBias = 0.5f;
-            BrakeBias = 0.7f;
-            GripCoeffS = 1.0f;
-            GripCoeffK = 0.8f;
-            SpringDamp = 6.0f;
+            DownForce = 10f;
+            DriveBias = 0.6f;
+            BrakeBias = 0.4f;
+            GripCoeffS = 1.1f;
+            GripCoeffK = 0.85f;
+            SpringDamp = 2.0f;
             SpringOffset = -0.1f;
             MassFactor = 85.0f;
-            MassCenterHeight = 0.1f;
-            MassCenterBias = 0.6f;
+            MassCenterHeight = 0.05f;
+            MassCenterBias = 0.5f;
             Offset = new Vector3(0f, 2f, -5f);
             BuildingCollision = true;
-            VehicleCollision = true;
+            VehicleCollision = false;
             Utils.UUISupport.UUIKey.Keybinding = new Keybinding(KeyCode.D, false, true, false);
             KeyLightToggle = new KeyOnlyBinding(KeyCode.H);
             KeySirenToggle = new KeyOnlyBinding(KeyCode.G);
@@ -60,17 +60,17 @@ namespace IOperateIt.Settings
         [XmlElement("MaxVelocity")]
         public float XMLMaxVelocity { get => MaxVelocity; set => MaxVelocity = value; }
         [XmlIgnore]
-        internal static float MaxVelocity = 125f;
+        internal static float MaxVelocity = 250f;
 
         [XmlElement("EnginePower")]
         public float XMLEnginePower { get => EnginePower; set => EnginePower = value; }
         [XmlIgnore]
-        internal static float EnginePower = 225f;
+        internal static float EnginePower = 350f;
 
         [XmlElement("BrakingForce")]
         public float XMLBrakingForce { get => BrakingForce; set => BrakingForce = value; }
         [XmlIgnore]
-        internal static float BrakingForce = 30f;
+        internal static float BrakingForce = 50f;
 
         [XmlElement("BrakingABS")]
         public bool XMLBrakingABS { get => BrakingABS; set => BrakingABS = value; }
@@ -80,32 +80,32 @@ namespace IOperateIt.Settings
         [XmlElement("DownForce")]
         public float XMLDownForce { get => DownForce; set => DownForce = value; }
         [XmlIgnore]
-        internal static float DownForce = 5.0f;
+        internal static float DownForce = 10f;
 
         [XmlElement("DriveBias")]
         public float XMLDriveBias { get => DriveBias; set => DriveBias = value; }
         [XmlIgnore]
-        internal static float DriveBias = 0.5f;
+        internal static float DriveBias = 0.6f;
 
         [XmlElement("BrakeBias")]
         public float XMLBrakeBias { get => BrakeBias; set => BrakeBias = value; }
         [XmlIgnore]
-        internal static float BrakeBias = 0.7f;
+        internal static float BrakeBias = 0.4f;
 
         [XmlElement("GripCoeffS")]
         public float XMLGripCoeffS { get => GripCoeffS; set => GripCoeffS = value; }
         [XmlIgnore]
-        internal static float GripCoeffS = 1.0f;
+        internal static float GripCoeffS = 1.1f;
 
         [XmlElement("GripCoeffK")]
         public float XMLGripCoeffK { get => GripCoeffK; set => GripCoeffK = value; }
         [XmlIgnore]
-        internal static float GripCoeffK = 0.8f;
+        internal static float GripCoeffK = 0.85f;
 
         [XmlElement("SpringDamp")]
         public float XMLSpringDamp { get => SpringDamp; set => SpringDamp = value; }
         [XmlIgnore]
-        internal static float SpringDamp = 6.0f;
+        internal static float SpringDamp = 2.0f;
 
         [XmlElement("SpringOffset")]
         public float XMLSpringOffset { get => SpringOffset; set => SpringOffset = value; }
@@ -120,12 +120,12 @@ namespace IOperateIt.Settings
         [XmlElement("MassCenterHeight")]
         public float XMLMassCenterHeight { get => MassCenterHeight; set => MassCenterHeight = value; }
         [XmlIgnore]
-        internal static float MassCenterHeight = 0.1f;
+        internal static float MassCenterHeight = 0.05f;
 
         [XmlElement("MassCenterBias")]
         public float XMLMassCenterBias { get => MassCenterBias; set => MassCenterBias = value; }
         [XmlIgnore]
-        internal static float MassCenterBias = 0.6f;
+        internal static float MassCenterBias = 0.5f;
 
         [XmlElement("Offset")]
         public Vector3 XMLOffset { get => Offset; set => Offset = value; }
@@ -140,7 +140,7 @@ namespace IOperateIt.Settings
         [XmlElement("VehicleCollision")]
         public bool XMLVehicleCollision { get => VehicleCollision; set => VehicleCollision = value; }
         [XmlIgnore]
-        internal static bool VehicleCollision = true;
+        internal static bool VehicleCollision = false;
 
         [XmlElement("KeyUUIToggle")]
         public Keybinding XMLKeyUUIToggle { get => Utils.UUISupport.UUIKey.Keybinding; set => Utils.UUISupport.UUIKey.Keybinding = value; }
