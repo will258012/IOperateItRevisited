@@ -58,6 +58,7 @@ namespace IOperateIt
 
             cachedRenderMask = mainCamera.cullingMask;
             targetRigidBody = rigidBody;
+            targetFoV = FPCModSettings.Instance.XMLCamFieldOfView;
             rotation = mainCamera.transform.rotation;
             rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam enabled");
