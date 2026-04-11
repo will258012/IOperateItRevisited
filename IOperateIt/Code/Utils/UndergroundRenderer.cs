@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace IOperateIt.Utils
 {
-    public class UndergroundRender
+    public class UndergroundRenderer
     {
         private struct NetInfoBackup(NetInfo.Node[] nodes, NetInfo.Segment[] segments)
         {
@@ -23,24 +23,41 @@ namespace IOperateIt.Utils
         };
         private readonly Dictionary<NetInfo, NetInfoBackup> backupPrefabData = [];
         private Material backupUndergroundMaterial = null;
+        private Material roadRenderMaterial = null;
+
+        public UndergroundRenderer()
+        {
+            roadRenderMaterial = RenderManager.instance.m_groupLayerMaterials[MapUtils.LAYER_ROAD];
+        }
         public void OverridePrefabs()
         {
             // override the underground material for all vehicles.
             for (uint prefabIndex = 0; prefabIndex < PrefabCollection<VehicleInfo>.PrefabCount(); prefabIndex++)
             {
-                VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(prefabIndex);
+                var prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(prefabIndex);
                 if (prefabVehicleInfo == null) continue;
                 prefabVehicleInfo.m_undergroundMaterial = prefabVehicleInfo.m_material;
                 prefabVehicleInfo.m_undergroundLodMaterial = prefabVehicleInfo.m_lodMaterialCombined;
-                foreach (VehicleInfo.MeshInfo submesh in prefabVehicleInfo.m_subMeshes)
+                foreach (var submesh in prefabVehicleInfo.m_subMeshes)
                 {
                     if (submesh.m_subInfo)
                     {
-                        VehicleInfoSub subVehicleInfo = (VehicleInfoSub)submesh.m_subInfo;
+                        var subVehicleInfo = submesh.m_subInfo as VehicleInfoSub;
                         subVehicleInfo.m_undergroundMaterial = subVehicleInfo.m_material;
                         subVehicleInfo.m_undergroundLodMaterial = subVehicleInfo.m_lodMaterialCombined;
                     }
                 }
+            }
+
+            // override the underground material for all pedestrians.
+            Singleton<CitizenManager>.instance.m_properties.m_undergroundShader = Shader.Find("Custom/Citizens/Citizen/Default");
+            for (uint prefabIndex = 0; prefabIndex < PrefabCollection<CitizenInfo>.PrefabCount(); prefabIndex++)
+            {
+                var prefabCitizenInfo = PrefabCollection<CitizenInfo>.GetPrefab(prefabIndex);
+                if (prefabCitizenInfo == null) continue;
+                prefabCitizenInfo.m_undergroundLodMaterial = prefabCitizenInfo.m_lodMaterialCombined;
+                prefabCitizenInfo.m_instancePool?.m_buffer?.Clear();
+                prefabCitizenInfo.m_instancePool?.m_freeInstances?.Clear();
             }
 
             int prefabCount = PrefabCollection<NetInfo>.PrefabCount();
@@ -48,123 +65,121 @@ namespace IOperateIt.Utils
             // only modify prefabs with MetroTunnels item layer or underground render layer.
             for (uint prefabIndex = 0; prefabIndex < prefabCount; prefabIndex++)
             {
-                NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
+                var prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
                 if (prefabNetInfo == null) continue;
-                NetInfo prefabReplaceInfo = prefabNetInfo;
-                bool bHasUnderground = false;
-                bool bForceUnderground = false;
+                var prefabReplaceInfo = prefabNetInfo;
+                bool bHasUndergroundLayer = false;
+                bool bHasUndergroundVisibleNode = false;
+                bool bOnlyUndergroundXray = true;
+                bool bReplaceFound = false;
 
                 for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
                 {
-                    bHasUnderground |= prefabReplaceInfo.m_segments[index].m_layer == MapUtils.LAYER_UNDERGROUND;
+                    bool bUndergroundLayer = prefabReplaceInfo.m_segments[index].m_layer == MapUtils.LAYER_UNDERGROUND;
+                    bool bXray = prefabReplaceInfo.m_segments[index].m_material?.shader?.name == "Custom/Net/Metro";
+                    bHasUndergroundLayer |= bUndergroundLayer;
+                    bOnlyUndergroundXray &= bUndergroundLayer && bXray;
                 }
 
                 for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
                 {
-                    bHasUnderground |= prefabReplaceInfo.m_nodes[index].m_layer == MapUtils.LAYER_UNDERGROUND;
+                    bool bUndergroundLayer = prefabReplaceInfo.m_nodes[index].m_layer == MapUtils.LAYER_UNDERGROUND;
+                    bool bXray = prefabReplaceInfo.m_nodes[index].m_material?.shader?.name == "Custom/Net/Metro";
+                    bHasUndergroundLayer |= bUndergroundLayer;
+                    bOnlyUndergroundXray &= bUndergroundLayer && bXray;
+                    bHasUndergroundVisibleNode |=
+                        (!EnumExtensions.IsFlagSet(NetNode.Flags.Underground, prefabReplaceInfo.m_nodes[index].m_flagsForbidden) ||
+                        EnumExtensions.IsFlagSet(NetNode.Flags.Underground, prefabReplaceInfo.m_nodes[index].m_flagsRequired))
+                        && !prefabReplaceInfo.m_nodes[index].m_emptyTransparent
+                        && !bXray;
                 }
 
-                if (prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels)
+                if (bOnlyUndergroundXray && prefabNetInfo.m_class.m_layer == ItemClass.Layer.MetroTunnels)
                 {
-                    bool bCanReplace = true;
+                    string replaceName = "";
 
-                    foreach (NetInfo.Segment s in prefabNetInfo.m_segments)
+                    // get underground to elvated mapping.
+                    if (!customUndergroundMappings.TryGetValue(prefabNetInfo.name, out replaceName))
                     {
-                        if (s.m_material && (!s.m_material.shader || s.m_material.shader.name != "Custom/Net/Metro"))
-                        {
-                            bCanReplace = false;
-                        }
+                        replaceName = prefabNetInfo.name.Replace(" Tunnel", " Elevated");
                     }
 
-                    // replace the prefab with elevated variant if no visible meshes are found.
-                    if (bCanReplace)
+                    // find the elevated counterpart prefab to be used as a reference.
+                    for (uint otherPrefabIndex = 0; otherPrefabIndex < prefabCount; otherPrefabIndex++)
                     {
-                        string replaceName = "";
-
-                        // get underground to elvated mapping.
-                        if (!customUndergroundMappings.TryGetValue(prefabNetInfo.name, out replaceName))
+                        var tmpInfo = PrefabCollection<NetInfo>.GetPrefab(otherPrefabIndex);
+                        if (tmpInfo != null && tmpInfo.m_class?.m_layer == ItemClass.Layer.Default && tmpInfo.name == replaceName)
                         {
-                            replaceName = prefabNetInfo.name.Replace(" Tunnel", " Elevated");
-                        }
-
-                        // find the elevated counterpart prefab to be used as a reference.
-                        for (uint otherPrefabIndex = 0; otherPrefabIndex < prefabCount; otherPrefabIndex++)
-                        {
-                            NetInfo tmpInfo = PrefabCollection<NetInfo>.GetPrefab(otherPrefabIndex);
-                            if (tmpInfo.m_class.m_layer == ItemClass.Layer.Default && tmpInfo.name == replaceName)
-                            {
-                                prefabReplaceInfo = tmpInfo;
-                                bForceUnderground = true;
-                                break;
-                            }
+                            prefabReplaceInfo = tmpInfo;
+                            bReplaceFound = true;
+                            break;
                         }
                     }
                 }
 
-
-                if (bHasUnderground)
+                if (bHasUndergroundLayer)
                 {
                     backupPrefabData[prefabNetInfo] = new NetInfoBackup(prefabNetInfo.m_nodes, prefabNetInfo.m_segments);
-                    NetInfo.Segment[] segments = new NetInfo.Segment[prefabReplaceInfo.m_segments.Length];
-                    NetInfo.Node[] nodes = new NetInfo.Node[prefabReplaceInfo.m_nodes.Length];
 
-                    for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
                     {
-                        NetInfo.Segment newSegment = CopySegment(prefabReplaceInfo.m_segments[index]);
-
-                        if (newSegment.m_layer == MapUtils.LAYER_UNDERGROUND)
+                        var segments = new NetInfo.Segment[prefabReplaceInfo.m_segments.Length];
+                        for (int index = 0; index < prefabReplaceInfo.m_segments.Length; index++)
                         {
-                            // disable segment underground xray component from rendering.
-                            if (newSegment.m_material && newSegment.m_material.shader && newSegment.m_material.shader.name == "Custom/Net/Metro")
+                            var newSegment = CopySegment(prefabReplaceInfo.m_segments[index]);
+                            if (newSegment.m_layer == MapUtils.LAYER_UNDERGROUND)
                             {
-                                newSegment.m_forwardForbidden = NetSegment.Flags.All;
-                                newSegment.m_forwardRequired = NetSegment.Flags.None;
-                                newSegment.m_backwardForbidden = NetSegment.Flags.All;
-                                newSegment.m_backwardRequired = NetSegment.Flags.None;
+                                // disable segment underground xray component from rendering.
+                                if (newSegment.m_material?.shader?.name == "Custom/Net/Metro")
+                                {
+                                    newSegment.m_forwardForbidden = NetSegment.Flags.All;
+                                    newSegment.m_forwardRequired = NetSegment.Flags.None;
+                                    newSegment.m_backwardForbidden = NetSegment.Flags.All;
+                                    newSegment.m_backwardRequired = NetSegment.Flags.None;
+                                }
                             }
+                            // apply underground layer if the segment is being replaced from an overground component.
+                            else if (bReplaceFound)
+                            {
+                                newSegment.m_layer = MapUtils.LAYER_UNDERGROUND;
+                            }
+                            segments[index] = newSegment;
                         }
-                        // apply underground layer if the segment is being replaced from an overground component.
-                        else if (bForceUnderground)
-                        {
-                            newSegment.m_layer = MapUtils.LAYER_UNDERGROUND;
-                        }
-
-                        segments[index] = newSegment;
+                        prefabNetInfo.m_segments = segments;
                     }
 
-                    for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
                     {
-                        NetInfo.Node newNode = CopyNode(prefabReplaceInfo.m_nodes[index]);
-
-                        if (newNode.m_layer == MapUtils.LAYER_UNDERGROUND)
+                        var nodes = new NetInfo.Node[prefabReplaceInfo.m_nodes.Length];
+                        for (int index = 0; index < prefabReplaceInfo.m_nodes.Length; index++)
                         {
-                            // disable node underground xray component from rendering.
-                            if (newNode.m_material && newNode.m_material.shader && newNode.m_material.shader.name == "Custom/Net/Metro")
+                            var newNode = CopyNode(prefabReplaceInfo.m_nodes[index]);
+                            if (newNode.m_layer == MapUtils.LAYER_UNDERGROUND)
                             {
-                                newNode.m_flagsForbidden = NetNode.Flags.All;
-                                newNode.m_flagsRequired = NetNode.Flags.None;
+                                // disable node underground xray component from rendering.
+                                if (newNode.m_material?.shader?.name == "Custom/Net/Metro")
+                                {
+                                    newNode.m_flagsForbidden = NetNode.Flags.All;
+                                    newNode.m_flagsRequired = NetNode.Flags.None;
+                                }
                             }
+                            // apply underground layer if the node is being replaced from an overground component.
+                            else if (bReplaceFound)
+                            {
+                                newNode.m_layer = MapUtils.LAYER_UNDERGROUND;
+                            }
+                            else if (!bHasUndergroundVisibleNode)
+                            {
+                                newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
+                            }
+                            nodes[index] = newNode;
                         }
-                        // apply underground layer if the node is being replaced from an overground component.
-                        else if (bForceUnderground)
-                        {
-                            newNode.m_layer = MapUtils.LAYER_UNDERGROUND;
-                        }
-
-                        newNode.m_flagsForbidden = newNode.m_flagsForbidden & ~NetNode.Flags.Underground;
-
-                        nodes[index] = newNode;
+                        prefabNetInfo.m_nodes = nodes;
                     }
-
-                    prefabNetInfo.m_segments = segments;
-                    prefabNetInfo.m_nodes = nodes;
                 }
             }
 
             // replace the distant LOD material for underground and update LOD render groups.
-            RenderManager rm = Singleton<RenderManager>.instance;
-            backupUndergroundMaterial = rm.m_groupLayerMaterials[MapUtils.LAYER_UNDERGROUND];
-            rm.m_groupLayerMaterials[MapUtils.LAYER_UNDERGROUND] = rm.m_groupLayerMaterials[MapUtils.LAYER_ROAD];
+            var rm = RenderManager.instance;
+            rm.m_groupLayerMaterials[MapUtils.LAYER_UNDERGROUND] = roadRenderMaterial;
             rm.UpdateGroups(MapUtils.LAYER_UNDERGROUND);
         }
 
@@ -173,31 +188,42 @@ namespace IOperateIt.Utils
             // delete all underground vehicle materials. Cities will auto generate new ones.
             for (uint iter = 0; iter < PrefabCollection<VehicleInfo>.PrefabCount(); iter++)
             {
-                VehicleInfo prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(iter);
+                var prefabVehicleInfo = PrefabCollection<VehicleInfo>.GetPrefab(iter);
                 if (prefabVehicleInfo == null) continue;
                 prefabVehicleInfo.m_undergroundMaterial = null;
                 prefabVehicleInfo.m_undergroundLodMaterial = null;
-                foreach (VehicleInfo.MeshInfo submesh in prefabVehicleInfo.m_subMeshes)
+                foreach (var submesh in prefabVehicleInfo.m_subMeshes)
                 {
                     if (submesh.m_subInfo)
                     {
-                        VehicleInfoSub subVehicleInfo = (VehicleInfoSub)submesh.m_subInfo;
+                        var subVehicleInfo = (VehicleInfoSub)submesh.m_subInfo;
                         subVehicleInfo.m_undergroundMaterial = null;
                         subVehicleInfo.m_undergroundLodMaterial = null;
                     }
                 }
             }
 
+            // restore the underground material for all pedestrians. Cities will auto generate new ones.
+            Singleton<CitizenManager>.instance.m_properties.m_undergroundShader = Shader.Find("Custom/Citizens/Citizen/Underground");
+            for (uint prefabIndex = 0; prefabIndex < PrefabCollection<CitizenInfo>.PrefabCount(); prefabIndex++)
+            {
+                var prefabCitizenInfo = PrefabCollection<CitizenInfo>.GetPrefab(prefabIndex);
+                if (prefabCitizenInfo == null) continue;
+                prefabCitizenInfo.m_undergroundLodMaterial = null;
+                prefabCitizenInfo.m_instancePool?.m_buffer?.Clear();
+                prefabCitizenInfo.m_instancePool?.m_freeInstances?.Clear();
+            }
+
             // restore road prefab segment and node data to before driving.
             int prefabCount = PrefabCollection<NetInfo>.PrefabCount();
             for (uint prefabIndex = 0; prefabIndex < prefabCount; prefabIndex++)
             {
-                NetInfo prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
+                var prefabNetInfo = PrefabCollection<NetInfo>.GetPrefab(prefabIndex);
                 if (prefabNetInfo == null) continue;
 
                 if (backupPrefabData.ContainsKey(prefabNetInfo))
                 {
-                    if (backupPrefabData.TryGetValue(prefabNetInfo, out NetInfoBackup backupData))
+                    if (backupPrefabData.TryGetValue(prefabNetInfo, out var backupData))
                     {
                         prefabNetInfo.m_segments = backupData.segments;
                         prefabNetInfo.m_nodes = backupData.nodes;
@@ -210,90 +236,69 @@ namespace IOperateIt.Utils
             backupPrefabData.Clear();
 
             // restore the distant LOD material for underground and update LOD render groups.
-            RenderManager rm = RenderManager.instance;
+            var rm = Singleton<RenderManager>.instance;
             rm.m_groupLayerMaterials[MapUtils.LAYER_UNDERGROUND] = backupUndergroundMaterial;
-            backupUndergroundMaterial = null;
             rm.UpdateGroups(MapUtils.LAYER_UNDERGROUND);
         }
-        private static NetInfo.Node CopyNode(NetInfo.Node node)
-        {
-            NetInfo.Node retval = new NetInfo.Node();
-            retval.m_mesh = node.m_mesh;
-            retval.m_lodMesh = node.m_lodMesh;
-            retval.m_material = node.m_material;
-            retval.m_lodMaterial = node.m_lodMaterial;
-            retval.m_flagsRequired = node.m_flagsRequired;
-            retval.m_flagsRequired2 = node.m_flagsRequired2;
-            retval.m_flagsForbidden = node.m_flagsForbidden;
-            retval.m_flagsForbidden2 = node.m_flagsForbidden2;
-            retval.m_connectGroup = node.m_connectGroup;
-            retval.m_directConnect = node.m_directConnect;
-            retval.m_emptyTransparent = node.m_emptyTransparent;
-            retval.m_tagsRequired = node.m_tagsRequired;
-            retval.m_nodeTagsRequired = node.m_nodeTagsRequired;
-            retval.m_tagsForbidden = node.m_tagsForbidden;
-            retval.m_nodeTagsForbidden = node.m_nodeTagsForbidden;
-            retval.m_forbidAnyTags = node.m_forbidAnyTags;
-            retval.m_minSameTags = node.m_minSameTags;
-            retval.m_maxSameTags = node.m_maxSameTags;
-            retval.m_minOtherTags = node.m_minOtherTags;
-            retval.m_maxOtherTags = node.m_maxOtherTags;
-            retval.m_nodeMesh = node.m_nodeMesh;
-            retval.m_nodeMaterial = node.m_nodeMaterial;
-            retval.m_combinedLod = node.m_combinedLod;
-            retval.m_lodRenderDistance = node.m_lodRenderDistance;
-            retval.m_requireSurfaceMaps = node.m_requireSurfaceMaps;
-            retval.m_requireWindSpeed = node.m_requireWindSpeed;
-            retval.m_preserveUVs = node.m_preserveUVs;
-            retval.m_generateTangents = node.m_generateTangents;
-            retval.m_layer = node.m_layer;
 
-            return retval;
-        }
+        private static NetInfo.Node CopyNode(NetInfo.Node node) =>
+            new()
+            {
+                m_mesh = node.m_mesh,
+                m_lodMesh = node.m_lodMesh,
+                m_material = node.m_material,
+                m_lodMaterial = node.m_lodMaterial,
+                m_flagsRequired = node.m_flagsRequired,
+                m_flagsRequired2 = node.m_flagsRequired2,
+                m_flagsForbidden = node.m_flagsForbidden,
+                m_flagsForbidden2 = node.m_flagsForbidden2,
+                m_connectGroup = node.m_connectGroup,
+                m_directConnect = node.m_directConnect,
+                m_emptyTransparent = node.m_emptyTransparent,
+                m_tagsRequired = node.m_tagsRequired,
+                m_nodeTagsRequired = node.m_nodeTagsRequired,
+                m_tagsForbidden = node.m_tagsForbidden,
+                m_nodeTagsForbidden = node.m_nodeTagsForbidden,
+                m_forbidAnyTags = node.m_forbidAnyTags,
+                m_minSameTags = node.m_minSameTags,
+                m_maxSameTags = node.m_maxSameTags,
+                m_minOtherTags = node.m_minOtherTags,
+                m_maxOtherTags = node.m_maxOtherTags,
+                m_nodeMesh = node.m_nodeMesh,
+                m_nodeMaterial = node.m_nodeMaterial,
+                m_combinedLod = node.m_combinedLod,
+                m_lodRenderDistance = node.m_lodRenderDistance,
+                m_requireSurfaceMaps = node.m_requireSurfaceMaps,
+                m_requireWindSpeed = node.m_requireWindSpeed,
+                m_preserveUVs = node.m_preserveUVs,
+                m_generateTangents = node.m_generateTangents,
+                m_layer = node.m_layer
+            };
 
-        private static NetInfo.Segment CopySegment(NetInfo.Segment segment)
-        {
-
-            NetInfo.Segment retval = new NetInfo.Segment();
-            retval.m_mesh = segment.m_mesh;
-            retval.m_lodMesh = segment.m_lodMesh;
-            retval.m_material = segment.m_material;
-            retval.m_lodMaterial = segment.m_lodMaterial;
-            retval.m_forwardRequired = segment.m_forwardRequired;
-            retval.m_forwardForbidden = segment.m_forwardForbidden;
-            retval.m_backwardRequired = segment.m_backwardRequired;
-            retval.m_backwardForbidden = segment.m_backwardForbidden;
-            retval.m_emptyTransparent = segment.m_emptyTransparent;
-            retval.m_disableBendNodes = segment.m_disableBendNodes;
-            retval.m_segmentMesh = segment.m_segmentMesh;
-            retval.m_segmentMaterial = segment.m_segmentMaterial;
-            retval.m_combinedLod = segment.m_combinedLod;
-            retval.m_lodRenderDistance = segment.m_lodRenderDistance;
-            retval.m_requireSurfaceMaps = segment.m_requireSurfaceMaps;
-            retval.m_requireHeightMap = segment.m_requireHeightMap;
-            retval.m_requireWindSpeed = segment.m_requireWindSpeed;
-            retval.m_preserveUVs = segment.m_preserveUVs;
-            retval.m_generateTangents = segment.m_generateTangents;
-            retval.m_layer = segment.m_layer;
-
-            return retval;
-        }
-        /*      there are problems with replacing LodValue. It needs to be registered with NodeManager and/or RenderManager or there will be null reference errors.
-                private static NetInfo.LodValue CopyLodValue(NetInfo.LodValue value)
-                {
-                    NetInfo.LodValue retval = new NetInfo.LodValue();
-                    retval.m_key = value.m_key;
-                    retval.m_material = value.m_material;
-                    retval.m_lodMin = value.m_lodMin;
-                    retval.m_lodMax = value.m_lodMax;
-                    retval.m_surfaceTexA = value.m_surfaceTexA;
-                    retval.m_surfaceTexB = value.m_surfaceTexB;
-                    retval.m_surfaceMapping = value.m_surfaceMapping;
-                    retval.m_heightMap = value.m_heightMap;
-                    retval.m_heightMapping = value.m_heightMapping;
-
-                    return retval;
-                }*/
+        private static NetInfo.Segment CopySegment(NetInfo.Segment segment) =>
+            new()
+            {
+                m_mesh = segment.m_mesh,
+                m_lodMesh = segment.m_lodMesh,
+                m_material = segment.m_material,
+                m_lodMaterial = segment.m_lodMaterial,
+                m_forwardRequired = segment.m_forwardRequired,
+                m_forwardForbidden = segment.m_forwardForbidden,
+                m_backwardRequired = segment.m_backwardRequired,
+                m_backwardForbidden = segment.m_backwardForbidden,
+                m_emptyTransparent = segment.m_emptyTransparent,
+                m_disableBendNodes = segment.m_disableBendNodes,
+                m_segmentMesh = segment.m_segmentMesh,
+                m_segmentMaterial = segment.m_segmentMaterial,
+                m_combinedLod = segment.m_combinedLod,
+                m_lodRenderDistance = segment.m_lodRenderDistance,
+                m_requireSurfaceMaps = segment.m_requireSurfaceMaps,
+                m_requireHeightMap = segment.m_requireHeightMap,
+                m_requireWindSpeed = segment.m_requireWindSpeed,
+                m_preserveUVs = segment.m_preserveUVs,
+                m_generateTangents = segment.m_generateTangents,
+                m_layer = segment.m_layer
+            };
     }
 }
 
