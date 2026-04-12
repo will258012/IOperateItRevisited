@@ -55,7 +55,7 @@ namespace IOperateIt
 
         private List<Wheel> wheelObjects = [];
         private readonly CollidersManager collidersManager = new();
-        private readonly Managers.EffectManager effectManager = new ();
+        private readonly Managers.EffectManager effectManager = new();
         private Vector3 prevPosition;
         private Vector3 prevVelocity;
         private Vector3 tangent;
@@ -192,7 +192,7 @@ namespace IOperateIt
             LimitVelocity();
 
             ColliderContainer container = collision.collider.gameObject.GetComponent<ColliderContainer>();
-            if (container.Type == ColliderContainer.ContainerType.TYPE_VEHICLE)
+            if (container.Type == ColliderContainer.ContainerTypes.Vehicle)
             {
                 ref Vehicle otherVehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[container.ID];
 
@@ -237,8 +237,8 @@ namespace IOperateIt
         {
             vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
-            float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var roadFound);
-            effectManager.IsDusty = !roadFound;
+            float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var type);
+            effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
             bool onGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
 
             CalculateSlope(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, height, onGround);
@@ -322,8 +322,8 @@ namespace IOperateIt
             {
                 Vector3 wheelPos = w.gameObject.transform.position;
                 w.heightSample = wheelPos;
-                w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight, out var roadFound);
-                effectManager.IsDusty = !roadFound;
+                w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight, out var type);
+                effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
 
                 if (wheelPos.y + ROAD_WALL_HEIGHT < w.heightSample.y)
                 {
