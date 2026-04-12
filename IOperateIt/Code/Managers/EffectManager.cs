@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace IOperateIt;
+namespace IOperateIt.Managers;
 
 public class EffectManager
 {

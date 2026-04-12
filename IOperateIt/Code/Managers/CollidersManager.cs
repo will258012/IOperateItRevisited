@@ -6,20 +6,20 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace IOperateIt
+namespace IOperateIt.Managers
 {
     public class ColliderContainer : MonoBehaviour
     {
-        public enum ContainerType
+        public enum ContainerTypes
         {
-            TYPE_DEFAULT = 0,
-            TYPE_VEHICLE,
+            Default = 0,
+            Vehicle,
         }
 
         public MeshCollider MeshCollider;
         public BoxCollider BoxCollider;
         public Rigidbody Rigidbody;
-        public ContainerType Type = ContainerType.TYPE_DEFAULT;
+        public ContainerTypes Type = ContainerTypes.Default;
         public int ID = 0;
     }
     public class CollidersManager
@@ -60,7 +60,7 @@ namespace IOperateIt
             vehicleColliders = new ColliderContainer[NUM_VEHICLE_COLLIDERS];
             parkedVehicleColliders = new ColliderContainer[NUM_PARKED_VEHICLE_COLLIDERS];
 
-            vehicleToColliderMap = new Dictionary<ushort, MapElem>();
+            vehicleToColliderMap = [];
             vehicleQueue = new Queue<ushort>();
 
             PhysicMaterial material = new PhysicMaterial();
@@ -91,7 +91,7 @@ namespace IOperateIt
                 vehicleCollider.Rigidbody = gameObject.AddComponent<Rigidbody>();
                 vehicleCollider.Rigidbody.isKinematic = true;
                 vehicleCollider.Rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
-                vehicleCollider.Type = ColliderContainer.ContainerType.TYPE_VEHICLE;
+                vehicleCollider.Type = ColliderContainer.ContainerTypes.Vehicle;
                 vehicleColliders[i] = vehicleCollider;
                 gameObject.SetActive(false);
             }

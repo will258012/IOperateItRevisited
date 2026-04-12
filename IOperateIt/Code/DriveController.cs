@@ -1,5 +1,6 @@
 ﻿extern alias FPC;
 using ColossalFramework;
+using IOperateIt.Managers;
 using IOperateIt.Settings;
 using IOperateIt.UI;
 using IOperateIt.Utils;
@@ -53,8 +54,8 @@ namespace IOperateIt
         private VehicleInfo vehicleInfo;
 
         private List<Wheel> wheelObjects = [];
-        private CollidersManager collidersManager = new();
-        private EffectManager effectManager = new EffectManager();
+        private readonly CollidersManager collidersManager = new();
+        private readonly Managers.EffectManager effectManager = new ();
         private Vector3 prevPosition;
         private Vector3 prevVelocity;
         private Vector3 tangent;
