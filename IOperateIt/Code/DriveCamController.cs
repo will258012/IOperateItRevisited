@@ -103,13 +103,6 @@ namespace IOperateIt
 
                 var targetRotation = Quaternion.identity;
                 targetRotation.SetLookRotation(vehicleDir);
-
-                var eulerTmp = rotationOffset.eulerAngles;
-                eulerTmp.y = 0f;
-                eulerTmp.z = 0f;
-
-                rotationOffset = Quaternion.Euler(eulerTmp);
-
                 targetRotation *= rotationOffset;
 
                 rotation = targetRotation;
@@ -119,8 +112,17 @@ namespace IOperateIt
                 rotation = rotationOffset;
             }
 
+            bool isFPS = ModSettings.Offset.z > -1f;
+
+            // Limit pitch
+            var eulerAngles = rotation.eulerAngles;
+            if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
+            eulerAngles.x = eulerAngles.x.Clamp(isFPS ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
+            eulerAngles.z = 0f;
+            rotation = Quaternion.Euler(eulerAngles);
+
             var vehiclePosition = targetRigidBody.position +
-                ((ModSettings.Offset.z > -1f ? targetRigidBody.rotation /*rotate with the offset position*/ :
+                ((isFPS ? targetRigidBody.rotation /*rotate with the offset position*/ :
                 rotation /*rotate with the vehicle position*/) * ModSettings.Offset);
 
             // Limit the camera's position to the allowed area.
