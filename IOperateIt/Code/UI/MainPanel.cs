@@ -148,11 +148,14 @@ namespace IOperateIt.UI
             _mainBtn.absolutePosition = new Vector3(x, y);
             _mainBtn.size = new Vector2(MainButtonSize, MainButtonSize);
             _mainBtn.scaleFactor = .8f;
-            _mainBtn.pressedBgSprite = "OptionBasePressed";
-            _mainBtn.normalBgSprite = "OptionBase";
-            _mainBtn.hoveredBgSprite = "OptionBaseHovered";
-            _mainBtn.disabledBgSprite = "OptionBaseDisabled";
-            _mainBtn.normalFgSprite = "InfoIconTrafficCongestion";
+
+            _mainBtn.atlas = DriveButtonAtlas.Atlas;
+            _mainBtn.pressedBgSprite = DriveButtonAtlas.BgPressed;
+            _mainBtn.normalBgSprite = DriveButtonAtlas.Bg;
+            _mainBtn.hoveredBgSprite = DriveButtonAtlas.BgHovered;
+            _mainBtn.disabledBgSprite = DriveButtonAtlas.BgDisabled;
+            _mainBtn.normalFgSprite = DriveButtonAtlas.Fg;
+
             _mainBtn.textColor = new Color32(255, 255, 255, 255);
             _mainBtn.disabledTextColor = new Color32(7, 7, 7, 255);
             _mainBtn.hoveredTextColor = new Color32(255, 255, 255, 255);
