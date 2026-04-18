@@ -39,7 +39,7 @@ public class DriveButtons : MonoBehaviour
         }
         catch (Exception e)
         {
-            Logging.LogException(e, "Failed to initalize drive buttons");
+            Logging.LogException(e, "Failed to Initialize drive buttons");
         }
     }
 
