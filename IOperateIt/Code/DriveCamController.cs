@@ -56,6 +56,9 @@ namespace IOperateIt
             enabled = true;
             FPC.FPSCamera.Cam.Controller.FPSCamController.Instance.FPSCam = new DriveCam();
 
+            if (FPC.FPSCamera.Cam.Controller.FPSCamController.Instance.FPSCam is not DriveCam)
+                throw new System.InvalidOperationException("Failed to enable DriveCam");
+
             cachedRenderMask = mainCamera.cullingMask;
             targetRigidBody = rigidBody;
             targetFoV = FPCModSettings.Instance.XMLCamFieldOfView;
@@ -103,7 +106,6 @@ namespace IOperateIt
 
                 var targetRotation = Quaternion.identity;
                 targetRotation.SetLookRotation(vehicleDir);
-                targetRotation *= rotationOffset;
 
                 rotation = targetRotation;
             }
