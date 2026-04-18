@@ -11,18 +11,16 @@ namespace IOperateIt
 {
     public class DriveController : MonoBehaviour
     {
-        private const float FLOAT_ERROR = 0.01f;
+        public const float FLOAT_ERROR = 0.01f;
         private const float THROTTLE_RESP = 2.0f;
         private const float STEER_RESP = 1.75f;
         private const float STEER_REST = 1.75f;
         private const float GEAR_RESP = 0.2f;
         private const float PARK_SPEED = 0.25f;
+        private const float DEPEN_VELOCITY = 2.0f;
         private const float STEER_MAX = 37.0f;
         private const float STEER_DECAY = 0.0075f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
-        private const float LIGHT_HEADLIGHT_INTENSITY = 5.0f;
-        private const float LIGHT_BRAKELIGHT_INTENSITY = 5.0f;
-        private const float LIGHT_REARLIGHT_INTENSITY = 0.5f;
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         private const float DRAG_FACTOR = 0.25f;
@@ -46,6 +44,8 @@ namespace IOperateIt
 
 
         public static DriveController Instance { get; private set; }
+        public float Brake { get; set; }
+        public Vector3 PrevVelocity { get; set; }
 
         private Rigidbody vehicleRigidBody;
         private BoxCollider vehicleCollider;
@@ -57,18 +57,15 @@ namespace IOperateIt
         private readonly CollidersManager collidersManager = new();
         private readonly Managers.EffectManager effectManager = new();
         private Vector3 prevPosition;
-        private Vector3 prevVelocity;
         private Vector3 tangent;
         private Vector3 binormal;
         private Vector3 normal;
-        private Vector4 lightState;
         private bool physicsFallback = false;
 
         private int gear = 0;
         private float terrainHeight = 0f;
         private float distanceTravelled = 0f;
         private float steer = 0f;
-        private float brake = 0f;
         private float throttle = 0f;
         private float rideHeight = 0f;
         private float roofHeight = 0f;
@@ -109,10 +106,23 @@ namespace IOperateIt
         private void Update()
         {
             HandleInputOnUpdate();
-            effectManager.PlayEffects(prevVelocity);
+            UpdateMaterialBlock();
+            effectManager.PlayEffects();
+#if DEBUG
+            DebugHelper.DrawDebugBox(vehicleCollider.size, vehicleCollider.transform.TransformPoint(vehicleCollider.center), vehicleCollider.transform.rotation, Color.magenta);
+#endif
+        }
 
+        private void UpdateMaterialBlock()
+        {
             MaterialPropertyBlock materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
             materialBlock.Clear();
+
+            effectManager.UpdateLights(materialBlock);
+            if (setColor)
+            {
+                materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, vehicleColor);
+            }
             Vector4 tyrePosition = default;
             tyrePosition.x = steer * STEER_MAX / 180f * Mathf.PI;
             tyrePosition.y = distanceTravelled;
@@ -120,17 +130,9 @@ namespace IOperateIt
             tyrePosition.w = 0f;
             materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
 
-            lightState.x = effectManager.IsLightEnabled ? LIGHT_HEADLIGHT_INTENSITY : 0f;
-            lightState.y = brake > 0f ? LIGHT_BRAKELIGHT_INTENSITY : (effectManager.IsLightEnabled ? LIGHT_REARLIGHT_INTENSITY : 0f);
-            materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_LightState, lightState);
-            if (setColor)
-            {
-                materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, vehicleColor);
-            }
-
             if (physicsFallback)
             {
-                materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0f, Mathf.Clamp(terrainHeight - vehicleRigidBody.transform.position.y, ModSettings.SpringOffset, 0f), 0f), Quaternion.identity, Vector3.one));
+                materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0f, Mathf.Clamp(terrainHeight - vehicleRigidBody.transform.position.y, ModSettings.SpringOffset, 0f), 0f), Quaternion.LookRotation(tangent, normal), Vector3.one));
             }
             else
             {
@@ -138,10 +140,8 @@ namespace IOperateIt
             }
 
             gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
-#if DEBUG
-            DebugHelper.DrawDebugBox(vehicleCollider.size, vehicleCollider.transform.TransformPoint(vehicleCollider.center), vehicleCollider.transform.rotation, Color.magenta);
-#endif
         }
+
         private void FixedUpdate()
         {
             Vector3 vehiclePos = vehicleRigidBody.transform.position;
@@ -165,7 +165,7 @@ namespace IOperateIt
 
             collidersManager.UpdateColliders(vehicleRigidBody.transform);
 
-            prevVelocity = vehicleVel;
+            PrevVelocity = vehicleVel;
             prevPosition = vehiclePos;
         }
 
@@ -221,7 +221,7 @@ namespace IOperateIt
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"g: {gear}");
             sb.AppendLine($"t: {throttle:F2}");
-            sb.AppendLine($"b: {brake:F2}");
+            sb.AppendLine($"b: {Brake:F2}");
             sb.AppendLine($"s: {vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH:F1} km/h");
             sb.AppendLine($"rps: {radps:F1}");
             sb.AppendLine($"wct: front={Wheel.FrontCount} rear={Wheel.RearCount}");
@@ -282,11 +282,11 @@ namespace IOperateIt
 
                 if (gear == 0)
                 {
-                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime, Mathf.Abs(relativeVel.z) * vehicleRigidBody.mass);
+                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(Brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime, Mathf.Abs(relativeVel.z) * vehicleRigidBody.mass);
                 }
                 else
                 {
-                    longImpulse -= Vector3.forward * gear * brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
+                    longImpulse -= Vector3.forward * gear * Brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
                 }
 
                 relativeVel.z = 0f;
@@ -450,7 +450,7 @@ namespace IOperateIt
                     w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), radDelta * radDelta * 10.0f);
 
                     // braking ABS
-                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS) ? brake : 0.0f;
+                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS) ? Brake : 0.0f;
 
                     // basic traction control
                     float actionableDelta = Mathf.Max(Mathf.Sign(w.radps) * (w.radps - longSpeed / w.radius) - (w.normalImpulse * w.frictionCoeff * Time.fixedDeltaTime * w.radius / w.moment), 0.0f);
@@ -507,7 +507,7 @@ namespace IOperateIt
                     float wheelTorque;
                     wheelTorque = gear * throttle * w.torqueFract * torque;
                     w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
-                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
+                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(Brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
                     w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
                 }
             }
@@ -540,6 +540,7 @@ namespace IOperateIt
         public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, vehicleInfo, vehicleColor, setColor);
         public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
         {
+            if (enabled) StopDriving();
             enabled = true;
             SpawnVehicle(position + new Vector3(0f, -ModSettings.SpringOffset, 0f), rotation, vehicleInfo, vehicleColor, setColor);
             if (ModSettings.UndergroundRendering)
@@ -563,20 +564,17 @@ namespace IOperateIt
             this.vehicleColor = vehicleColor;
             this.vehicleColor.a = 0; // Make sure blinking is not set.
             prevPosition = position;
-            prevVelocity = Vector3.zero;
-            lightState = Vector4.zero;
+            PrevVelocity = Vector3.zero;
             this.vehicleInfo = vehicleInfo;
             gear = 0;
             terrainHeight = 0f;
             distanceTravelled = 0f;
             steer = 0f;
-            brake = 0f;
+            Brake = 0f;
             throttle = 0f;
             compression = 0f;
             normalImpulse = 0f;
             prevGearChange = 0f;
-
-            this.vehicleInfo.CalculateGeneratedInfo();
 
             if (this.vehicleInfo.m_generatedInfo.m_tyres?.Length > 0)
             {
@@ -666,6 +664,7 @@ namespace IOperateIt
             Vector3 squares = new Vector3(adjustedBounds.x * adjustedBounds.x, adjustedBounds.y * adjustedBounds.y, adjustedBounds.z * adjustedBounds.z);
             //m_vehicleRigidBody.inertiaTensor = 1.0f / 12.0f * m_vehicleRigidBody.mass * new Vector3(squares.y + squares.z, squares.x + squares.z, squares.x + squares.y);
             vehicleRigidBody.velocity = Vector3.zero;
+            vehicleRigidBody.maxDepenetrationVelocity = DEPEN_VELOCITY;
 
             vehicleCollider.size = adjustedBounds;
             vehicleCollider.center = new Vector3(0f, 0.5f * adjustedBounds.y + rideHeight, 0f);
@@ -706,19 +705,16 @@ namespace IOperateIt
             vehicleColor = default;
             vehicleInfo = null;
             prevPosition = Vector3.zero;
-            prevVelocity = Vector3.zero;
+            PrevVelocity = Vector3.zero;
             tangent = Vector3.zero;
             binormal = Vector3.zero;
             normal = Vector3.zero;
-            lightState = Vector4.zero;
-            effectManager.IsSirenEnabled = false;
-            effectManager.IsLightEnabled = false;
             physicsFallback = false;
             gear = 0;
             terrainHeight = 0f;
             distanceTravelled = 0f;
             steer = 0f;
-            brake = 0f;
+            Brake = 0f;
             throttle = 0f;
             rideHeight = 0f;
             roofHeight = 0f;
@@ -825,7 +821,7 @@ namespace IOperateIt
                     if (gear <= 0)
                     {
                         throttle = 0f;
-                        brake = Mathf.Clamp01(brake + Time.fixedDeltaTime / THROTTLE_RESP);
+                        Brake = Mathf.Clamp01(Brake + Time.fixedDeltaTime / THROTTLE_RESP);
                         braking = true;
                     }
                 }
@@ -837,7 +833,7 @@ namespace IOperateIt
 
                 if (gear > 0)
                 {
-                    brake = 0f;
+                    Brake = 0f;
                     throttle = Mathf.Clamp01(throttle + Time.fixedDeltaTime / THROTTLE_RESP);
                     throttling = true;
                 }
@@ -849,7 +845,7 @@ namespace IOperateIt
                     if (gear >= 0)
                     {
                         throttle = 0f;
-                        brake = Mathf.Clamp01(brake + Time.fixedDeltaTime / THROTTLE_RESP);
+                        Brake = Mathf.Clamp01(Brake + Time.fixedDeltaTime / THROTTLE_RESP);
                         braking = true;
                     }
                 }
@@ -861,7 +857,7 @@ namespace IOperateIt
 
                 if (gear < 0)
                 {
-                    brake = 0f;
+                    Brake = 0f;
                     throttle = Mathf.Clamp01(throttle + Time.fixedDeltaTime / THROTTLE_RESP);
                     throttling = true;
                 }
@@ -870,7 +866,7 @@ namespace IOperateIt
             {
                 gear = 0;
                 prevGearChange = Time.time;
-                brake = 1f;
+                Brake = 1f;
                 braking = true;
             }
             if (!throttling)
@@ -879,7 +875,7 @@ namespace IOperateIt
             }
             if (!braking)
             {
-                brake = Mathf.Clamp01(brake - Time.fixedDeltaTime / THROTTLE_RESP);
+                Brake = Mathf.Clamp01(Brake - Time.fixedDeltaTime / THROTTLE_RESP);
             }
 
             bool steering = false;

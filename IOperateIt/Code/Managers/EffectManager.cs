@@ -10,6 +10,13 @@ public class EffectManager
     public bool IsLightEnabled { get; set; }
     public bool IsDusty { get; set; }
 
+    private const int MAX_CONCURRENT_SOUNDS = 18;
+    private const float LIGHT_TAILLIGHT_INTENSITY = 2f;
+    private const float LIGHT_TAILLIGHT_IDLE_INTENSITY = 1f;
+    private const float LIGHT_TAILLIGHT_RANGE = 10f;
+    private const float LIGHT_TEXTURE_INTENSITY = 5.0f;
+    private const float LIGHT_TEXTURE_IDLE_INTENSITY = 0.5f;
+
     private Rigidbody rigidBody;
     private VehicleInfo info;
 
@@ -17,61 +24,105 @@ public class EffectManager
     private List<EffectInfo> regularEffects = [];
     private List<EffectInfo> specialEffects = [];
     private List<EffectInfo> dustEffects = [];
+
+    private GameObject taillightObject;
+    private Light taillight;
+    private AudioGroup audioGroup = new AudioGroup(MAX_CONCURRENT_SOUNDS, new SavedFloat(global::Settings.effectAudioVolume, global::Settings.gameSettingsFile, DefaultSettings.effectAudioVolume, true));
+
+    private Vector4 lightState = Vector4.zero;
+
     public void AddEffects(Rigidbody vehicleRigidBody, VehicleInfo vehicleInfo)
     {
-        rigidBody ??= vehicleRigidBody;
-        info ??= vehicleInfo;
+        rigidBody = vehicleRigidBody;
+        info = vehicleInfo;
 
-        if (info.m_effects != null)
+        if (info.m_effects == null)
+            return;
+        if (info.m_lightPositions?.Length > 0)
+            AddTaillight();
+
+        foreach (var effect in info.m_effects)
         {
-            foreach (var effect in info.m_effects)
             {
+                if (effect.m_effect == null)
                 {
-                    if (effect.m_effect == null)
+                    continue;
+                }
+                if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2))
+                    specialEffects.Add(effect.m_effect);
+                else if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.OnGravel))
+                {
+                    dustEffects.Add(effect.m_effect);
+                }
+                else if (effect.m_effect is MultiEffect multiEffect)
+                {
+                    foreach (var sub in multiEffect.m_effects)
                     {
-                        continue;
-                    }
-
-                    if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2))
-                        specialEffects.Add(effect.m_effect);
-                    else if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.OnGravel))
-                    {
-                        dustEffects.Add(effect.m_effect);
-                    }
-                    else if (effect.m_effect is MultiEffect multiEffect)
-                    {
-                        foreach (var sub in multiEffect.m_effects)
+                        if (sub.m_effect is LightEffect lightEffect)
                         {
-                            if (sub.m_effect is LightEffect lightEffect)
-                            {
-                                lightEffects.Add(lightEffect);
-                            }
-                            else
-                            {
-                                regularEffects.Add(effect.m_effect);
-                            }
+                            lightEffects.Add(lightEffect);
+                        }
+                        else
+                        {
+                            regularEffects.Add(effect.m_effect);
                         }
                     }
-                    else
-                    {
-                        regularEffects.Add(effect.m_effect);
-                    }
+                }
+                else
+                {
+                    regularEffects.Add(effect.m_effect);
                 }
             }
         }
     }
-    public void PlayEffects(Vector3 prevVelocity)
+    private void AddTaillight()
+    {
+        taillightObject = new GameObject("Taillight");
+        taillight = taillightObject.AddComponent<Light>();
+        taillight.type = LightType.Point;
+        taillight.intensity = LIGHT_TAILLIGHT_IDLE_INTENSITY;
+        taillight.range = LIGHT_TAILLIGHT_RANGE;
+        taillight.transform.SetParent(rigidBody.transform, false);
+        taillight.color = Color.red;
+        taillight.enabled = false;
+
+        var vehicleMesh = info.m_mesh;
+        var fullBounds = vehicleMesh.bounds.size;
+        taillight.transform.localPosition = new Vector3(0.0f, fullBounds.y * .25f, -fullBounds.z * 0.5f - DriveController.FLOAT_ERROR);
+
+    }
+    public void UpdateLights(MaterialPropertyBlock materialBlock)
+    {
+        var brake = DriveController.Instance.Brake;
+
+        lightState.x = IsLightEnabled ? LIGHT_TEXTURE_INTENSITY : 0.0f;
+        lightState.y = brake > 0.0f ? LIGHT_TEXTURE_INTENSITY : (IsLightEnabled ? LIGHT_TEXTURE_IDLE_INTENSITY : 0.0f);
+        materialBlock.SetVector(VehicleManager.instance.ID_LightState, lightState);
+
+        float tailIntensity = IsLightEnabled ? LIGHT_TEXTURE_IDLE_INTENSITY : 0.0f;
+        tailIntensity = brake > 0.0f ? LIGHT_TAILLIGHT_INTENSITY : tailIntensity;
+        if (tailIntensity > 0.0f)
+        {
+            taillight.intensity = tailIntensity;
+            taillight.enabled = true;
+        }
+        else
+        {
+            taillight.enabled = false;
+        }
+    }
+    public void PlayEffects()
     {
         var position = rigidBody.transform.position;
         var rotation = rigidBody.transform.rotation;
         var velocity = rigidBody.velocity;
-        var acceleration = ((velocity - prevVelocity) / Time.fixedDeltaTime).magnitude;
-        var swayPosition = Vector3.zero;
+        var acceleration = ((velocity - DriveController.Instance.PrevVelocity) / Time.fixedDeltaTime).magnitude;
         var scale = Vector3.one;
-        var matrix = info.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref position, ref rotation, ref scale, ref swayPosition);
+        var matrix = Matrix4x4.TRS(position, rotation, scale);
         var area = new EffectInfo.SpawnArea(matrix, info.m_lodMeshData);
-        var listenerInfo = Singleton<AudioManager>.instance.CurrentListenerInfo;
-        var audioGroup = Singleton<AudioManager>.instance.DefaultGroup;
+        var listenerInfo = AudioManager.instance.CurrentListenerInfo;
+        audioGroup.UpdatePlayers(listenerInfo, AudioManager.instance.MasterVolume);
+
         RenderGroup.MeshData effectMeshData = info.m_vehicleAI.GetEffectMeshData();
         var area2 = new EffectInfo.SpawnArea(matrix, effectMeshData, info.m_generatedInfo.m_tyres, info.m_lightPositions);
 
@@ -106,9 +157,15 @@ public class EffectManager
 
     public void RemoveEffects()
     {
+        IsSirenEnabled = IsLightEnabled = IsDusty = false;
+
         lightEffects.Clear();
         regularEffects.Clear();
         dustEffects.Clear();
         specialEffects.Clear();
+
+        audioGroup.Reset();
+
+        Object.Destroy(taillightObject);
     }
 }
