@@ -2,12 +2,11 @@
 // Copyright (c) algernon (K. Algernon A. Sheppard). All rights reserved.
 // Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.
 // </copyright>
+using ColossalFramework.UI;
+using UnityEngine;
 
 namespace IOperateIt.UI
 {
-    using ColossalFramework.UI;
-    using UnityEngine;
-
     /// <summary>
     /// Panel that contains the building preview image.
     /// </summary>
@@ -21,6 +20,12 @@ namespace IOperateIt.UI
 
         // Currently selected prefab.
         private VehicleInfo _renderInfo;
+
+        // Currently selected color.
+        private Color _color;
+
+        // Whether to use the color value.
+        private bool _useColor;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PreviewPanel"/> class.
@@ -69,10 +74,16 @@ namespace IOperateIt.UI
         /// Sets the prefab to render.
         /// </summary>
         /// <param name="info">Prefab to render.</param>
-        public void SetTarget(VehicleInfo info)
+        public void SetTarget(VehicleInfo info, Color color = default, bool useColor = false)
         {
             // Update current selection to the new prefab.
             _renderInfo = info;
+
+            // Update current selection color.
+            _color = color;
+
+            // Update color state.
+            _useColor = useColor;
 
             // Show the updated render.
             RenderPreview();
@@ -89,7 +100,7 @@ namespace IOperateIt.UI
             if (_renderInfo?.m_mesh != null && _renderInfo.m_material != null)
             {
                 // Render.
-                _renderer.RenderVehicle(_renderInfo);
+                _renderer.RenderVehicle(_renderInfo, _color, _useColor);
 
                 // We got a valid render; ensure preview sprite is square (decal previews can change width), set display texture, and set status flag.
                 _previewSprite.relativePosition = Vector2.zero;

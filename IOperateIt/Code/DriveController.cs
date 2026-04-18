@@ -1,56 +1,106 @@
-﻿extern alias FPSCamera;
+﻿extern alias FPC;
+
 using AlgernonCommons;
-using AlgernonCommons.UI;
 using ColossalFramework;
-using FPSCamera.FPSCamera.Cam.Controller;
-using FPSCamera.FPSCamera.Game;
-using FPSCamera.FPSCamera.Utils;
+using IOperateIt.Managers;
 using IOperateIt.Settings;
-using System;
+using IOperateIt.UI;
+using IOperateIt.Utils;
 using System.Collections.Generic;
 using UnityEngine;
-using static FPSCamera.FPSCamera.Utils.MathUtils;
-using FPCModSettings = FPSCamera.FPSCamera.Settings.ModSettings;
+using FPCModSettings = FPC.FPSCamera.Settings.ModSettings;
 namespace IOperateIt
 {
     public class DriveController : MonoBehaviour
     {
+        public const float FLOAT_ERROR = 0.01f;
+        private const float THROTTLE_RESP = 2.0f;
+        private const float STEER_RESP = 1.75f;
+        private const float STEER_REST = 1.75f;
+        private const float GEAR_RESP = 0.2f;
+        private const float PARK_SPEED = 0.25f;
+        private const float DEPEN_VELOCITY = 2.0f;
+        private const float STEER_MAX = 37.0f;
+        private const float STEER_DECAY = 0.0075f;
+        private const float ROAD_WALL_HEIGHT = 0.75f;
+        private const float NEIGHBOR_WHEEL_DIST = 0.2f;
+        private const float SPRING_MAX_COMPRESS = 0.2f;
+        private const float DRAG_FACTOR = 0.25f;
+        private const float DRAG_DRIVETRAIN = 0.15f;
+        private const float DRAG_WHEEL_POWERED = 0.05f;
+        private const float DRAG_WHEEL = 0.01f;
+        private const float MOMENT_WHEEL = 1.5f;
+        private const float VALID_INCLINE = 0.5f;
+        private const float GRIP_MAX_SLIP = 0.8f;
+        private const float GRIP_OPTIM_SLIP = 0.2f;
+        private const float ENGINE_PEAK_POWER_RPS = 900.0f;
+        private const float ENGINE_IDLE_RPS = 90.0f;
+        private const float ENGINE_GEAR_RATIO = 7.0f;
+        private const float ACCEL_G = 10f;
+        const float MS_TO_KMPH = 3.6f;
+        const float UNIT_TO_M = 25.0f / 54.0f;
+        const float M_TO_UNIT = 54.0f / 25.0f;
+        const float UNIT_TO_MPH = UNIT_TO_M * 2.23694f;
+        const float KN_TO_N = 1000f;
+        const float KW_TO_W = 1000f;
+
+
         public static DriveController Instance { get; private set; }
+        public float Brake { get; set; }
+        public Vector3 PrevVelocity { get; set; }
+        private ushort lastValidSegmentId;
 
         private Rigidbody vehicleRigidBody;
         private BoxCollider vehicleCollider;
-        internal VehicleInfo vehicleInfo;
+        private Color vehicleColor;
+        private bool setColor;
+        private VehicleInfo vehicleInfo;
 
-        private readonly List<LightEffect> lightEffects = new List<LightEffect>();
-        private readonly List<EffectInfo> regularEffects = new List<EffectInfo>();
-        private readonly List<EffectInfo> specialEffects = new List<EffectInfo>();
-
-        private readonly CollidersManager collidersManager = new CollidersManager();
-        private float terrainHeight;
-        private Positioning offset;
+        private List<Wheel> wheelObjects = [];
+        private readonly CollidersManager collidersManager = new();
+        private readonly Managers.EffectManager effectManager = new();
         private Vector3 prevPosition;
-        private Vector3 prevVelocity;
-        private bool isSirenEnabled = true;
-        private bool isLightEnabled = false;
-        internal float Speed => vehicleRigidBody.velocity.magnitude;
+        private Vector3 tangent;
+        private Vector3 binormal;
+        private Vector3 normal;
+        private bool physicsFallback = false;
+
+        private int gear = 0;
+        private float terrainHeight = 0f;
+        private float distanceTravelled = 0f;
+        private float steer = 0f;
+        private float throttle = 0f;
+        private float rideHeight = 0f;
+        private float roofHeight = 0f;
+        private float compression = 0f;
+        private float prevGearChange = 0f;
+        private float normalImpulse = 0f;
+        private float radps = 0f;
+        private float torque = 0f;
+
+        private UndergroundRenderer undergroundRenderer = new();
         private void Awake()
         {
             Instance = this;
+
             gameObject.AddComponent<MeshFilter>();
             gameObject.AddComponent<MeshRenderer>();
-            GetComponent<MeshRenderer>().enabled = true;
+            gameObject.GetComponent<MeshRenderer>().enabled = true;
 
             vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             vehicleRigidBody.isKinematic = false;
             vehicleRigidBody.useGravity = false;
-            vehicleRigidBody.freezeRotation = true;
-            vehicleRigidBody.drag = 2f;
-            vehicleRigidBody.angularDrag = 2.5f;
-            vehicleRigidBody.mass = 1500f;
+            vehicleRigidBody.freezeRotation = false;
             vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
 
+            PhysicMaterial material = new PhysicMaterial();
+            material.bounciness = 0.05f;
+            material.staticFriction = 0.1f;
 
             vehicleCollider = gameObject.AddComponent<BoxCollider>();
+            vehicleCollider.material = material;
+
+            //m_suspensionCollider = gameObject.AddComponent<SphereCollider>();
 
             StartCoroutine(collidersManager.InitializeColliders());
             gameObject.SetActive(false);
@@ -58,56 +108,70 @@ namespace IOperateIt
         }
         private void Update()
         {
-            try
-            {
-                HandleInputOnUpdate();
-                UpdateCameraPos();
-                PlayEffects();
-            }
-            catch (Exception e)
-            {
-                FPSCamController.Instance.FPSCam = null;
-                Logging.LogException(e);
-                DestroyVehicle();
-            }
+            HandleInputOnUpdate();
+            UpdateMaterialBlock();
+            effectManager.PlayEffects();
+#if DEBUG
+            DebugHelper.DrawDebugBox(vehicleCollider.size, vehicleCollider.transform.TransformPoint(vehicleCollider.center), vehicleCollider.transform.rotation, Color.magenta);
+#endif
         }
+
+        private void UpdateMaterialBlock()
+        {
+            var materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
+            materialBlock.Clear();
+
+            effectManager.UpdateLights(materialBlock);
+            if (setColor)
+            {
+                materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, vehicleColor);
+            }
+            Vector4 tyrePosition = default;
+            tyrePosition.x = steer * STEER_MAX / 180f * Mathf.PI;
+            tyrePosition.y = distanceTravelled;
+            tyrePosition.z = 0f;
+            tyrePosition.w = 0f;
+            materialBlock.SetVector(Singleton<VehicleManager>.instance.ID_TyrePosition, tyrePosition);
+
+            if (physicsFallback)
+            {
+                materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, Matrix4x4.TRS(new Vector3(0f, Mathf.Clamp(terrainHeight - vehicleRigidBody.transform.position.y, ModSettings.SpringOffset, 0f), 0f), Quaternion.LookRotation(tangent, normal), Vector3.one));
+            }
+            else
+            {
+                materialBlock.SetMatrix(Singleton<VehicleManager>.instance.ID_TyreMatrix, Matrix4x4.identity);
+            }
+
+            gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+        }
+
         private void FixedUpdate()
         {
-            try
+            var vehiclePos = vehicleRigidBody.transform.position;
+            var vehicleVel = vehicleRigidBody.velocity;
+            var vehicleAngularVel = vehicleRigidBody.angularVelocity;
+            float speed = Vector3.Dot(Vector3.forward, vehicleRigidBody.transform.InverseTransformDirection(vehicleVel));
+            int invert = Mathf.Abs(speed) < PARK_SPEED ? 0 : (speed > 0f ? 1 : -1);
+
+            HandleInputOnFixedUpdate(invert);
+
+            if (physicsFallback)
             {
-                HandleInputOnFixedUpdate();
-                CalculateSlope();
-                collidersManager.UpdateColliders(transform);
-
-                terrainHeight = MapUtils.GetMinHeightAt(transform.position);
-                if (MapUtils.GetClosestSegmentLevel(transform.position, out var newHeight))
-                    terrainHeight = newHeight;
-                terrainHeight -= 2f;
-
-                if (transform.position.y - 1f < terrainHeight)
-                {
-                    vehicleRigidBody.velocity = new Vector3(vehicleRigidBody.velocity.x, 0, vehicleRigidBody.velocity.z);
-                    transform.position = new Vector3(transform.position.x, terrainHeight, transform.position.z);
-                }
-                else
-                {
-                    vehicleRigidBody.AddRelativeForce(Physics.gravity * 6f, ForceMode.Acceleration);
-                }
-
-                if (Speed > ModSettings.MaxVelocity.FromKmph())
-                {
-                    vehicleRigidBody.velocity = vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity.FromKmph();
-                }
-
-                prevVelocity = vehicleRigidBody.velocity;
+                FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, invert);
             }
-            catch (Exception e)
+            else
             {
-                FPSCamController.Instance.FPSCam = null;
-                Logging.LogException(e);
-                DestroyVehicle();
+                WheelPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel);
             }
+
+            LimitVelocity();
+
+            collidersManager.UpdateColliders(vehicleRigidBody.transform);
+
+            PrevVelocity = vehicleVel;
+            prevPosition = vehiclePos;
         }
+
         private void LateUpdate()
         {
         }
@@ -116,288 +180,796 @@ namespace IOperateIt
             collidersManager.DestroyColliders();
         }
 
-        private void OnCollisionEnter()
+        public bool OnEsc()
         {
+            if (enabled)
+            {
+                StopDriving();
+                return true;
+            }
+            return false;
         }
-        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, vehicleInfo);
-        public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo)
-        {
-            enabled = true;
-            offset.pos = ModSettings.Offset;
-            offset.rotation = Quaternion.identity;
 
-            this.vehicleInfo = vehicleInfo;
-            SpawnVehicle(position, rotation);
-            FPSCamController.Instance.FPSCam = new DriveCam();
-        }
-        private void SpawnVehicle(Vector3 position, Quaternion rotation)
+        private void OnCollisionEnter(Collision collision)
         {
-            gameObject.transform.position = position;
-            gameObject.transform.rotation = rotation;
-            var vehicleMesh = vehicleInfo.m_mesh;
-            GetComponent<MeshFilter>().mesh = GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
-            GetComponent<MeshRenderer>().material = GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
-            gameObject.SetActive(true);
-            vehicleCollider.size = vehicleMesh.bounds.size + new Vector3(0, 1.3f, 0);
+            LimitVelocity();
+
+            var container = collision.collider.gameObject.GetComponent<ColliderContainer>();
+            if (container.Type == ColliderContainer.ContainerTypes.Vehicle)
+            {
+                ref var otherVehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[container.ID];
+
+                ref var otherVelocity = ref (otherVehicle.m_lastFrame <= 1 ?
+                    ref (otherVehicle.m_lastFrame == 0 ? ref otherVehicle.m_frame0.m_velocity : ref otherVehicle.m_frame1.m_velocity) :
+                    ref (otherVehicle.m_lastFrame == 2 ? ref otherVehicle.m_frame2.m_velocity : ref otherVehicle.m_frame3.m_velocity));
+
+                float collisionOrientation = Vector3.Dot(Vector3.Normalize(vehicleRigidBody.position - collision.collider.transform.position), Vector3.Normalize(otherVelocity));
+
+                otherVelocity = otherVelocity * 0.8f * (0.5f + ((-collisionOrientation + 1f) * 0.25f));
+            }
+        }
+
+        private void OnCollisionStay(Collision collision)
+        {
+            LimitVelocity();
+        }
+
+        private void OnCollisionExit(Collision collision)
+        {
+            LimitVelocity();
+        }
+#if DEBUG
+        private void OnGUI()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"g: {gear}");
+            sb.AppendLine($"t: {throttle:F2}");
+            sb.AppendLine($"b: {Brake:F2}");
+            sb.AppendLine($"s: {vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH:F1} km/h");
+            sb.AppendLine($"rps: {radps:F1}");
+            sb.AppendLine($"wct: front={Wheel.FrontCount} rear={Wheel.RearCount}");
+            for (int i = 0; i < wheelObjects.Count; i++)
+            {
+                var w = wheelObjects[i];
+                sb.AppendLine($"w{i}: origin={w.origin} slip={w.slip:F2} radps={w.radps:F1}");
+            }
+            GUI.Label(new Rect(100f, 100f, 700f, 700f), sb.ToString());
+        }
+#endif
+        private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
+        {
+            vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
+
+            float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var type, out var segmentId);
+            if (segmentId != default) lastValidSegmentId = segmentId;
+            effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
+            bool onGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
+
+            CalculateSlope(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, height, onGround);
+            terrainHeight = height;
+
+
+            if (vehiclePos.y + ROAD_WALL_HEIGHT < terrainHeight)
+            {
+                vehiclePos = prevPosition;
+                vehicleVel = Vector3.zero;
+                vehicleRigidBody.transform.position = vehiclePos;
+                vehicleRigidBody.velocity = vehicleVel;
+            }
+            else if (onGround)
+            {
+                if (vehiclePos.y + SPRING_MAX_COMPRESS < terrainHeight)
+                {
+                    vehiclePos = new Vector3(vehiclePos.x, terrainHeight - SPRING_MAX_COMPRESS, vehiclePos.z);
+                    vehicleRigidBody.transform.position = vehiclePos;
+                }
+
+                float compression = Mathf.Max(terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0f);
+                float springVel = (compression - this.compression) / Time.fixedDeltaTime;
+                float deltaVel = (-ModSettings.SpringDamp * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime) * (compression + (springVel * Time.fixedDeltaTime))) + (springVel * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime)) - springVel;
+
+                if (deltaVel < 0f)
+                {
+                    normalImpulse = -deltaVel * vehicleRigidBody.mass;
+                }
+                else
+                {
+                    normalImpulse = 0f;
+                }
+            }
+
+            if (onGround)
+            {
+                var relativeVel = vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
+
+                var longImpulse = Vector3.forward * gear * throttle * (ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) / (vehicleVel.magnitude + 1.0f)) * Time.fixedDeltaTime;
+
+                if (gear == 0)
+                {
+                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(Brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime, Mathf.Abs(relativeVel.z) * vehicleRigidBody.mass);
+                }
+                else
+                {
+                    longImpulse -= Vector3.forward * gear * Brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
+                }
+
+                relativeVel.z = 0f;
+                relativeVel.y = 0f;
+
+                var netImpulse = longImpulse;
+                netImpulse -= relativeVel * (1.0f - FLOAT_ERROR) * vehicleRigidBody.mass;
+                netImpulse = Mathf.Min(netImpulse.magnitude, normalImpulse * ModSettings.GripCoeffS) * Vector3.Normalize(netImpulse);
+                netImpulse += Vector3.up * normalImpulse;
+                netImpulse = vehicleRigidBody.transform.TransformDirection(netImpulse);
+                vehicleRigidBody.AddForceAtPosition(netImpulse, new Vector3(vehiclePos.x, terrainHeight, vehiclePos.z), ForceMode.Impulse);
+
+                float speedsteer = Mathf.Min(Mathf.Max(vehicleVel.magnitude * 80f / vehicleCollider.size.z, 0f), 60f);
+                speedsteer = Mathf.Sign(steer) * Mathf.Min(Mathf.Abs(60f * steer), speedsteer);
+
+                var angularTarget = ((1f - FLOAT_ERROR) * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime)) - vehicleRigidBody.transform.InverseTransformDirection(vehicleAngularVel);
+
+                vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
+            }
+
+            compression = Mathf.Max(terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0.0f);
+
+            distanceTravelled += invert * Vector3.Magnitude(vehiclePos - prevPosition);
+        }
+
+        private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
+        {
+            var upVec = vehicleRigidBody.transform.TransformDirection(Vector3.up);
+
+            vehicleRigidBody.AddForce((Vector3.down * (ACCEL_G * vehicleRigidBody.mass)) - (upVec * ModSettings.DownForce * Mathf.Abs(Vector3.Dot(vehicleVel, vehicleRigidBody.transform.TransformDirection(Vector3.forward)))), ForceMode.Force);
+
+            foreach (var w in wheelObjects) // first calculate the heights at each wheel to prep for road normal calcs
+            {
+                var wheelPos = w.gameObject.transform.position;
+                w.heightSample = wheelPos;
+                w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight, out var type, out var segmentId);
+                if (segmentId != default) lastValidSegmentId = segmentId;
+                effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
+
+                if (wheelPos.y + ROAD_WALL_HEIGHT < w.heightSample.y)
+                {
+                    vehiclePos = prevPosition;
+                    vehicleVel = -vehicleVel * 0.1f;
+                    vehicleAngularVel = Vector3.zero;
+                    vehicleRigidBody.angularVelocity = vehicleAngularVel;
+                    vehicleRigidBody.velocity = vehicleVel;
+                    vehicleRigidBody.transform.position = vehiclePos;
+                    return;
+                }
+            }
+
+            foreach (var w in wheelObjects) // calculate the road normals. apply angular friction from previous tick. 
+            {
+                if (w.IsSteerable)
+                {
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, (w.IsInvertedSteer ? -1f : 1f) * STEER_MAX * steer, 0);
+                }
+                else
+                {
+                    w.gameObject.transform.localRotation = Quaternion.Euler(0, 0, 0);
+                }
+
+                w.CalcRoadTBN();
+
+                if (w.onGround)
+                {
+                    var prelimContactVel = vehicleRigidBody.GetPointVelocity(w.contactPoint);
+                    Vector2 flatImpulses = new Vector2(w.binormalImpulse, w.tangentImpulse);
+                    float radDelta = (Vector3.Dot(prelimContactVel, w.tangent) / w.radius) - w.radps;
+                    w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), w.normalImpulse * w.radius * w.frictionCoeff / w.moment);
+                }
+
+                w.radps *= 1.0f - ((w.IsPowered ? DRAG_WHEEL_POWERED : DRAG_WHEEL) * Time.fixedDeltaTime);
+            }
+
+            foreach (var w in wheelObjects) // calculate normal impulses.Update wheel suspension position.
+            {
+                w.onGround = false;
+                w.normalImpulse = 0.0f;
+                w.slip = 1.0f;
+                w.frictionCoeff = ModSettings.GripCoeffK;
+                float normDotUp = Vector3.Dot(w.normal, upVec);
+                if (normDotUp > VALID_INCLINE)
+                {
+                    var originWheelBottom = vehicleRigidBody.transform.TransformPoint(w.origin + (Vector3.down * w.radius));
+                    float compression = Mathf.Max((Vector3.Dot(w.heightSample, w.normal) - Vector3.Dot(originWheelBottom, w.normal)) / normDotUp, 0f);
+                    float springVel = (compression - w.compression) / Time.fixedDeltaTime;
+                    float deltaVel = (-ModSettings.SpringDamp * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime) * (compression + (springVel * Time.fixedDeltaTime))) + (springVel * Mathf.Exp(-ModSettings.SpringDamp * Time.fixedDeltaTime)) - springVel;
+
+                    w.gameObject.transform.localPosition = new Vector3(w.origin.x, w.origin.y + compression, w.origin.z);
+                    w.compression = compression;
+
+                    if (deltaVel < 0f)
+                    {
+                        w.onGround = true;
+                        w.normalImpulse = vehicleRigidBody.mass * (-deltaVel) / (Wheel.WheelCount * normDotUp);
+                        w.contactPoint = w.gameObject.transform.TransformPoint(new Vector3(0.0f, -w.radius, 0.0f));
+                        w.contactVelocity = vehicleRigidBody.GetPointVelocity(w.contactPoint);
+                        w.slip = Mathf.Clamp(Vector3.Magnitude(w.contactVelocity - (w.radps * w.radius * w.tangent)) / Mathf.Max(w.contactVelocity.magnitude, 1.0f) / GRIP_MAX_SLIP, 0.0f, 1.0f);
+                        w.frictionCoeff = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK, Mathf.Max((w.slip - GRIP_OPTIM_SLIP) / (1.0f - GRIP_OPTIM_SLIP), 0.0f));
+                    }
+                }
+                else
+                {
+                    w.compression = 0f;
+                    w.gameObject.transform.localPosition = w.origin;
+                }
+
+            }
+
+            // calculate new engine angular velocity
+            float engineRps = 0f;
+            foreach (var w in wheelObjects)
+            {
+                distanceTravelled += w.radps * w.torqueFract * w.radius * Time.fixedDeltaTime;
+                engineRps += w.radps * w.torqueFract;
+            }
+            radps = engineRps * ENGINE_GEAR_RATIO;
+            torque = GetTorque(engineRps) * ENGINE_GEAR_RATIO;
+
+            float avgFrontRps = 0.0f;
+            float avgRearRps = 0.0f;
+            foreach (var w in wheelObjects) // calcuate first pass wheel angular velocity
+            {
+                float wheelTorque = gear * throttle * w.torqueFract * torque;
+                w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+
+                if (w.IsFront)
+                {
+                    avgFrontRps += w.radps;
+                }
+                else
+                {
+                    avgRearRps += w.radps;
+                }
+            }
+
+            avgFrontRps /= Wheel.FrontCount;
+            avgRearRps /= Wheel.RearCount;
+
+            foreach (var w in wheelObjects) // calculate the lateral and longitudinal forces. Apply all forces.
+            {
+                if (w.onGround)
+                {
+                    var netImpulse = Vector3.zero;
+
+                    float normalContribution = 0f;
+                    foreach (var wAlt in wheelObjects)
+                    {
+                        normalContribution += Vector3.Dot(w.binormal, wAlt.binormal) * wAlt.normalImpulse;
+                    }
+                    normalContribution = w.normalImpulse / normalContribution;
+
+                    var flatImpulses = Vector2.zero;
+
+                    float longSpeed = Vector3.Dot(w.contactVelocity, w.tangent);
+                    float lateralSpeed = Vector3.Dot(w.contactVelocity, w.binormal);
+
+                    // limited slip diff
+                    float radDelta = w.IsFront ? avgFrontRps : avgRearRps;
+                    radDelta -= w.radps;
+                    w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), radDelta * radDelta * 10.0f);
+
+                    // braking ABS
+                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS) ? Brake : 0.0f;
+
+                    // basic traction control
+                    float actionableDelta = Mathf.Max((Mathf.Sign(w.radps) * (w.radps - (longSpeed / w.radius))) - (w.normalImpulse * w.frictionCoeff * Time.fixedDeltaTime * w.radius / w.moment), 0.0f);
+                    totalBrake += actionableDelta * w.moment / (w.radius * Time.fixedDeltaTime * w.brakeForce);
+
+                    totalBrake = Mathf.Clamp(totalBrake, 0.0f, 1.0f);
+                    float wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(totalBrake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+
+                    float longComponent = normalContribution * vehicleRigidBody.mass * ((w.radps * w.radius) - longSpeed);
+
+                    flatImpulses.y = longComponent;
+
+                    float lateralComponent = -normalContribution * vehicleRigidBody.mass * lateralSpeed;
+
+                    flatImpulses.x = lateralComponent;
+#if DEBUG
+                    if (w.slip > GRIP_OPTIM_SLIP)
+                    {
+                        DebugHelper.DrawDebugMarker(2f, w.contactPoint, Color.yellow);
+                    }
+#endif
+                    float frictionScale = Mathf.Min(w.normalImpulse * w.frictionCoeff, flatImpulses.magnitude) / Mathf.Max(flatImpulses.magnitude, FLOAT_ERROR);
+
+                    w.binormalImpulse = lateralComponent * frictionScale;
+                    w.tangentImpulse = longComponent * frictionScale;
+
+                    netImpulse += w.normalImpulse * w.normal;
+                    netImpulse += w.binormalImpulse * w.binormal;
+                    netImpulse += w.tangentImpulse * w.tangent;
+
+                    vehicleRigidBody.AddForceAtPosition(netImpulse, w.contactPoint, ForceMode.Impulse);
+                }
+                else
+                {
+                    float tireOffset = Mathf.Sqrt(Mathf.Abs(Vector3.Dot(upVec, w.normal)));
+                    if (w.transform.position.y - (w.radius * tireOffset) < w.heightSample.y)
+                    {
+                        var pos = vehicleRigidBody.transform.position;
+                        pos.y += w.heightSample.y - w.transform.position.y + (w.radius * tireOffset);
+                        vehicleRigidBody.transform.position = pos;
+
+                        var normalVel = Vector3.Dot(w.normal, vehicleVel) * w.normal;
+
+                        vehicleRigidBody.AddForce((-(1f - FLOAT_ERROR) * normalVel) - ((vehicleVel - normalVel) * 0.5f * Time.fixedDeltaTime), ForceMode.VelocityChange);
+
+                        vehicleRigidBody.AddTorque(-vehicleAngularVel * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                        if (vehicleAngularVel.magnitude < 1f)
+                        {
+                            vehicleRigidBody.AddTorque(Vector3.Normalize(Vector3.Cross(upVec, w.normal)) * 0.25f, ForceMode.VelocityChange);
+                        }
+                    }
+
+                    float wheelTorque;
+                    wheelTorque = gear * throttle * w.torqueFract * torque;
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(Brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+                }
+            }
+        }
+
+        private void LimitVelocity()
+        {
+            if (vehicleRigidBody.velocity.magnitude > ModSettings.MaxVelocity / MS_TO_KMPH)
+            {
+                vehicleRigidBody.AddForce((vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity / MS_TO_KMPH) - vehicleRigidBody.velocity, ForceMode.VelocityChange);
+            }
+        }
+        private void Unstuck()
+        {
             vehicleRigidBody.velocity = Vector3.zero;
+            vehicleRigidBody.angularVelocity = Vector3.zero;
 
-            AddEffects();
+            var netSegment = NetManager.instance.m_segments.m_buffer[lastValidSegmentId];
+
+            if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
+            {
+                netSegment.GetClosestPositionAndDirection(vehicleRigidBody.position, out var newPos, out var dir);
+                if (Vector3.Distance(newPos, vehicleRigidBody.position) < 50f)
+                    vehicleRigidBody.transform.SetPositionAndRotation(newPos, Quaternion.LookRotation(dir));
+                else
+                    Fallback();
+            }
+            else
+                Fallback();
+
+            vehicleRigidBody.Sleep();
+            DriveCamController.Instance.ResetCam();
+
+            void Fallback()
+            {
+                var fallBackPos = vehicleRigidBody.position;
+                fallBackPos.y = MapUtils.CalculateHeight(vehicleRigidBody.position, roofHeight, out _, out _) + 2f;
+                vehicleRigidBody.position = fallBackPos;
+                vehicleRigidBody.rotation = Quaternion.Euler(0f, vehicleRigidBody.rotation.eulerAngles.y, 0f);
+            }
         }
 
-        internal void DestroyVehicle()
+        public void UpdateColor(Color color, bool enable)
         {
-            lightEffects.Clear();
-            regularEffects.Clear();
-            specialEffects.Clear();
+            vehicleColor = color;
+            setColor = enable;
+        }
 
-            ModSettings.Offset = offset.pos;
-            ModSettings.Save();
-            OptionsPanelManager<OptionsPanel>.LocaleChanged();
-            UI.MainPanel.Instance?.LocaleChanged();
+        public void UpdateVehicleInfo(VehicleInfo info)
+        {
+            vehicleInfo = info;
+        }
 
-            StartCoroutine(collidersManager.DisableColliders());
-            enabled = false;
+        public bool IsVehicleInfoSet()
+        {
+            return vehicleInfo != null;
+        }
+
+        public void StartDriving(Vector3 position, Quaternion rotation) => StartDriving(position, rotation, vehicleInfo, vehicleColor, setColor);
+        public void StartDriving(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
+        {
+            try
+            {
+                if (enabled) StopDriving();
+                enabled = true;
+                SpawnVehicle(position + new Vector3(0f, -ModSettings.SpringOffset, 0f), rotation, vehicleInfo, vehicleColor, setColor);
+                if (ModSettings.UndergroundRendering)
+                    undergroundRenderer.OverridePrefabs();
+                DriveCamController.Instance.EnableCam(vehicleRigidBody);
+                DriveButtons.Instance.SetDisable();
+            }
+            catch (System.Exception e)
+            {
+                Logging.LogException(e, "Failed to start driving");
+                StopDriving();
+            }
+        }
+        public void StopDriving()
+        {
+            try
+            {
+                StartCoroutine(collidersManager.DisableColliders());
+                DriveCamController.Instance.DisableCam();
+                DriveButtons.Instance.SetEnable();
+                if (ModSettings.UndergroundRendering)
+                    undergroundRenderer.RestorePrefabs();
+                DestroyVehicle();
+                enabled = false;
+            }
+            catch (System.Exception e)
+            {
+                Logging.LogException(e, "Failed to stop driving");
+            }
+        }
+        private void SpawnVehicle(Vector3 position, Quaternion rotation, VehicleInfo vehicleInfo, Color vehicleColor, bool setColor)
+        {
+            this.setColor = setColor;
+            this.vehicleColor = vehicleColor;
+            this.vehicleColor.a = 0; // Make sure blinking is not set.
+            prevPosition = position;
+            PrevVelocity = Vector3.zero;
+            this.vehicleInfo = vehicleInfo;
+            gear = 0;
+            terrainHeight = 0f;
+            distanceTravelled = 0f;
+            steer = 0f;
+            Brake = 0f;
+            throttle = 0f;
+            compression = 0f;
+            normalImpulse = 0f;
+            prevGearChange = 0f;
+
+            InitializeWheels();
+
+            var vehicleMesh = this.vehicleInfo.m_mesh;
+            var adjustedBounds = this.vehicleInfo.m_lodMesh.bounds.size;
+
+            roofHeight = adjustedBounds.y;
+
+            adjustedBounds.y -= rideHeight;
+
+            float halfSA = ((adjustedBounds.x * adjustedBounds.y) + (adjustedBounds.x * adjustedBounds.z) + (adjustedBounds.y * adjustedBounds.z));
+            vehicleRigidBody.drag = DRAG_FACTOR * adjustedBounds.x * adjustedBounds.y / halfSA;
+            vehicleRigidBody.angularDrag = DRAG_FACTOR * adjustedBounds.y * adjustedBounds.z / halfSA;
+            vehicleRigidBody.mass = halfSA * ModSettings.MassFactor;
+            vehicleRigidBody.transform.position = position;
+            vehicleRigidBody.transform.rotation = rotation;
+            vehicleRigidBody.centerOfMass = new Vector3(0f, rideHeight + (adjustedBounds.y * ModSettings.MassCenterHeight), (ModSettings.MassCenterBias - 0.5f) * adjustedBounds.z * 0.5f);
+            Vector3 squares = new Vector3(adjustedBounds.x * adjustedBounds.x, adjustedBounds.y * adjustedBounds.y, adjustedBounds.z * adjustedBounds.z);
+            //m_vehicleRigidBody.inertiaTensor = 1.0f / 12.0f * m_vehicleRigidBody.mass * new Vector3(squares.y + squares.z, squares.x + squares.z, squares.x + squares.y);
+            vehicleRigidBody.velocity = Vector3.zero;
+            vehicleRigidBody.maxDepenetrationVelocity = DEPEN_VELOCITY;
+
+            vehicleCollider.size = adjustedBounds;
+            vehicleCollider.center = new Vector3(0f, (0.5f * adjustedBounds.y) + rideHeight, 0f);
+
+            gameObject.GetComponent<MeshFilter>().mesh = gameObject.GetComponent<MeshFilter>().sharedMesh = vehicleMesh;
+            gameObject.GetComponent<MeshRenderer>().material = gameObject.GetComponent<MeshRenderer>().sharedMaterial = vehicleInfo.m_material;
+            //gameObject.GetComponent<MeshRenderer>().sortingLayerID = m_vehicleInfo.m_prefabDataLayer;
+
+            if (this.setColor)
+            {
+                var materialBlock = Singleton<VehicleManager>.instance.m_materialBlock;
+                materialBlock.Clear();
+                materialBlock.SetColor(Singleton<VehicleManager>.instance.ID_Color, this.vehicleColor);
+                gameObject.GetComponent<MeshRenderer>().SetPropertyBlock(materialBlock);
+            }
+
+            tangent = vehicleRigidBody.transform.TransformDirection(Vector3.forward);
+            normal = vehicleRigidBody.transform.TransformDirection(Vector3.up);
+            binormal = vehicleRigidBody.transform.TransformDirection(Vector3.right);
+
+            gameObject.SetActive(true);
+
+            effectManager.AddEffects(vehicleRigidBody, vehicleInfo);
+        }
+
+        private void InitializeWheels()
+        {
+            if (vehicleInfo.m_generatedInfo.m_tyres?.Length > 0)
+            {
+                rideHeight = vehicleInfo.m_generatedInfo.m_tyres[0].y;
+
+                foreach (var tirepos in vehicleInfo.m_generatedInfo.m_tyres)
+                {
+                    wheelObjects.Add(Wheel.InstanceWheel(gameObject.transform, new Vector3(tirepos.x, tirepos.y + ModSettings.SpringOffset, tirepos.z), MOMENT_WHEEL, tirepos.w,
+                        true, true, 0, 0, tirepos.z > 0f));
+                }
+
+                physicsFallback = false;
+
+                if (Wheel.RearCount == 0 || Wheel.FrontCount == 0)
+                {
+                    physicsFallback = true;
+                }
+                else
+                {
+                    float frontTorque = ModSettings.DriveBias / Wheel.FrontCount;
+                    float rearTorque = (1f - ModSettings.DriveBias) / Wheel.RearCount;
+                    float frontBraking = ModSettings.BrakeBias * ModSettings.BrakingForce * KN_TO_N / Wheel.FrontCount;
+                    float rearBraking = (1f - ModSettings.BrakeBias) * ModSettings.BrakingForce * KN_TO_N / Wheel.RearCount;
+
+                    foreach (var w in wheelObjects)
+                    {
+                        if (w.IsFront)
+                        {
+                            w.torqueFract = frontTorque;
+                            w.brakeForce = frontBraking;
+                        }
+                        else
+                        {
+                            w.torqueFract = rearTorque;
+                            w.brakeForce = rearBraking;
+                        }
+                    }
+                }
+
+                foreach (var w in wheelObjects)
+                {
+                    float minDistX = float.PositiveInfinity;
+                    float minDistZ = float.PositiveInfinity;
+
+                    foreach (var wAlt in wheelObjects)
+                    {
+                        float dist = Vector3.Magnitude(w.origin - wAlt.origin);
+
+                        if (Mathf.Abs(w.origin.x - wAlt.origin.x) > NEIGHBOR_WHEEL_DIST && dist < minDistX)
+                        {
+                            w.xWheel = wAlt;
+                            minDistX = dist;
+                        }
+                        if (Mathf.Abs(w.origin.z - wAlt.origin.z) > NEIGHBOR_WHEEL_DIST && dist < minDistZ)
+                        {
+                            w.zWheel = wAlt;
+                            minDistZ = dist;
+                        }
+                    }
+
+                    if (w.xWheel == null || w.zWheel == null)
+                    {
+                        physicsFallback = true;
+                    }
+                }
+            }
+            else
+            {
+                rideHeight = 0;
+                physicsFallback = true;
+            }
+        }
+
+        private void DestroyVehicle()
+        {
+            effectManager.RemoveEffects();
+            foreach (var w in wheelObjects)
+            {
+                DestroyImmediate(w.gameObject);
+            }
+            wheelObjects.Clear();
             gameObject.SetActive(false);
-        }
-        private void CalculateSlope()
-        {
-            Vector3 diffVector = transform.position - prevPosition;
-            Vector3 horizontalDirection = new Vector3(diffVector.x, 0f, diffVector.z);
-            float heightDifference = diffVector.y;
+            vehicleRigidBody.velocity = Vector3.zero;
+            vehicleRigidBody.angularVelocity = Vector3.zero;
 
-            if (horizontalDirection.sqrMagnitude > 0.01f)
+            setColor = false;
+            vehicleColor = default;
+            vehicleInfo = null;
+            prevPosition = Vector3.zero;
+            PrevVelocity = Vector3.zero;
+            tangent = Vector3.zero;
+            binormal = Vector3.zero;
+            normal = Vector3.zero;
+            physicsFallback = false;
+            gear = 0;
+            terrainHeight = 0f;
+            distanceTravelled = 0f;
+            steer = 0f;
+            Brake = 0f;
+            throttle = 0f;
+            rideHeight = 0f;
+            roofHeight = 0f;
+            compression = 0f;
+            normalImpulse = 0f;
+            prevGearChange = 0f;
+        }
+        private static float GetTorque(float radps) // Torque curve 27x(k-x)/(4k^3)+max(3(k/2-x)^3/k^4,0)
+        {
+            // Check https://www.desmos.com/calculator/fp0csjaazj for formulation.
+            float k = ENGINE_PEAK_POWER_RPS;
+            float x = Mathf.Max(radps, ENGINE_IDLE_RPS);
+            float rawval = (27.0f * x * (k - x) / (4.0f * k * k * k)) + Mathf.Max(3 * Mathf.Pow((k * 0.5f) - x, 3.0f) / (k * k * k * k), 0.0f);
+            return ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) * rawval;
+        }
+        private void CalculateSlope(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float height, bool onGround) // TODO: fix slope calculation
+        {
+            var tangent = Vector3.forward;
+            var binorm = Vector3.right;
+            var lateral = vehicleRigidBody.transform.TransformDirection(Vector3.right);
+            var forward = vehicleRigidBody.transform.TransformDirection(Vector3.forward);
+
+            int slopeMode = onGround ? 2 : 1;
+
+            if (slopeMode == 2)
             {
-                float slopeAngle = Mathf.Atan2(heightDifference, horizontalDirection.magnitude) * Mathf.Rad2Deg;//+: upslope -: downslope
-                slopeAngle = Mathf.Clamp(slopeAngle, -90f, 90f);
-
-                bool isReversing = Vector3.Dot(diffVector.normalized, transform.forward) < 0;
-
-                if (isReversing)
-                    slopeAngle = -slopeAngle;
-
-                var targetRotation = Quaternion.Euler(
-                    -slopeAngle,
-                    transform.rotation.eulerAngles.y,
-                    0f
-                );
-
-                transform.rotation = Quaternion.Slerp(
-                    transform.rotation,
-                    targetRotation,
-                    Time.deltaTime * 6f
-                );
+                tangent = vehiclePos - prevPosition;
+                if (Vector3.Dot(tangent, forward) < 0f)
+                {
+                    tangent = -tangent;
+                }
+                tangent.y = height - terrainHeight;
+                tangent -= (Vector3.Dot(tangent, lateral) * lateral);
+                tangent = Vector3.Normalize(tangent);
+                if (tangent.magnitude < 0.5f || Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) < FLOAT_ERROR)
+                {
+                    slopeMode = 0;
+                }
             }
-            prevPosition = transform.position;
+
+            if (slopeMode == 1)
+            {
+                tangent = vehicleVel;
+                if (Vector3.Dot(tangent, forward) < 0f)
+                {
+                    tangent = -tangent;
+                }
+                Vector3.Normalize(tangent - (Vector3.Dot(tangent, lateral) * lateral));
+                if (tangent.magnitude < 0.5f || Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) < FLOAT_ERROR)
+                {
+                    slopeMode = 0;
+                }
+            }
+
+            if (slopeMode == 0)
+            {
+                tangent = this.tangent;
+            }
+
+            binorm = Vector3.Normalize(Vector3.Cross(Vector3.up, tangent));
+
+            if (binorm.magnitude < 0.5f)
+            {
+                binorm = binormal;
+            }
+
+            Quaternion lookRot = Quaternion.LookRotation(tangent);
+
+            vehicleRigidBody.MoveRotation(lookRot);
+
+            //Vector3 torquet = Vector3.Cross(forward, tangent);
+            //Vector3 torqueb = Vector3.Cross(lateral, binorm);
+
+            //if (Vector3.Dot(forward, tangent) < 0f)
+            //{
+            //    torquet = Vector3.Normalize(torquet);
+            //}
+
+            //if (Vector3.Dot(lateral, binorm) < 0f)
+            //{
+            //    torqueb = Vector3.Normalize(torqueb);
+            //}
+
+            //m_vehicleRigidBody.AddTorque(-vehicleAngularVel * 0.5f * Time.fixedDeltaTime, ForceMode.VelocityChange); // scuffed as all hell
+            //if (vehicleAngularVel.magnitude < 1f)
+            //{
+            //    if (torquet.magnitude > FLOAT_ERROR) m_vehicleRigidBody.AddTorque(60f * torquet * Time.fixedDeltaTime, ForceMode.VelocityChange);
+            //    if (torqueb.magnitude > FLOAT_ERROR) m_vehicleRigidBody.AddTorque(60f * torqueb * Time.fixedDeltaTime, ForceMode.VelocityChange);
+            //}
+
+
+            this.tangent = tangent;
+            binormal = binorm;
         }
 
-        private void HandleInputOnFixedUpdate()
+        private void HandleInputOnFixedUpdate(int invert)
         {
+            bool throttling = false;
+            bool braking = false;
             if (FPCModSettings.Instance.XMLKeyMoveForward.IsPressed())
-                vehicleRigidBody.AddRelativeForce(Vector3.forward * ModSettings.AccelerationForce, ForceMode.Acceleration);
-
-            if (FPCModSettings.Instance.XMLKeyMoveBackward.IsPressed())
-                vehicleRigidBody.AddRelativeForce(Vector3.back * ModSettings.AccelerationForce, ForceMode.Acceleration);
-
-            if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
             {
-                var normalizedVelocity = vehicleRigidBody.velocity.normalized;
-                var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;
-                vehicleRigidBody.AddForce(-brakeVelocity);
-                vehicleRigidBody.AddRelativeTorque(Vector3.down * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                if (invert < 0)
+                {
+                    if (gear <= 0)
+                    {
+                        throttle = 0f;
+                        Brake = Mathf.Clamp01(Brake + (Time.fixedDeltaTime / THROTTLE_RESP));
+                        braking = true;
+                    }
+                }
+                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear <= 0)
+                {
+                    gear++;
+                    prevGearChange = Time.time;
+                }
+
+                if (gear > 0)
+                {
+                    Brake = 0f;
+                    throttle = Mathf.Clamp01(throttle + (Time.fixedDeltaTime / THROTTLE_RESP));
+                    throttling = true;
+                }
             }
+            else if (FPCModSettings.Instance.XMLKeyMoveBackward.IsPressed())
+            {
+                if (invert > 0)
+                {
+                    if (gear >= 0)
+                    {
+                        throttle = 0f;
+                        Brake = Mathf.Clamp01(Brake + (Time.fixedDeltaTime / THROTTLE_RESP));
+                        braking = true;
+                    }
+                }
+                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear >= 0)
+                {
+                    gear--;
+                    prevGearChange = Time.time;
+                }
+
+                if (gear < 0)
+                {
+                    Brake = 0f;
+                    throttle = Mathf.Clamp01(throttle + (Time.fixedDeltaTime / THROTTLE_RESP));
+                    throttling = true;
+                }
+            }
+            else if (invert == 0 && throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear >= 0)
+            {
+                gear = 0;
+                prevGearChange = Time.time;
+                Brake = 1f;
+                braking = true;
+            }
+            if (!throttling)
+            {
+                throttle = Mathf.Clamp01(throttle - (Time.fixedDeltaTime / THROTTLE_RESP));
+            }
+            if (!braking)
+            {
+                Brake = Mathf.Clamp01(Brake - (Time.fixedDeltaTime / THROTTLE_RESP));
+            }
+
+            bool steering = false;
+            float steerLimit = Mathf.Clamp(1.0f - (STEER_DECAY * vehicleRigidBody.velocity.magnitude), 0.01f, 1.0f);
             if (FPCModSettings.Instance.XMLKeyMoveRight.IsPressed())
             {
-                var normalizedVelocity = vehicleRigidBody.velocity.normalized;
-                var brakeVelocity = normalizedVelocity * ModSettings.BreakingForce * 0.58f;
-                vehicleRigidBody.AddForce(-brakeVelocity);
-                vehicleRigidBody.AddRelativeTorque(Vector3.up * 5f * Time.fixedDeltaTime, ForceMode.VelocityChange);
+                float factor = (steer < 0.0f) ? STEER_RESP + STEER_REST : STEER_RESP;
+                steer = Mathf.Clamp(steer + (Time.fixedDeltaTime * factor), -steerLimit, steerLimit);
+                steering = true;
+            }
+            if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
+            {
+                float factor = (steer > 0.0f) ? STEER_RESP + STEER_REST : STEER_RESP;
+                steer = Mathf.Clamp(steer - (Time.fixedDeltaTime * factor), -steerLimit, steerLimit);
+                steering = true;
+            }
+            if (!steering)
+            {
+                if (steer > 0.0f)
+                {
+                    steer = Mathf.Clamp(steer - (Time.fixedDeltaTime * STEER_REST), 0f, steerLimit);
+                }
+                if (steer < 0.0f)
+                {
+                    steer = Mathf.Clamp(steer + (Time.fixedDeltaTime * STEER_REST), -steerLimit, 0f);
+                }
             }
         }
 
         private void HandleInputOnUpdate()
         {
-            if (InputManager.KeyTriggered((KeyCode)ModSettings.KeyLightToggle.Key))
-                isLightEnabled = !isLightEnabled;
+            if (Input.GetKeyDown((KeyCode)ModSettings.KeyLightToggle.Key))
+                effectManager.IsLightEnabled = !effectManager.IsLightEnabled;
 
-            if (InputManager.KeyTriggered((KeyCode)ModSettings.KeySirenToggle.Key))
-                isSirenEnabled = !isSirenEnabled;
+            if (Input.GetKeyDown((KeyCode)ModSettings.KeySirenToggle.Key))
+                effectManager.IsSirenEnabled = !effectManager.IsSirenEnabled;
 
-            var cursorVisible =
-             FPCModSettings.Instance.XMLKeyCursorToggle.IsPressed() ^ (FPCModSettings.Instance.XMLShowCursorFollow);
-            InputManager.ToggleCursor(cursorVisible);
-
-            if (InputManager.MouseButton.Middle.MouseTriggered() ||
-                FPCModSettings.Instance.XMLKeyCamReset.KeyTriggered())
-            {
-                offset.rotation = Quaternion.identity;
-            }
-            { // key movement
-                var movementFactor = ((FPCModSettings.Instance.XMLKeySpeedUp.IsPressed() ? FPCModSettings.Instance.XMLSpeedUpFactor : 1f)
-                                     * FPCModSettings.Instance.XMLMovementSpeed * Time.deltaTime).FromKmph();
-
-                var movement = Vector3.zero;
-                if (!(KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed()))
-                {
-                    if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) movement += Vector3.forward * movementFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) movement += Vector3.back * movementFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) movement += Vector3.right * movementFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) movement += Vector3.left * movementFactor;
-                }
-                if (FPCModSettings.Instance.XMLKeyMoveUp.IsPressed()) movement += Vector3.up * movementFactor;
-                if (FPCModSettings.Instance.XMLKeyMoveDown.IsPressed()) movement += Vector3.down * movementFactor;
-
-                offset.pos += offset.pos.z < -1f ? movement : offset.rotation * movement;
-            }
-
-            float yawDegree = 0f, pitchDegree = 0f;
-            { // key rotation
-                var rotateFactor = FPCModSettings.Instance.XMLRotateKeyFactor * Time.deltaTime;
-                if (KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed())
-                {
-                    if (FPCModSettings.Instance.XMLKeyRotateRight.IsPressed()) yawDegree += 1f * rotateFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateLeft.IsPressed()) yawDegree -= 1f * rotateFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateUp.IsPressed()) pitchDegree -= 1f * rotateFactor;
-                    if (FPCModSettings.Instance.XMLKeyRotateDown.IsPressed()) pitchDegree += 1f * rotateFactor;
-                }
-                if (yawDegree == 0f && pitchDegree == 0f)
-                {
-                    // mouse rotation
-                    const float mouseFactor = .2f;
-                    yawDegree = InputManager.MouseMoveHori * FPCModSettings.Instance.XMLRotateSensitivity *
-                                (FPCModSettings.Instance.XMLInvertRotateHorizontal ? -1f : 1f) * mouseFactor;
-                    pitchDegree = InputManager.MouseMoveVert * FPCModSettings.Instance.XMLRotateSensitivity *
-                                  (FPCModSettings.Instance.XMLInvertRotateVertical ? 1f : -1f) * mouseFactor;
-                }
-            }
-
-            var yawRotation = Quaternion.Euler(0f, yawDegree, 0f);
-            var pitchRotation = Quaternion.Euler(pitchDegree, 0f, 0f);
-            offset.rotation = yawRotation * offset.rotation * pitchRotation;
-
-            // Limit pitch
-            var eulerAngles = offset.rotation.eulerAngles;
-            if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
-            eulerAngles.x = eulerAngles.x.Clamp(offset.pos.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
-            eulerAngles.z = 0f;
-            offset.rotation = Quaternion.Euler(eulerAngles);
-        }
-        private void AddEffects()
-        {
-            if (vehicleInfo.m_effects != null)
-            {
-                foreach (var effect in vehicleInfo.m_effects)
-                {
-                    {
-                        if (effect.m_effect != null)
-                        {
-                            if (effect.m_vehicleFlagsRequired.IsFlagSet(Vehicle.Flags.Emergency1 | Vehicle.Flags.Emergency2))
-                                specialEffects.Add(effect.m_effect);
-                            else
-                            {
-                                if (effect.m_effect is MultiEffect multiEffect)
-                                {
-                                    foreach (var sub in multiEffect.m_effects)
-                                        if (sub.m_effect is LightEffect lightEffect)
-                                            lightEffects.Add(lightEffect);
-                                }
-                                regularEffects.Add(effect.m_effect);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        private void PlayEffects()
-        {
-            var pos = transform.position;
-            var velocity = vehicleRigidBody.velocity;
-            var acceleration = ((vehicleRigidBody.velocity - prevVelocity) / Time.fixedDeltaTime).magnitude;
-            var swayPos = Vector3.zero;
-            var rotation = transform.rotation;
-            var scale = Vector3.one;
-            var matrix = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref pos, ref rotation, ref scale, ref swayPos);
-            var area = new EffectInfo.SpawnArea(matrix, vehicleInfo.m_lodMeshData);
-            var listenerInfo = AudioManager.instance.CurrentListenerInfo;
-            var audioGroup = VehicleManager.instance.m_audioGroup;
-            RenderGroup.MeshData effectMeshData = vehicleInfo.m_vehicleAI.GetEffectMeshData();
-            var area2 = new EffectInfo.SpawnArea(matrix, effectMeshData, vehicleInfo.m_generatedInfo.m_tyres, vehicleInfo.m_lightPositions);
-
-            foreach (var regularEffect in regularEffects)
-            {
-                regularEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
-            }
-            if (isLightEnabled)
-                foreach (var light in lightEffects)
-                {
-                    light.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
-                }
-
-            if (isSirenEnabled)
-                foreach (var specialEffect in specialEffects)
-                {
-                    specialEffect.RenderEffect(default, area2, velocity, acceleration, 1f, -1f, SimulationManager.instance.m_simulationTimeDelta, RenderManager.instance.CurrentCameraInfo);
-                    specialEffect.PlayEffect(default, area, velocity, acceleration, 1f, listenerInfo, audioGroup);
-                }
-        }
-
-        /* private void DrawTyre()
-         {
-             Vector3 currentVelocity = vehicleRigidBody.velocity;
-             Vector3 horizontalForward = new Vector3(transform.forward.x, 0, transform.forward.z);
-             Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0, currentVelocity.z);
-             var pos = transform.position;
-             float steerAngle = SignedAngle(horizontalForward, horizontalVelocity, Vector3.up);
-             float travelDist = (pos - prevPosition).magnitude;
-
-             Vector4 tyrePos;
-             tyrePos.x = steerAngle;
-             tyrePos.y = travelDist;
-             tyrePos.z = 0f;
-             tyrePos.w = 0f;
-
-             var swayPos = Vector3.zero;
-             var rotation = transform.rotation;
-             var scale = Vector3.one;
-             var matrixBody = vehicleInfo.m_vehicleAI.CalculateBodyMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref pos, ref rotation, ref scale, ref swayPos);
-             var matrixTyre = vehicleInfo.m_vehicleAI.CalculateTyreMatrix(Vehicle.Flags.Created | Vehicle.Flags.Spawned, ref pos, ref rotation, ref scale, ref matrixBody);
-
-             MaterialPropertyBlock materialBlock = VehicleManager.instance.m_materialBlock;
-             materialBlock.Clear();
-             materialBlock.SetMatrix(VehicleManager.instance.ID_TyreMatrix, matrixTyre);
-             materialBlock.SetVector(VehicleManager.instance.ID_TyrePosition, Vector3.zero);
-             materialBlock.SetVector(VehicleManager.instance.ID_LightState, Vector3.zero);
-             VehicleManager.instance.m_drawCallData.m_defaultCalls = VehicleManager.instance.m_drawCallData.m_defaultCalls + 1;
-
-             vehicleInfo.m_material.SetVectorArray(VehicleManager.instance.ID_TyreLocation, vehicleInfo.m_generatedInfo.m_tyres);
-             Graphics.DrawMesh(vehicleInfo.m_mesh, matrixBody, vehicleInfo.m_material, 0, null, 0, materialBlock);
-         }*/
-        private void UpdateCameraPos()
-        {
-            var cameraTransform = GameCamController.Instance.MainCamera.transform;
-
-            var instanceRotation = transform.rotation * offset.rotation;
-            var instancePos = transform.position +
-                ((offset.pos.z > -1f ? transform.rotation /*rotate with the offset position*/ :
-                instanceRotation  /*rotate with the vehicle position*/) * offset.pos);
-
-            // Limit the camera's position to the allowed area.
-            instancePos = CameraController.ClampCameraPosition(instancePos);
-
-            // Apply the calculated position and rotation to the camera.
-            if (FPCModSettings.Instance.XMLSmoothTransition)
-            {
-                cameraTransform.position =
-                cameraTransform.position.DistanceTo(instancePos) > FPCModSettings.Instance.XMLMinTransDistance &&
-                cameraTransform.position.DistanceTo(instancePos) <= FPCModSettings.Instance.XMLMaxTransDistance
-                ? Vector3.Lerp(cameraTransform.position, instancePos, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed)
-                : instancePos;
-                cameraTransform.rotation = Quaternion.Slerp(cameraTransform.rotation, instanceRotation, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed);
-            }
-            else
-            {
-                cameraTransform.position = instancePos;
-                cameraTransform.rotation = instanceRotation;
-            }
+            if (Input.GetKeyDown((KeyCode)ModSettings.KeyUnstuck.Key))
+                Unstuck();
         }
     }
 }
