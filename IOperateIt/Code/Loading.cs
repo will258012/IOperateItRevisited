@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace IOperateIt
 {
-    public class Loading : PatcherLoadingBase<OptionsPanel, PatcherBase>
+    public class Loading : PatcherLoadingBase<SettingsPanel, PatcherBase>
     {
         protected override List<AppMode> PermittedModes => new List<AppMode> { AppMode.Game, AppMode.MapEditor };
         protected override bool CreatedChecksPassed() => FPSCameraAPI.Helper.IsFPSCameraInstalledAndEnabled;
@@ -19,14 +19,22 @@ namespace IOperateIt
             }
             base.OnLevelUnloading();
         }
+
         protected override void LoadedActions(LoadMode mode)
         {
             base.LoadedActions(mode);
+            if (gameObject != null)
+            {
+                Object.Destroy(gameObject);
+                gameObject = null;
+            }
             gameObject = new GameObject("IOperateIt");
             gameObject.AddComponent<MainPanel>();
             gameObject.AddComponent<DriveButtons>();
             gameObject.AddComponent<DriveController>();
+            gameObject.AddComponent<DriveCamController>();
         }
+
         private GameObject gameObject = null;
     }
 }

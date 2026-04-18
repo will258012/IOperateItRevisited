@@ -5,7 +5,7 @@
 "MOD_DESCRIPTION","¡Conduce vehículos por tu ciudad!",""
 "SETTINGS_MAXVELOCITY","Velocidad máxima",""
 "SETTINGS_ACCELERATIONFORCE","Fuerza de aceleración",""
-"SETTINGS_BREAKINGFORCE","Fuerza de frenar",""
+"SETTINGS_BRAKINGFORCE","Fuerza de frenar",""
 "SETTINGS_BUILDINGCOLLISION","Building collision",""
 "SETTINGS_VEHICLECOLLISION","Vehicle collision",""
 "SETTINGS_OFFSET","Desplazamiento de cámara",""

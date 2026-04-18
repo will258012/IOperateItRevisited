@@ -1,12 +1,7 @@
-# Cities: Skylines
-# IOperateIt Revisited
+# Developing branch
+
+This branch is a work in progress, based on a merge from [@bradleyq's fork](https://github.com/bradleyq/IOperateItRevamped).
+
+Huge thanks to him for his tremendous effort in improving this mod and for allowing us to integrate and adapt his changes as part of our feature updates!
+
 <img src="Images/banner.jpg" width="750px"/>
-
-> This mod is an updated version for [IOperateIt](https://github.com/tony56a/IOperateIt) by tony56a.
-
-## Please install the prerequisite [First Person Camera - Continued](https://github.com/Will258012/FPSCamera-Continued/releases/latest) before using.
-
-## Help with translate!
-[![Crowdin](https://badges.crowdin.net/ioperateit-revisited/localized.svg)](https://crowdin.com/project/ioperateit-revisited)
-
-> For more information, please visit [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3371685709). The mod can also be downloaded there.
