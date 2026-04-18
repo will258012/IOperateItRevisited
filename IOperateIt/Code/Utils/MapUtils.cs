@@ -60,14 +60,14 @@ namespace IOperateIt.Utils
         }
 
 
-        public static float CalculateHeight(Vector3 position, float objectHeight, out CollisionTypes collisionType, bool ignoreColliders = false)
+        public static float CalculateHeight(Vector3 position, float objectHeight, out CollisionTypes collisionType, out ushort segmentId, bool ignoreColliders = false)
         {
-            ushort segmentId = 0;
             RaycastInput input;
             RaycastOutput output;
             Vector3 roadPos;
 
             collisionType = CollisionTypes.Ground;
+            segmentId = default;
 
             float height = Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(position);
             float tmpHeight = Singleton<TerrainManager>.instance.WaterLevel(new Vector2(position.x, position.z));

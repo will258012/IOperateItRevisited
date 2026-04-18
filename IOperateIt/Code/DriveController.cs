@@ -48,6 +48,7 @@ namespace IOperateIt
         public static DriveController Instance { get; private set; }
         public float Brake { get; set; }
         public Vector3 PrevVelocity { get; set; }
+        private ushort lastValidSegmentId;
 
         private Rigidbody vehicleRigidBody;
         private BoxCollider vehicleCollider;
@@ -239,7 +240,8 @@ namespace IOperateIt
         {
             vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
-            float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var type);
+            float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var type, out var segmentId);
+            if (segmentId != default) lastValidSegmentId = segmentId;
             effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
             bool onGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
 
@@ -324,7 +326,8 @@ namespace IOperateIt
             {
                 var wheelPos = w.gameObject.transform.position;
                 w.heightSample = wheelPos;
-                w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight, out var type);
+                w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight, out var type, out var segmentId);
+                if (segmentId != default) lastValidSegmentId = segmentId;
                 effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
 
                 if (wheelPos.y + ROAD_WALL_HEIGHT < w.heightSample.y)
@@ -520,6 +523,35 @@ namespace IOperateIt
             if (vehicleRigidBody.velocity.magnitude > ModSettings.MaxVelocity / MS_TO_KMPH)
             {
                 vehicleRigidBody.AddForce((vehicleRigidBody.velocity.normalized * ModSettings.MaxVelocity / MS_TO_KMPH) - vehicleRigidBody.velocity, ForceMode.VelocityChange);
+            }
+        }
+        private void Unstuck()
+        {
+            vehicleRigidBody.velocity = Vector3.zero;
+            vehicleRigidBody.angularVelocity = Vector3.zero;
+
+            var netSegment = NetManager.instance.m_segments.m_buffer[lastValidSegmentId];
+
+            if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
+            {
+                netSegment.GetClosestPositionAndDirection(vehicleRigidBody.position, out var newPos, out var dir);
+                if (Vector3.Distance(newPos, vehicleRigidBody.position) < 50f)
+                    vehicleRigidBody.transform.SetPositionAndRotation(newPos, Quaternion.LookRotation(dir));
+                else
+                    Fallback();
+            }
+            else
+                Fallback();
+
+            vehicleRigidBody.Sleep();
+            DriveCamController.Instance.ResetCam();
+
+            void Fallback()
+            {
+                var fallBackPos = vehicleRigidBody.position;
+                fallBackPos.y = MapUtils.CalculateHeight(vehicleRigidBody.position, roofHeight, out _, out _) + 2f;
+                vehicleRigidBody.position = fallBackPos;
+                vehicleRigidBody.rotation = Quaternion.Euler(0f, vehicleRigidBody.rotation.eulerAngles.y, 0f);
             }
         }
 
@@ -937,14 +969,7 @@ namespace IOperateIt
                 effectManager.IsSirenEnabled = !effectManager.IsSirenEnabled;
 
             if (Input.GetKeyDown((KeyCode)ModSettings.KeyUnstuck.Key))
-            {
-                vehicleRigidBody.velocity = Vector3.zero;
-                vehicleRigidBody.angularVelocity = Vector3.zero;
-                vehicleRigidBody.position += Vector3.up * 2f;
-                vehicleRigidBody.rotation = Quaternion.Euler(0f, vehicleRigidBody.rotation.eulerAngles.y, 0f);
-                vehicleRigidBody.Sleep();
-                DriveCamController.Instance.ResetCamera();
-            }
+                Unstuck();
         }
     }
 }

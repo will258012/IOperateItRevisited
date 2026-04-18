@@ -75,10 +75,15 @@ namespace IOperateIt
             rotationOffset = Quaternion.identity;
             Logging.KeyMessage("Drive cam disabled");
         }
-        public void ResetCamera()
+        public void ResetCam()
         {
             rotationOffset = Quaternion.identity;
             lastMovedTime = 0f;
+
+            if (FPCModSettings.Instance.XMLSmoothTransition)
+                targetFoV = FPCModSettings.Instance.XMLCamFieldOfView;
+            else
+                mainCamera.fieldOfView = FPCModSettings.Instance.XMLCamFieldOfView;
         }
         private void Update()
         {
@@ -173,13 +178,7 @@ namespace IOperateIt
             if (InputManager.MouseButton.Middle.MouseTriggered() ||
                    fpcModSettings.XMLKeyCamReset.KeyTriggered())
             {
-                rotationOffset = Quaternion.identity;
-                lastMovedTime = 0f;
-
-                if (fpcModSettings.XMLSmoothTransition)
-                    targetFoV = fpcModSettings.XMLCamFieldOfView;
-                else
-                    mainCamera.fieldOfView = fpcModSettings.XMLCamFieldOfView;
+                ResetCam();
             }
 
             // scroll zooming
