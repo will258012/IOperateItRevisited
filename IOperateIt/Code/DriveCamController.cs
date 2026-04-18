@@ -51,7 +51,7 @@ namespace IOperateIt
             mainCamera = FPC.FPSCamera.Cam.Controller.GameCamController.Instance.MainCamera;
         }
 
-        public void EnableCam(Rigidbody rigidBody, float distance)
+        public void EnableCam(Rigidbody rigidBody)
         {
             enabled = true;
             FPC.FPSCamera.Cam.Controller.FPSCamController.Instance.FPSCam = new DriveCam();
