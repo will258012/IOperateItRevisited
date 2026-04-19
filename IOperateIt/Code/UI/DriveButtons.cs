@@ -141,7 +141,7 @@ public class DriveButtons : MonoBehaviour
 public static class DriveButtonAtlas
 {
     public const string Fg = "IOperateItIcon";
-    public const string FgPath = "Resources/" + Fg + ".png";
+    public const string FgPath = "Textures/" + Fg;
 
     public const string Bg = "OptionBase";
     public const string BgPressed = "OptionBasePressed";
@@ -159,20 +159,20 @@ public static class DriveButtonAtlas
 
                 // Loaded custom textures
                 names[index] = Fg;
-                textures[index++] = DriveCommonLoadTexture(Fg);
+                textures[index++] = LoadTexture(FgPath);
 
                 // Existing core game textures
                 names[index] = Bg;
-                textures[index++] = DriveCommonRipTexture(Bg);
+                textures[index++] = RipTexture(Bg);
 
                 names[index] = BgPressed;
-                textures[index++] = DriveCommonRipTexture(BgPressed);
+                textures[index++] = RipTexture(BgPressed);
 
                 names[index] = BgHovered;
-                textures[index++] = DriveCommonRipTexture(BgHovered);
+                textures[index++] = RipTexture(BgHovered);
 
                 names[index] = BgDisabled;
-                textures[index++] = DriveCommonRipTexture(BgDisabled);
+                textures[index++] = RipTexture(BgDisabled);
 
                 field = UITextures.CreateSpriteAtlas(Fg + "_Atlas", 1024, textures, names);
             }
@@ -180,10 +180,10 @@ public static class DriveButtonAtlas
         }
     }
     // Hack to use Algernon load texture
-    private static Texture2D DriveCommonLoadTexture(string name) => UITextures.LoadCursor(name + ".png").m_texture;
+    private static Texture2D LoadTexture(string name) => UITextures.LoadCursor(name + ".png").m_texture;
 
     // Rip texture from the default global atlas
-    private static Texture2D DriveCommonRipTexture(string name)
+    private static Texture2D RipTexture(string name)
     {
         foreach (var si in UIView.GetAView().defaultAtlas.sprites)
         {
