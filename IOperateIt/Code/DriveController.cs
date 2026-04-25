@@ -15,23 +15,24 @@ namespace IOperateIt
     {
         public const float FLOAT_ERROR = 0.01f;
         private const float THROTTLE_RESP = 2.0f;
-        private const float STEER_RESP = 1.75f;
-        private const float STEER_REST = 1.75f;
+        private const float STEER_RESP = 1.5f;
+        private const float STEER_REST = 1.5f;
         private const float GEAR_RESP = 0.2f;
+        private const float BRAKE_SPEED_FACTOR = 0.3f;
         private const float PARK_SPEED = 0.25f;
         private const float DEPEN_VELOCITY = 2.0f;
-        private const float STEER_MAX = 37.0f;
+        private const float STEER_MAX = 45f;
         private const float STEER_DECAY = 0.0075f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         private const float DRAG_FACTOR = 0.25f;
         private const float DRAG_DRIVETRAIN = 0.15f;
-        private const float DRAG_WHEEL_POWERED = 0.05f;
-        private const float DRAG_WHEEL = 0.01f;
+        private const float DRAG_WHEEL_POWERED = 0.25f;
+        private const float DRAG_WHEEL = 0.15f;
         private const float MOMENT_WHEEL = 1.5f;
         private const float VALID_INCLINE = 0.5f;
-        private const float GRIP_MAX_SLIP = 0.8f;
+        private const float GRIP_MAX_SLIP = 0.5f;
         private const float GRIP_OPTIM_SLIP = 0.2f;
         private const float ENGINE_PEAK_POWER_RPS = 900.0f;
         private const float ENGINE_IDLE_RPS = 90.0f;
@@ -46,8 +47,11 @@ namespace IOperateIt
 
 
         public static DriveController Instance { get; private set; }
-        public float Brake { get; set; }
-        public Vector3 PrevVelocity { get; set; }
+        public float Brake { get; private set; }
+        public Vector3 PrevVelocity { get; private set; }
+        public Direction CurrentDirection { get; private set; }
+        public Direction Gear { get; private set; }
+
         private ushort lastValidSegmentId;
 
         private Rigidbody vehicleRigidBody;
@@ -64,21 +68,28 @@ namespace IOperateIt
         private Vector3 binormal;
         private Vector3 normal;
         private bool physicsFallback = false;
+        private float terrainHeight;
+        private float distanceTravelled;
+        private float steer;
+        private float throttle;
+        private float rideHeight;
+        private float roofHeight;   
+        private float compression;
+        private float prevGearChange;
+        private float normalImpulse;
+        private float radps;
+        private float torque;
 
-        private int gear = 0;
-        private float terrainHeight = 0f;
-        private float distanceTravelled = 0f;
-        private float steer = 0f;
-        private float throttle = 0f;
-        private float rideHeight = 0f;
-        private float roofHeight = 0f;
-        private float compression = 0f;
-        private float prevGearChange = 0f;
-        private float normalImpulse = 0f;
-        private float radps = 0f;
-        private float torque = 0f;
+        public enum Direction
+        {
+            Neutral = 0,
+            Forward = 1,
+            Reverse = -1,
+        }
 
         private UndergroundRenderer undergroundRenderer = new();
+
+
         private void Awake()
         {
             Instance = this;
@@ -151,13 +162,13 @@ namespace IOperateIt
             var vehicleVel = vehicleRigidBody.velocity;
             var vehicleAngularVel = vehicleRigidBody.angularVelocity;
             float speed = Vector3.Dot(Vector3.forward, vehicleRigidBody.transform.InverseTransformDirection(vehicleVel));
-            int invert = Mathf.Abs(speed) < PARK_SPEED ? 0 : (speed > 0f ? 1 : -1);
+            CurrentDirection = Mathf.Abs(speed) < PARK_SPEED ? Direction.Neutral : (speed > 0f ? Direction.Forward : Direction.Reverse);
 
-            HandleInputOnFixedUpdate(invert);
+            HandleInputOnFixedUpdate();
 
             if (physicsFallback)
             {
-                FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, invert);
+                FallbackPhysics(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel);
             }
             else
             {
@@ -193,6 +204,8 @@ namespace IOperateIt
         private void OnCollisionEnter(Collision collision)
         {
             LimitVelocity();
+            vehicleRigidBody.velocity *= 0.3f;
+            vehicleRigidBody.angularVelocity = Vector3.zero;
 
             var container = collision.collider.gameObject.GetComponent<ColliderContainer>();
             if (container.Type == ColliderContainer.ContainerTypes.Vehicle)
@@ -222,7 +235,7 @@ namespace IOperateIt
         private void OnGUI()
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"g: {gear}");
+            sb.AppendLine($"g: {Gear}");
             sb.AppendLine($"t: {throttle:F2}");
             sb.AppendLine($"b: {Brake:F2}");
             sb.AppendLine($"s: {vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH:F1} km/h");
@@ -236,14 +249,15 @@ namespace IOperateIt
             GUI.Label(new Rect(100f, 100f, 700f, 700f), sb.ToString());
         }
 #endif
-        private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, float invert)
+        private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
         {
             vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
             float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var type, out var segmentId);
             if (segmentId != default) lastValidSegmentId = segmentId;
-            effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
             bool onGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
+            effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground && onGround;
+
 
             CalculateSlope(ref vehiclePos, ref vehicleVel, ref vehicleAngularVel, height, onGround);
             terrainHeight = height;
@@ -282,16 +296,21 @@ namespace IOperateIt
             {
                 var relativeVel = vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
 
-                var longImpulse = Vector3.forward * gear * throttle * (ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) / (vehicleVel.magnitude + 1.0f)) * Time.fixedDeltaTime;
+                var longImpulse = Vector3.forward * (int)Gear * throttle * (ModSettings.EnginePower * KW_TO_W * (1.0f - DRAG_DRIVETRAIN) / (vehicleVel.magnitude + 1.0f)) * Time.fixedDeltaTime;
 
-                if (gear == 0)
+                float speedBrakeMultiplier = 1f + (vehicleVel.magnitude * BRAKE_SPEED_FACTOR);
+
+                if (Gear == 0)
                 {
-                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(Brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime, Mathf.Abs(relativeVel.z) * vehicleRigidBody.mass);
+                    longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(
+                        Brake * speedBrakeMultiplier * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime,
+                        Mathf.Abs(relativeVel.z) * vehicleRigidBody.mass);
                 }
                 else
                 {
-                    longImpulse -= Vector3.forward * gear * Brake * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
+                    longImpulse -= Vector3.forward * (int)Gear * Brake * speedBrakeMultiplier * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime;
                 }
+
 
                 relativeVel.z = 0f;
                 relativeVel.y = 0f;
@@ -306,14 +325,14 @@ namespace IOperateIt
                 float speedsteer = Mathf.Min(Mathf.Max(vehicleVel.magnitude * 80f / vehicleCollider.size.z, 0f), 60f);
                 speedsteer = Mathf.Sign(steer) * Mathf.Min(Mathf.Abs(60f * steer), speedsteer);
 
-                var angularTarget = ((1f - FLOAT_ERROR) * (Vector3.up * invert * speedsteer * Time.fixedDeltaTime)) - vehicleRigidBody.transform.InverseTransformDirection(vehicleAngularVel);
+                var angularTarget = ((1f - FLOAT_ERROR) * (Vector3.up * (int)CurrentDirection * speedsteer * Time.fixedDeltaTime)) - vehicleRigidBody.transform.InverseTransformDirection(vehicleAngularVel);
 
                 vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
             }
 
             compression = Mathf.Max(terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0.0f);
 
-            distanceTravelled += invert * Vector3.Magnitude(vehiclePos - prevPosition);
+            distanceTravelled += (int)CurrentDirection * Vector3.Magnitude(vehiclePos - prevPosition);
         }
 
         private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
@@ -328,7 +347,7 @@ namespace IOperateIt
                 w.heightSample = wheelPos;
                 w.heightSample.y = MapUtils.CalculateHeight(wheelPos, roofHeight, out var type, out var segmentId);
                 if (segmentId != default) lastValidSegmentId = segmentId;
-                effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground;
+                effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground && w.onGround;
 
                 if (wheelPos.y + ROAD_WALL_HEIGHT < w.heightSample.y)
                 {
@@ -415,7 +434,7 @@ namespace IOperateIt
             float avgRearRps = 0.0f;
             foreach (var w in wheelObjects) // calcuate first pass wheel angular velocity
             {
-                float wheelTorque = gear * throttle * w.torqueFract * torque;
+                float wheelTorque = (int)Gear * throttle * w.torqueFract * torque;
                 w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
 
                 if (w.IsFront)
@@ -455,7 +474,17 @@ namespace IOperateIt
                     w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), radDelta * radDelta * 10.0f);
 
                     // braking ABS
-                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS) ? Brake : 0.0f;
+                    float speedBrakeMultiplier = 1f + (vehicleVel.magnitude * BRAKE_SPEED_FACTOR);
+                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS) && w.onGround
+                        ? Brake * speedBrakeMultiplier
+                        : 0.0f;
+
+                    if (Brake > 0.5f && vehicleVel.magnitude > 20f && w.onGround)
+                    {
+                        float brakeCut = Brake * Time.fixedDeltaTime * 3f;
+                        vehicleVel = Vector3.MoveTowards(vehicleVel, Vector3.zero, brakeCut);
+                        vehicleRigidBody.velocity = vehicleVel;
+                    }
 
                     // basic traction control
                     float actionableDelta = Mathf.Max((Mathf.Sign(w.radps) * (w.radps - (longSpeed / w.radius))) - (w.normalImpulse * w.frictionCoeff * Time.fixedDeltaTime * w.radius / w.moment), 0.0f);
@@ -466,6 +495,10 @@ namespace IOperateIt
                     w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
 
                     float longComponent = normalContribution * vehicleRigidBody.mass * ((w.radps * w.radius) - longSpeed);
+                    if (Mathf.Abs(longSpeed) < 1.0f || Mathf.Abs(w.radps) < 0.1f) // exaggerated torque at low speeds for better stop and start
+                    {
+                        longComponent = normalContribution * vehicleRigidBody.mass * (w.radps * w.radius - longSpeed);
+                    }
 
                     flatImpulses.y = longComponent;
 
@@ -510,7 +543,7 @@ namespace IOperateIt
                     }
 
                     float wheelTorque;
-                    wheelTorque = gear * throttle * w.torqueFract * torque;
+                    wheelTorque = (int)Gear * throttle * w.torqueFract * torque;
                     w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
                     wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(Brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
                     w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
@@ -615,7 +648,7 @@ namespace IOperateIt
             prevPosition = position;
             PrevVelocity = Vector3.zero;
             this.vehicleInfo = vehicleInfo;
-            gear = 0;
+            Gear = Direction.Neutral;
             terrainHeight = 0f;
             distanceTravelled = 0f;
             steer = 0f;
@@ -765,7 +798,7 @@ namespace IOperateIt
             binormal = Vector3.zero;
             normal = Vector3.zero;
             physicsFallback = false;
-            gear = 0;
+            Gear = Direction.Neutral;
             terrainHeight = 0f;
             distanceTravelled = 0f;
             steer = 0f;
@@ -865,28 +898,28 @@ namespace IOperateIt
             binormal = binorm;
         }
 
-        private void HandleInputOnFixedUpdate(int invert)
+        private void HandleInputOnFixedUpdate()
         {
             bool throttling = false;
             bool braking = false;
             if (FPCModSettings.Instance.XMLKeyMoveForward.IsPressed())
             {
-                if (invert < 0)
+                if (CurrentDirection == Direction.Reverse)
                 {
-                    if (gear <= 0)
+                    if (Gear != Direction.Forward)
                     {
                         throttle = 0f;
                         Brake = Mathf.Clamp01(Brake + (Time.fixedDeltaTime / THROTTLE_RESP));
                         braking = true;
                     }
                 }
-                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear <= 0)
+                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && Gear != Direction.Forward)
                 {
-                    gear++;
+                    Gear++;
                     prevGearChange = Time.time;
                 }
 
-                if (gear > 0)
+                if (Gear == Direction.Forward)
                 {
                     Brake = 0f;
                     throttle = Mathf.Clamp01(throttle + (Time.fixedDeltaTime / THROTTLE_RESP));
@@ -895,31 +928,31 @@ namespace IOperateIt
             }
             else if (FPCModSettings.Instance.XMLKeyMoveBackward.IsPressed())
             {
-                if (invert > 0)
+                if (CurrentDirection == Direction.Forward)
                 {
-                    if (gear >= 0)
+                    if (Gear != Direction.Reverse)
                     {
                         throttle = 0f;
                         Brake = Mathf.Clamp01(Brake + (Time.fixedDeltaTime / THROTTLE_RESP));
                         braking = true;
                     }
                 }
-                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear >= 0)
+                else if (throttle == 0f && Time.time > prevGearChange + GEAR_RESP && Gear != Direction.Reverse)
                 {
-                    gear--;
+                    Gear--;
                     prevGearChange = Time.time;
                 }
 
-                if (gear < 0)
+                if (Gear == Direction.Reverse)
                 {
                     Brake = 0f;
                     throttle = Mathf.Clamp01(throttle + (Time.fixedDeltaTime / THROTTLE_RESP));
                     throttling = true;
                 }
             }
-            else if (invert == 0 && throttle == 0f && Time.time > prevGearChange + GEAR_RESP && gear >= 0)
+            else if (CurrentDirection == Direction.Neutral && throttle == 0f && Time.time > prevGearChange + GEAR_RESP && Gear != Direction.Reverse)
             {
-                gear = 0;
+                Gear = Direction.Neutral;
                 prevGearChange = Time.time;
                 Brake = 1f;
                 braking = true;
@@ -934,26 +967,26 @@ namespace IOperateIt
             }
 
             bool steering = false;
-            float steerLimit = Mathf.Clamp(1.0f - (STEER_DECAY * vehicleRigidBody.velocity.magnitude), 0.01f, 1.0f);
+            float steerLimit = Mathf.Clamp(1f - (STEER_DECAY * vehicleRigidBody.velocity.magnitude), 0.01f, 1f);
             if (FPCModSettings.Instance.XMLKeyMoveRight.IsPressed())
             {
-                float factor = (steer < 0.0f) ? STEER_RESP + STEER_REST : STEER_RESP;
+                float factor = (steer < 0f) ? STEER_RESP + STEER_REST : STEER_RESP;
                 steer = Mathf.Clamp(steer + (Time.fixedDeltaTime * factor), -steerLimit, steerLimit);
                 steering = true;
             }
             if (FPCModSettings.Instance.XMLKeyMoveLeft.IsPressed())
             {
-                float factor = (steer > 0.0f) ? STEER_RESP + STEER_REST : STEER_RESP;
+                float factor = (steer > 0f) ? STEER_RESP + STEER_REST : STEER_RESP;
                 steer = Mathf.Clamp(steer - (Time.fixedDeltaTime * factor), -steerLimit, steerLimit);
                 steering = true;
             }
             if (!steering)
             {
-                if (steer > 0.0f)
+                if (steer > 0f)
                 {
                     steer = Mathf.Clamp(steer - (Time.fixedDeltaTime * STEER_REST), 0f, steerLimit);
                 }
-                if (steer < 0.0f)
+                if (steer < 0f)
                 {
                     steer = Mathf.Clamp(steer + (Time.fixedDeltaTime * STEER_REST), -steerLimit, 0f);
                 }
