@@ -216,7 +216,7 @@ namespace IOperateIt
                     ref (otherVehicle.m_lastFrame == 0 ? ref otherVehicle.m_frame0.m_velocity : ref otherVehicle.m_frame1.m_velocity) :
                     ref (otherVehicle.m_lastFrame == 2 ? ref otherVehicle.m_frame2.m_velocity : ref otherVehicle.m_frame3.m_velocity));
 
-                float collisionOrientation = Vector3.Dot(Vector3.Normalize(vehicleRigidBody.position - collision.collider.transform.position), Vector3.Normalize(otherVelocity));
+                float collisionOrientation = Vector3.Dot(Vector3.Normalize(vehicleRigidBody.transform.position - collision.collider.transform.position), Vector3.Normalize(otherVelocity));
 
                 otherVelocity = otherVelocity * 0.8f * (0.5f + ((-collisionOrientation + 1f) * 0.25f));
             }
@@ -236,6 +236,7 @@ namespace IOperateIt
         {
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"g: {Gear}");
+            sb.AppendLine($"d: {CurrentDirection}");
             sb.AppendLine($"t: {throttle:F2}");
             sb.AppendLine($"b: {Brake:F2}");
             sb.AppendLine($"s: {vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH:F1} km/h");
@@ -567,8 +568,8 @@ namespace IOperateIt
 
             if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
             {
-                netSegment.GetClosestPositionAndDirection(vehicleRigidBody.position, out var newPos, out var dir);
-                if (Vector3.Distance(newPos, vehicleRigidBody.position) < 50f)
+                netSegment.GetClosestPositionAndDirection(vehicleRigidBody.transform.position, out var newPos, out var dir);
+                if (Vector3.Distance(newPos, vehicleRigidBody.transform.position) < 50f)
                     vehicleRigidBody.transform.SetPositionAndRotation(newPos, Quaternion.LookRotation(dir));
                 else
                     Fallback();
@@ -581,8 +582,8 @@ namespace IOperateIt
 
             void Fallback()
             {
-                var fallBackPos = vehicleRigidBody.position;
-                fallBackPos.y = MapUtils.CalculateHeight(vehicleRigidBody.position, roofHeight, out _, out _) + 2f;
+                var fallBackPos = vehicleRigidBody.transform.position;
+                fallBackPos.y = MapUtils.CalculateHeight(vehicleRigidBody.transform.position, roofHeight, out _, out _) + 2f;
                 vehicleRigidBody.position = fallBackPos;
                 vehicleRigidBody.rotation = Quaternion.Euler(0f, vehicleRigidBody.rotation.eulerAngles.y, 0f);
             }
