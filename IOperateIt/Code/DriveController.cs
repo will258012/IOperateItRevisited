@@ -18,11 +18,11 @@ namespace IOperateIt
         private const float STEER_RESP = 1.5f;
         private const float STEER_REST = 1.5f;
         private const float GEAR_RESP = 0.2f;
-        private const float BRAKE_SPEED_FACTOR = 0.3f;
+        private const float BRAKE_SPEED_FACTOR = 0.7f;
         private const float PARK_SPEED = 0.25f;
         private const float DEPEN_VELOCITY = 2.0f;
         private const float STEER_MAX = 45f;
-        private const float STEER_DECAY = 0.0075f;
+        private const float STEER_DECAY = 0.007f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
         private const float NEIGHBOR_WHEEL_DIST = 0.2f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
@@ -300,7 +300,7 @@ namespace IOperateIt
 
                 float speedBrakeMultiplier = 1f + (vehicleVel.magnitude * BRAKE_SPEED_FACTOR);
 
-                if (Gear == 0)
+                if (Gear == Direction.Neutral)
                 {
                     longImpulse -= Vector3.forward * Mathf.Sign(relativeVel.z) * Mathf.Min(
                         Brake * speedBrakeMultiplier * (ModSettings.BrakingForce * KN_TO_N) * Time.fixedDeltaTime,
@@ -481,7 +481,7 @@ namespace IOperateIt
 
                     if (Brake > 0.5f && vehicleVel.magnitude > 20f && w.onGround)
                     {
-                        float brakeCut = Brake * Time.fixedDeltaTime * 3f;
+                        float brakeCut = Brake * ModSettings.BrakingForce * 0.1f * Time.fixedDeltaTime;
                         vehicleVel = Vector3.MoveTowards(vehicleVel, Vector3.zero, brakeCut);
                         vehicleRigidBody.velocity = vehicleVel;
                     }
