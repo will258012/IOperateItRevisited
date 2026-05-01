@@ -45,3 +45,5 @@
 "MODSETTINGSBTN_TEXT","모드 설정",""
 "ROAD_SELECT","운전을 시작할 도로 선택",""
 "DRIVINGMODE","주행 모드",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
