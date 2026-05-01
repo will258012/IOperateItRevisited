@@ -45,3 +45,5 @@ Schakel dit uit als het conflicteert met bestaande tunnels of visuele problemen 
 "MODSETTINGSBTN_TEXT","Modinstellingen",""
 "ROAD_SELECT","Selecteer een wegsegment om te beginnen met rijden",""
 "DRIVINGMODE","Rijmodus",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
