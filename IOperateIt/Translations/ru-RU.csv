@@ -45,3 +45,5 @@
 "MODSETTINGSBTN_TEXT","Настройки мода",""
 "ROAD_SELECT","Выберите участок дороги, чтобы начать вождение",""
 "DRIVINGMODE","Режим вождения",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
