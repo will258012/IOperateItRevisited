@@ -90,7 +90,7 @@ public class DriveButtons : MonoBehaviour
         button.tooltip = Translations.Translate("DRIVEBTN_TOOLTIP");
         button.size = new Vector2(40f, 40f);
         button.scaleFactor = .8f;
-        
+
         button.atlas = DriveButtonAtlas.Atlas;
         button.pressedBgSprite = DriveButtonAtlas.BgPressed;
         button.normalBgSprite = DriveButtonAtlas.Bg;
@@ -111,14 +111,14 @@ public class DriveButtons : MonoBehaviour
                 ref var vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[instanceID.Vehicle];
                 Color color = vehicle.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicle, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
                 DriveController.Instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info, color, true);
-                MainPanel.Instance._vehicleList.FindItem<uint>(vehicle.m_infoIndex);
+                MainPanel.Instance.vehicleList.FindItem<uint>(vehicle.m_infoIndex);
             }
             else if (instanceID.Type == InstanceType.ParkedVehicle)
             {
                 ref var vehicleParked = ref Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[instanceID.ParkedVehicle];
                 Color color = vehicleParked.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicleParked, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
                 DriveController.Instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info, color, true);
-                MainPanel.Instance._vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
+                MainPanel.Instance.vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
             }
             panel.component.isVisible = false;
         };
