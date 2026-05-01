@@ -45,3 +45,5 @@ Desative isso se entrar em conflito com túneis existentes ou causar problemas v
 "MODSETTINGSBTN_TEXT","Configurações do Mod",""
 "ROAD_SELECT","Clique numa parte de uma estrada para começar a dirigir",""
 "DRIVINGMODE","Modo de Direção",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
