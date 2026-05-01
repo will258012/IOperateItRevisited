@@ -45,3 +45,5 @@ Desactiva esto si entra en conflicto con túneles existentes o causa problemas v
 "MODSETTINGSBTN_TEXT","Ajustes del mod",""
 "ROAD_SELECT","Seleccione un segmento de camino para empezar conducir",""
 "DRIVINGMODE","Modo de conducción",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
