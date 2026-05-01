@@ -45,3 +45,5 @@ Tuto možnost vypněte, pokud způsobuje konflikty s existujícími tunely nebo 
 "MODSETTINGSBTN_TEXT","Nastavení modu",""
 "ROAD_SELECT","Vyberte úsek silnice, abyste mohli začít řídit",""
 "DRIVINGMODE","Režim řízení",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
