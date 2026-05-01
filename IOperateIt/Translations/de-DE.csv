@@ -45,3 +45,5 @@ Deaktivieren Sie dies, wenn es mit bestehenden Tunneln in Konflikt steht oder vi
 "MODSETTINGSBTN_TEXT","Mod-Einstellungen",""
 "ROAD_SELECT","Wählen Sie ein Straßensegment aus, um mit dem Fahren zu beginnen",""
 "DRIVINGMODE","Fahrmodus",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
