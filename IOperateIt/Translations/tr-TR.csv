@@ -45,3 +45,5 @@ Mevcut tünellerle çakışıyorsa veya görsel sorunlara neden oluyorsa bunu de
 "MODSETTINGSBTN_TEXT","Mod ayarları",""
 "ROAD_SELECT","Sürmeye başlamak için bir yol parçası seçin",""
 "DRIVINGMODE","Sürüş modu",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
