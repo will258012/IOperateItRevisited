@@ -45,3 +45,5 @@ Vypnite to, ak to konfliktuje s existujúcimi tunelmi alebo spôsobuje vizuálne
 "MODSETTINGSBTN_TEXT","Nastavenia modu",""
 "ROAD_SELECT","Vyberte úsek cesty pre začatie jazdy",""
 "DRIVINGMODE","Režim jazdy",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
