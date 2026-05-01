@@ -45,3 +45,5 @@ Désactivez cette option si elle entre en conflit avec des tunnels existants ou 
 "MODSETTINGSBTN_TEXT","Paramètres du mod",""
 "ROAD_SELECT","Sélectionnez un segment de route pour commencer à conduire",""
 "DRIVINGMODE","Mode conduite",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
