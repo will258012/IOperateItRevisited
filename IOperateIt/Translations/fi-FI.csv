@@ -45,3 +45,5 @@ Poista tämä käytöstä, jos se aiheuttaa ristiriitoja olemassa olevien tunnel
 "MODSETTINGSBTN_TEXT","Modin asetukset",""
 "ROAD_SELECT","Valitse tien osa aloittaaksesi ajaminen",""
 "DRIVINGMODE","Ajamistila",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
