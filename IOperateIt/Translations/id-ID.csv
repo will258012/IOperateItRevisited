@@ -45,3 +45,5 @@ Nonaktifkan ini jika bertentangan dengan terowongan yang ada atau menyebabkan ma
 "MODSETTINGSBTN_TEXT","Pengaturan mod",""
 "ROAD_SELECT","Pilih segmen jalan untuk mulai mengemudi",""
 "DRIVINGMODE","Mode mengemudi",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
