@@ -45,3 +45,5 @@ Kapcsolja ki ezt, ha ütközik a meglévő alagutakkal vagy vizuális problémá
 "MODSETTINGSBTN_TEXT","Mod beállítások",""
 "ROAD_SELECT","Válasszon egy útszakaszt a vezetés indításához",""
 "DRIVINGMODE","Vezetési mód",""
+"SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
+"NO_RESULTS","No results found.",""
