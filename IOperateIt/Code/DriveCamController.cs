@@ -36,6 +36,7 @@ namespace IOperateIt
         private Rigidbody targetRigidBody;
         private Quaternion rotation;
         private Quaternion rotationOffset;
+        private Vector3 finalOffset;
         private float lastMovedTime;
 
         private Camera mainCamera;
@@ -71,8 +72,7 @@ namespace IOperateIt
             enabled = false;
             mainCamera.cullingMask = cachedRenderMask;
             targetRigidBody = null;
-            rotation = Quaternion.identity;
-            rotationOffset = Quaternion.identity;
+
             Logging.KeyMessage("Drive cam disabled");
         }
         public void ResetCam()
@@ -128,9 +128,14 @@ namespace IOperateIt
             eulerAngles.z = 0f;
             rotation = Quaternion.Euler(eulerAngles);
 
-            var vehiclePosition = targetRigidBody.position +
-                ((isFPS ? targetRigidBody.rotation /*rotate with the offset position*/ :
-                rotation /*rotate with the vehicle position*/) * ModSettings.Offset);
+            var newFinalOffset = ((isFPS ? targetRigidBody.rotation /*rotate with the offset position*/ :
+                 rotation /*rotate with the vehicle position*/) * ModSettings.Offset);
+
+            finalOffset = FPCModSettings.Instance.XMLSmoothTransition
+                ? Vector3.Lerp(finalOffset, newFinalOffset, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed)
+                : newFinalOffset;
+
+            var vehiclePosition = targetRigidBody.transform.position + finalOffset;
 
             // Limit the camera's position to the allowed area.
             vehiclePosition = CameraController.ClampCameraPosition(vehiclePosition);
@@ -139,7 +144,8 @@ namespace IOperateIt
             if (FPCModSettings.Instance.XMLSmoothTransition)
             {
                 mainCamera.transform.position =
-                    mainCamera.transform.position.DistanceTo(vehiclePosition) <= FPCModSettings.Instance.XMLMaxTransDistance
+                    mainCamera.transform.position.DistanceTo(vehiclePosition) > FPCModSettings.Instance.XMLMinTransDistance
+                    && mainCamera.transform.position.DistanceTo(vehiclePosition) <= FPCModSettings.Instance.XMLMaxTransDistance
                 ? Vector3.Lerp(mainCamera.transform.position, vehiclePosition, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed)
                 : vehiclePosition;
                 mainCamera.transform.rotation = Quaternion.Slerp(mainCamera.transform.rotation, rotation, Time.deltaTime * FPCModSettings.Instance.XMLTransSpeed);
