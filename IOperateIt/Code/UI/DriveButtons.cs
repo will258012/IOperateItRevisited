@@ -86,23 +86,15 @@ public class DriveButtons : MonoBehaviour
     private static UIButton CreateDriveButton<T>(T panel) where T : WorldInfoPanel, new()
     {
         var button = panel.component.AddUIComponent<UIButton>();
+        SetButtonProperties(button);
         button.name = panel.component.name + "_Drive";
         button.tooltip = Translations.Translate("DRIVEBTN_TOOLTIP");
-        button.size = new Vector2(40f, 40f);
-        button.scaleFactor = .8f;
-
         button.atlas = DriveButtonAtlas.Atlas;
         button.pressedBgSprite = DriveButtonAtlas.BgPressed;
         button.normalBgSprite = DriveButtonAtlas.Bg;
         button.hoveredBgSprite = DriveButtonAtlas.BgHovered;
         button.disabledBgSprite = DriveButtonAtlas.BgDisabled;
         button.normalFgSprite = DriveButtonAtlas.Fg;
-
-        button.textColor = new Color32(255, 255, 255, 255);
-        button.disabledTextColor = new Color32(7, 7, 7, 255);
-        button.hoveredTextColor = new Color32(255, 255, 255, 255);
-        button.focusedTextColor = new Color32(255, 255, 255, 255);
-        button.pressedTextColor = new Color32(30, 30, 44, 255);
         button.eventClick += (_, p) =>
         {
             var instanceID = WorldInfoPanel.GetCurrentInstanceID();
@@ -136,6 +128,16 @@ public class DriveButtons : MonoBehaviour
             var instanceID = WorldInfoPanel.GetCurrentInstanceID();
             button.isVisible = instanceID != default;
         }
+    }
+    internal static void SetButtonProperties(UIButton button)
+    {
+        button.size = new Vector2(40f, 40f);
+        button.scaleFactor = .8f;
+        button.textColor = new Color32(255, 255, 255, 255);
+        button.disabledTextColor = new Color32(7, 7, 7, 255);
+        button.hoveredTextColor = new Color32(255, 255, 255, 255);
+        button.focusedTextColor = new Color32(255, 255, 255, 255);
+        button.pressedTextColor = new Color32(30, 30, 44, 255);
     }
 }
 public static class DriveButtonAtlas

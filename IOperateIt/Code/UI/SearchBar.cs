@@ -37,24 +37,19 @@ public class SearchBar : UIPanel
     private void Setup(string tooltip)
     {
         button = AddUIComponent<UIButton>();
+        DriveButtons.SetButtonProperties(button);
         button.relativePosition = Vector3.zero;
         button.name = name + nameof(button);
         button.tooltip = tooltip;
         button.size = new Vector2(height, height);
-        button.scaleFactor = .8f;
         button.pressedBgSprite = "OptionBasePressed";
         button.normalBgSprite = "OptionBase";
         button.hoveredBgSprite = "OptionBaseHovered";
         button.disabledBgSprite = "OptionBaseDisabled";
         button.normalFgSprite = "AssetSearchIcon";
-        button.textColor = new Color32(255, 255, 255, 255);
-        button.disabledTextColor = new Color32(7, 7, 7, 255);
-        button.hoveredTextColor = new Color32(255, 255, 255, 255);
-        button.focusedTextColor = new Color32(255, 255, 255, 255);
-        button.pressedTextColor = new Color32(30, 30, 44, 255);
         button.playAudioEvents = true;
         button.eventKeyDown += CheckKeyboardInput;
-        button.eventClicked += OnSearchIconClicked;
+        button.eventClick += OnSearchIconClick;
 
         var textFieldPanel = AttachUIComponent(UITemplateManager.GetAsGameObject("OptionsTextfieldTemplate")) as UIPanel;
         GameObject.Destroy(textFieldPanel.Find<UILabel>("Label"));
@@ -130,7 +125,7 @@ public class SearchBar : UIPanel
 
     }
 
-    public void OnSearchIconClicked(UIComponent component, UIMouseEventParameter p)
+    public void OnSearchIconClick(UIComponent component, UIMouseEventParameter p)
     {
         if (isOpen)
         {
