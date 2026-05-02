@@ -36,6 +36,7 @@ namespace IOperateIt
         private Rigidbody targetRigidBody;
         private Quaternion rotation;
         private Quaternion rotationOffset;
+
         private Vector3 finalOffset;
         private float lastMovedTime;
 
@@ -97,26 +98,44 @@ namespace IOperateIt
         private void UpdateCameraPos()
         {
 
+            var vehicleVelocity = targetRigidBody.velocity;
+            var vehicleDir = vehicleVelocity.normalized;
+
+            rotation = mainCamera.transform.rotation;
+
+            if (vehicleVelocity.sqrMagnitude < 1.0f || Mathf.Abs(vehicleDir.y) > 0.95f)
+            {
+                vehicleDir = Quaternion.Euler(0f, targetRigidBody.rotation.eulerAngles.y, 0f) * Vector3.forward;
+            }
+
+            var targetRotation = Quaternion.identity;
+            targetRotation.SetLookRotation(vehicleDir);
+
             if (Time.time > lastMovedTime + LOOK_RESET_TIME)
             {
-                var vehicleVelocity = targetRigidBody.velocity;
-                var vehicleDir = Vector3.Normalize(vehicleVelocity);
-
-                rotation = mainCamera.transform.rotation;
-
-                if (vehicleVelocity.sqrMagnitude < 1.0f || Mathf.Abs(vehicleDir.y) > 0.99f)
-                {
-                    vehicleDir = Quaternion.Euler(0f, targetRigidBody.rotation.eulerAngles.y, 0f) * Vector3.forward;
-                }
-
-                var targetRotation = Quaternion.identity;
-                targetRotation.SetLookRotation(vehicleDir);
-
                 rotation = targetRotation;
             }
             else
             {
-                rotation = rotationOffset;
+                var normalOffset = rotationOffset;
+                var flippedOffset =
+                    Quaternion.Euler(0f, 180f, 0f) * rotationOffset;
+
+                var normalRot = targetRotation * normalOffset;
+                var flippedRot = targetRotation * flippedOffset;
+
+                var normalAngle =
+                    Quaternion.Angle(rotation, normalRot);
+
+                var flippedAngle =
+                    Quaternion.Angle(rotation, flippedRot);
+
+                if (flippedAngle < normalAngle)
+                {
+                    rotationOffset = flippedOffset;
+                }
+
+                rotation = targetRotation * rotationOffset;
             }
 
             bool isFPS = ModSettings.Offset.z > -1f;
@@ -221,23 +240,19 @@ namespace IOperateIt
                 var movementFactor = ((fpcModSettings.XMLKeySpeedUp.IsPressed() ? fpcModSettings.XMLSpeedUpFactor : 1f)
                                      * fpcModSettings.XMLMovementSpeed * Time.deltaTime).FromKmph();
 
-                Vector3 camForward = mainCamera.transform.forward;
-                Vector3 camRight = mainCamera.transform.right;
-                Vector3 camUp = mainCamera.transform.up;
-
                 var movement = Vector3.zero;
                 if (!(KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed()))
                 {
 
-                    if (fpcModSettings.XMLKeyRotateUp.IsPressed()) movement += camForward * movementFactor;
-                    if (fpcModSettings.XMLKeyRotateDown.IsPressed()) movement -= camForward * movementFactor;
-                    if (fpcModSettings.XMLKeyRotateRight.IsPressed()) movement += camRight * movementFactor;
-                    if (fpcModSettings.XMLKeyRotateLeft.IsPressed()) movement -= camRight * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateUp.IsPressed()) movement += Vector3.forward * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateDown.IsPressed()) movement += Vector3.back * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateRight.IsPressed()) movement += Vector3.right * movementFactor;
+                    if (fpcModSettings.XMLKeyRotateLeft.IsPressed()) movement += Vector3.left * movementFactor;
                 }
-                if (fpcModSettings.XMLKeyMoveUp.IsPressed()) movement += camUp * movementFactor;
-                if (fpcModSettings.XMLKeyMoveDown.IsPressed()) movement -= camUp * movementFactor;
+                if (fpcModSettings.XMLKeyMoveUp.IsPressed()) movement += Vector3.up * movementFactor;
+                if (fpcModSettings.XMLKeyMoveDown.IsPressed()) movement += Vector3.down * movementFactor;
 
-                ModSettings.Offset += targetRigidBody.transform.InverseTransformDirection(movement);
+                ModSettings.Offset += ModSettings.Offset.z < -1f ? movement : rotationOffset * movement;
             }
 
             float yawDegree = 0f, pitchDegree = 0f;
@@ -266,7 +281,7 @@ namespace IOperateIt
             {
                 if (Time.time > lastMovedTime + LOOK_RESET_TIME)
                 {
-                    rotationOffset = rotation;
+                    rotationOffset = Quaternion.identity;
                 }
 
                 lastMovedTime = Time.time;
