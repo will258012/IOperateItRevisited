@@ -47,3 +47,5 @@ Mevcut tünellerle çakışıyorsa veya görsel sorunlara neden oluyorsa bunu de
 "DRIVINGMODE","Sürüş modu",""
 "SEARCHBARBTN_TOOLTIP","Search vehicle by name or Workshop ID",""
 "NO_RESULTS","No results found.",""
+"STEAMSPRITE_TOOLTIP","Click to open the vehicle's Workshop page",""
+"COLORCHANGEBTN_TOOLTIP","Change the vehicle color (from 4 defined colors)",""
