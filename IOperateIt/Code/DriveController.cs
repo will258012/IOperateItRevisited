@@ -21,10 +21,9 @@ namespace IOperateIt
         private const float BRAKE_SPEED_FACTOR = 0.7f;
         private const float PARK_SPEED = 0.25f;
         private const float DEPEN_VELOCITY = 2.0f;
-        private const float STEER_MAX = 45f;
-        private const float STEER_DECAY = 0.007f;
+        private const float STEER_MAX = 40f;
+        private const float STEER_DECAY = 0.0075f;
         private const float ROAD_WALL_HEIGHT = 0.75f;
-        private const float NEIGHBOR_WHEEL_DIST = 0.2f;
         private const float SPRING_MAX_COMPRESS = 0.2f;
         private const float DRAG_FACTOR = 0.25f;
         private const float DRAG_DRIVETRAIN = 0.15f;

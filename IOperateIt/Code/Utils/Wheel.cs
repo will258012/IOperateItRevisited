@@ -184,8 +184,7 @@ namespace IOperateIt.Utils
                     normalImpulse = RigidBody.mass * (-deltaVel) / (WheelCount * normDotUp);
                     contactPoint = gameObject.transform.TransformPoint(new Vector3(0.0f, -radius, 0.0f));
                     contactVelocity = RigidBody.GetPointVelocity(contactPoint);
-                    var flatVel = contactVelocity - Vector3.Dot(contactVelocity, normal) * normal;
-                    slip = Mathf.Clamp01(Vector3.Magnitude(flatVel - (radps * radius * tangent)) / Mathf.Clamp(flatVel.magnitude, 8f, 40f) / DriveController.GRIP_MAX_SLIP);
+                    slip = Mathf.Clamp01(Vector3.Magnitude(contactVelocity - (radps * radius * tangent)) / Mathf.Max(contactVelocity.magnitude, 1.0f) / DriveController.GRIP_MAX_SLIP);
                     frictionCoeff = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK, Mathf.Max((slip - DriveController.GRIP_OPTIM_SLIP) / (1.0f - DriveController.GRIP_OPTIM_SLIP), 0.0f));
                 }
             }
