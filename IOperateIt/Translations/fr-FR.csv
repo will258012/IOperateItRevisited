@@ -45,3 +45,7 @@ Désactivez cette option si elle entre en conflit avec des tunnels existants ou 
 "MODSETTINGSBTN_TEXT","Paramètres du mod",""
 "ROAD_SELECT","Sélectionnez un segment de route pour commencer à conduire",""
 "DRIVINGMODE","Mode conduite",""
+"SEARCHBARBTN_TOOLTIP","Rechercher un véhicule par nom ou ID de l'atelier",""
+"NO_RESULTS","Aucun résultat trouvé.",""
+"STEAMSPRITE_TOOLTIP","Cliquez pour ouvrir la page de l'atelier du véhicule",""
+"COLORCHANGEBTN_TOOLTIP","Changer la couleur du véhicule (parmi 4 couleurs définies)",""

@@ -45,3 +45,7 @@ Kapcsolja ki ezt, ha ütközik a meglévő alagutakkal vagy vizuális problémá
 "MODSETTINGSBTN_TEXT","Mod beállítások",""
 "ROAD_SELECT","Válasszon egy útszakaszt a vezetés indításához",""
 "DRIVINGMODE","Vezetési mód",""
+"SEARCHBARBTN_TOOLTIP","Keresés jármű név vagy Workshop ID alapján",""
+"NO_RESULTS","Nincs találat.",""
+"STEAMSPRITE_TOOLTIP","Kattints a jármű Workshop oldalának megnyitásához",""
+"COLORCHANGEBTN_TOOLTIP","Jármű színének megváltoztatása (4 előre definiált színből)",""

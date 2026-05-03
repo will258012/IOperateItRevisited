@@ -45,3 +45,7 @@
 "MODSETTINGSBTN_TEXT","模組設定",""
 "ROAD_SELECT","選擇一段道路以開始駕駛",""
 "DRIVINGMODE","駕駛模式",""
+"SEARCHBARBTN_TOOLTIP","搜尋車輛名稱或工作坊ID",""
+"NO_RESULTS","未找到結果。",""
+"STEAMSPRITE_TOOLTIP","點擊以打開該車輛的工作坊頁面",""
+"COLORCHANGEBTN_TOOLTIP","更改車輛顏色（從四種預定義顏色中選取）",""

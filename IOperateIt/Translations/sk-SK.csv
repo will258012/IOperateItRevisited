@@ -45,3 +45,7 @@ Vypnite to, ak to konfliktuje s existujúcimi tunelmi alebo spôsobuje vizuálne
 "MODSETTINGSBTN_TEXT","Nastavenia modu",""
 "ROAD_SELECT","Vyberte úsek cesty pre začatie jazdy",""
 "DRIVINGMODE","Režim jazdy",""
+"SEARCHBARBTN_TOOLTIP","Vyhľadať vozidlo podľa názvu alebo ID dielne",""
+"NO_RESULTS","Nenašli sa žiadne výsledky.",""
+"STEAMSPRITE_TOOLTIP","Kliknutím otvorte stránku dielne vozidla",""
+"COLORCHANGEBTN_TOOLTIP","Zmeniť farbu vozidla (zo 4 definovaných farieb)",""

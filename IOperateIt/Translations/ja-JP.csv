@@ -45,3 +45,7 @@
 "MODSETTINGSBTN_TEXT","MOD設定",""
 "ROAD_SELECT","運転を開始する道路セグメントを選択",""
 "DRIVINGMODE","運転モード",""
+"SEARCHBARBTN_TOOLTIP","車両名またはワークショップIDで検索",""
+"NO_RESULTS","結果が見つかりませんでした。",""
+"STEAMSPRITE_TOOLTIP","クリックして車両のワークショップページを開く",""
+"COLORCHANGEBTN_TOOLTIP","車両の色を変更（4つの定義済み色から）",""

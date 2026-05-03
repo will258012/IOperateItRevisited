@@ -45,3 +45,7 @@ Nonaktifkan ini jika bertentangan dengan terowongan yang ada atau menyebabkan ma
 "MODSETTINGSBTN_TEXT","Pengaturan mod",""
 "ROAD_SELECT","Pilih segmen jalan untuk mulai mengemudi",""
 "DRIVINGMODE","Mode mengemudi",""
+"SEARCHBARBTN_TOOLTIP","Cari kendaraan berdasarkan nama atau ID Workshop",""
+"NO_RESULTS","Tidak ada hasil yang ditemukan.",""
+"STEAMSPRITE_TOOLTIP","Klik untuk membuka halaman Workshop kendaraan",""
+"COLORCHANGEBTN_TOOLTIP","Ubah warna kendaraan (dari 4 warna yang ditentukan)",""

@@ -45,3 +45,7 @@ Desactiva esto si entra en conflicto con túneles existentes o causa problemas v
 "MODSETTINGSBTN_TEXT","Ajustes del mod",""
 "ROAD_SELECT","Seleccione un segmento de camino para empezar conducir",""
 "DRIVINGMODE","Modo de conducción",""
+"SEARCHBARBTN_TOOLTIP","Buscar vehículo por nombre o ID del taller",""
+"NO_RESULTS","No se encontraron resultados.",""
+"STEAMSPRITE_TOOLTIP","Haz clic para abrir la página del vehículo en el taller.",""
+"COLORCHANGEBTN_TOOLTIP","Cambiar el color del vehículo (de 4 colores definidos)",""

@@ -45,3 +45,7 @@ Poista tämä käytöstä, jos se aiheuttaa ristiriitoja olemassa olevien tunnel
 "MODSETTINGSBTN_TEXT","Modin asetukset",""
 "ROAD_SELECT","Valitse tien osa aloittaaksesi ajaminen",""
 "DRIVINGMODE","Ajamistila",""
+"SEARCHBARBTN_TOOLTIP","Etsi ajoneuvoa nimen tai työpajan tunnuksen perusteella",""
+"NO_RESULTS","Tuloksia ei löytynyt.",""
+"STEAMSPRITE_TOOLTIP","Avaa ajoneuvon Workshop-sivu napsauttamalla",""
+"COLORCHANGEBTN_TOOLTIP","Vaihda ajoneuvon väri (neljästä määritellystä väristä)",""

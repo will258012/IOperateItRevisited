@@ -45,3 +45,7 @@ Desative isso se entrar em conflito com túneis existentes ou causar problemas v
 "MODSETTINGSBTN_TEXT","Configurações do Mod",""
 "ROAD_SELECT","Clique numa parte de uma estrada para começar a dirigir",""
 "DRIVINGMODE","Modo de Direção",""
+"SEARCHBARBTN_TOOLTIP","Pesquisar veículo por nome ou ID da Oficina",""
+"NO_RESULTS","Nenhum resultado encontrado.",""
+"STEAMSPRITE_TOOLTIP","Clique para abrir a página do veículo na Oficina",""
+"COLORCHANGEBTN_TOOLTIP","Alterar a cor do veículo (de 4 cores definidas)",""

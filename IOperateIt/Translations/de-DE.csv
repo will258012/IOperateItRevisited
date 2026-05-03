@@ -45,3 +45,7 @@ Deaktivieren Sie dies, wenn es mit bestehenden Tunneln in Konflikt steht oder vi
 "MODSETTINGSBTN_TEXT","Mod-Einstellungen",""
 "ROAD_SELECT","Wählen Sie ein Straßensegment aus, um mit dem Fahren zu beginnen",""
 "DRIVINGMODE","Fahrmodus",""
+"SEARCHBARBTN_TOOLTIP","Fahrzeug nach Name oder Workshop-ID suchen",""
+"NO_RESULTS","Keine Ergebnisse gefunden.",""
+"STEAMSPRITE_TOOLTIP","Klicken, um die Workshop-Seite des Fahrzeugs zu öffnen",""
+"COLORCHANGEBTN_TOOLTIP","Fahrzeugfarbe ändern (aus 4 definierten Farben)",""

@@ -45,3 +45,7 @@
 "MODSETTINGSBTN_TEXT","모드 설정",""
 "ROAD_SELECT","운전을 시작할 도로 선택",""
 "DRIVINGMODE","주행 모드",""
+"SEARCHBARBTN_TOOLTIP","차량 이름 또는 창작마당 ID로 검색",""
+"NO_RESULTS","결과를 찾을 수 없습니다.",""
+"STEAMSPRITE_TOOLTIP","차량의 창작마당 페이지를 열려면 클릭하세요.",""
+"COLORCHANGEBTN_TOOLTIP","차량 색상 변경 (4가지 정의된 색상 중에서)",""

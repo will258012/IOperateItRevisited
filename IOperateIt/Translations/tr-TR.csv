@@ -45,3 +45,7 @@ Mevcut tünellerle çakışıyorsa veya görsel sorunlara neden oluyorsa bunu de
 "MODSETTINGSBTN_TEXT","Mod ayarları",""
 "ROAD_SELECT","Sürmeye başlamak için bir yol parçası seçin",""
 "DRIVINGMODE","Sürüş modu",""
+"SEARCHBARBTN_TOOLTIP","Araç adına veya Atölye Kimliğine göre ara",""
+"NO_RESULTS","Sonuç bulunamadı.",""
+"STEAMSPRITE_TOOLTIP","Aracın Atölye sayfasını açmak için tıklayın",""
+"COLORCHANGEBTN_TOOLTIP","Araç rengini değiştir (4 tanımlı renkten)",""

@@ -45,3 +45,7 @@ Wyłącz tę opcję, jeśli powoduje konflikty z istniejącymi tunelami lub prob
 "MODSETTINGSBTN_TEXT","Ustawienia modyfikacji",""
 "ROAD_SELECT","Wybierz odcinek drogi, aby rozpocząć jazdę",""
 "DRIVINGMODE","Tryb jazdy",""
+"SEARCHBARBTN_TOOLTIP","Szukaj pojazdu po nazwie lub ID Warsztatu",""
+"NO_RESULTS","Nie znaleziono wyników.",""
+"STEAMSPRITE_TOOLTIP","Kliknij, aby otworzyć stronę Warsztatu pojazdu",""
+"COLORCHANGEBTN_TOOLTIP","Zmień kolor pojazdu (z 4 zdefiniowanych kolorów)",""

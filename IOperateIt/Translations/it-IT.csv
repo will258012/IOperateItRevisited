@@ -45,3 +45,7 @@ Disabilita questa opzione se entra in conflitto con tunnel esistenti o causa pro
 "MODSETTINGSBTN_TEXT","Impostazioni della mod",""
 "ROAD_SELECT","Seleziona un segmento stradale per iniziare a guidare",""
 "DRIVINGMODE","Modalità di guida",""
+"SEARCHBARBTN_TOOLTIP","Cerca veicolo per nome o ID Workshop",""
+"NO_RESULTS","Nessun risultato trovato.",""
+"STEAMSPRITE_TOOLTIP","Clicca per aprire la pagina Workshop del veicolo",""
+"COLORCHANGEBTN_TOOLTIP","Cambia il colore del veicolo (da 4 colori definiti)",""
