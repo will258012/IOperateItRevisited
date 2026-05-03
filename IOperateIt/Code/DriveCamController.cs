@@ -238,7 +238,7 @@ namespace IOperateIt
             {
                 // key movement
                 var movementFactor = ((fpcModSettings.XMLKeySpeedUp.IsPressed() ? fpcModSettings.XMLSpeedUpFactor : 1f)
-                                     * fpcModSettings.XMLMovementSpeed * Time.deltaTime).FromKmph();
+                                     * fpcModSettings.XMLOffsetMovementSpeed * Time.deltaTime).FromKmph();
 
                 var movement = Vector3.zero;
                 if (!(KeyCode.LeftControl.KeyPressed() || KeyCode.RightControl.KeyPressed()))
