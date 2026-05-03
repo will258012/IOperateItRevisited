@@ -34,13 +34,12 @@ namespace IOperateIt.Utils
 {
     internal class DebugHelper
     {
-        private static Camera mainCamera = null;
-        private static Material debugMaterialWire = null;
-        private static Material debugMaterial = null;
-        private static MaterialPropertyBlock debugMaterialBlock = null;
-        private static Mesh debugMeshMarker = null;
-        private static Mesh debugMeshCube = null;
-
+        private static Camera mainCamera;
+        private static Material debugMaterialWire;
+        private static Material debugMaterial;
+        private static MaterialPropertyBlock debugMaterialBlock;
+        private static Mesh debugMeshMarker;
+        private static Mesh debugMeshCube;
         static DebugHelper()
         {
 
@@ -57,12 +56,12 @@ namespace IOperateIt.Utils
                 */
 
             string path = Path.Combine(AssemblyUtils.AssemblyPath, "Resources/Shaders/wireframeshader.asset");
-            WWW www = new WWW(new Uri(path).AbsoluteUri);
-            AssetBundle shaderBundle = www.assetBundle;
-            Shader s = shaderBundle.LoadAsset<Shader>("Wireframe");
-            if (s != null)
+            var www = new WWW(new Uri(path).AbsoluteUri);
+            var shaderBundle = www.assetBundle;
+            var shader = shaderBundle.LoadAsset<Shader>("Wireframe");
+            if (shader != null)
             {
-                debugMaterialWire = new Material(s);
+                debugMaterialWire = new Material(shader);
             }
 
             debugMaterialBlock = new MaterialPropertyBlock();

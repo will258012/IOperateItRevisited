@@ -86,23 +86,15 @@ public class DriveButtons : MonoBehaviour
     private static UIButton CreateDriveButton<T>(T panel) where T : WorldInfoPanel, new()
     {
         var button = panel.component.AddUIComponent<UIButton>();
+        SetButtonProperties(button);
         button.name = panel.component.name + "_Drive";
         button.tooltip = Translations.Translate("DRIVEBTN_TOOLTIP");
-        button.size = new Vector2(40f, 40f);
-        button.scaleFactor = .8f;
-        
         button.atlas = DriveButtonAtlas.Atlas;
         button.pressedBgSprite = DriveButtonAtlas.BgPressed;
         button.normalBgSprite = DriveButtonAtlas.Bg;
         button.hoveredBgSprite = DriveButtonAtlas.BgHovered;
         button.disabledBgSprite = DriveButtonAtlas.BgDisabled;
         button.normalFgSprite = DriveButtonAtlas.Fg;
-
-        button.textColor = new Color32(255, 255, 255, 255);
-        button.disabledTextColor = new Color32(7, 7, 7, 255);
-        button.hoveredTextColor = new Color32(255, 255, 255, 255);
-        button.focusedTextColor = new Color32(255, 255, 255, 255);
-        button.pressedTextColor = new Color32(30, 30, 44, 255);
         button.eventClick += (_, p) =>
         {
             var instanceID = WorldInfoPanel.GetCurrentInstanceID();
@@ -111,14 +103,14 @@ public class DriveButtons : MonoBehaviour
                 ref var vehicle = ref Singleton<VehicleManager>.instance.m_vehicles.m_buffer[instanceID.Vehicle];
                 Color color = vehicle.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicle, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
                 DriveController.Instance.StartDriving(vehicle.GetLastFramePosition(), vehicle.GetLastFrameData().m_rotation, vehicle.Info, color, true);
-                MainPanel.Instance._vehicleList.FindItem<uint>(vehicle.m_infoIndex);
+                MainPanel.Instance.vehicleList.FindItem<uint>(vehicle.m_infoIndex);
             }
             else if (instanceID.Type == InstanceType.ParkedVehicle)
             {
                 ref var vehicleParked = ref Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[instanceID.ParkedVehicle];
                 Color color = vehicleParked.Info.m_vehicleAI.GetColor(instanceID.Vehicle, ref vehicleParked, Singleton<InfoManager>.instance.CurrentMode, Singleton<InfoManager>.instance.CurrentSubMode);
                 DriveController.Instance.StartDriving(vehicleParked.m_position, vehicleParked.m_rotation, vehicleParked.Info, color, true);
-                MainPanel.Instance._vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
+                MainPanel.Instance.vehicleList.FindItem<uint>(vehicleParked.m_infoIndex);
             }
             panel.component.isVisible = false;
         };
@@ -137,11 +129,21 @@ public class DriveButtons : MonoBehaviour
             button.isVisible = instanceID != default;
         }
     }
+    internal static void SetButtonProperties(UIButton button)
+    {
+        button.size = new Vector2(40f, 40f);
+        button.scaleFactor = .8f;
+        button.textColor = new Color32(255, 255, 255, 255);
+        button.disabledTextColor = new Color32(7, 7, 7, 255);
+        button.hoveredTextColor = new Color32(255, 255, 255, 255);
+        button.focusedTextColor = new Color32(255, 255, 255, 255);
+        button.pressedTextColor = new Color32(30, 30, 44, 255);
+    }
 }
 public static class DriveButtonAtlas
 {
     public const string Fg = "IOperateItIcon";
-    public const string FgPath = "Resources/" + Fg + ".png";
+    public const string FgPath = "Textures/" + Fg;
 
     public const string Bg = "OptionBase";
     public const string BgPressed = "OptionBasePressed";
@@ -159,20 +161,20 @@ public static class DriveButtonAtlas
 
                 // Loaded custom textures
                 names[index] = Fg;
-                textures[index++] = DriveCommonLoadTexture(Fg);
+                textures[index++] = LoadTexture(FgPath);
 
                 // Existing core game textures
                 names[index] = Bg;
-                textures[index++] = DriveCommonRipTexture(Bg);
+                textures[index++] = RipTexture(Bg);
 
                 names[index] = BgPressed;
-                textures[index++] = DriveCommonRipTexture(BgPressed);
+                textures[index++] = RipTexture(BgPressed);
 
                 names[index] = BgHovered;
-                textures[index++] = DriveCommonRipTexture(BgHovered);
+                textures[index++] = RipTexture(BgHovered);
 
                 names[index] = BgDisabled;
-                textures[index++] = DriveCommonRipTexture(BgDisabled);
+                textures[index++] = RipTexture(BgDisabled);
 
                 field = UITextures.CreateSpriteAtlas(Fg + "_Atlas", 1024, textures, names);
             }
@@ -180,10 +182,10 @@ public static class DriveButtonAtlas
         }
     }
     // Hack to use Algernon load texture
-    private static Texture2D DriveCommonLoadTexture(string name) => UITextures.LoadCursor(name + ".png").m_texture;
+    private static Texture2D LoadTexture(string name) => UITextures.LoadCursor(name + ".png").m_texture;
 
     // Rip texture from the default global atlas
-    private static Texture2D DriveCommonRipTexture(string name)
+    private static Texture2D RipTexture(string name)
     {
         foreach (var si in UIView.GetAView().defaultAtlas.sprites)
         {

@@ -2,9 +2,13 @@
 using AlgernonCommons.Translation;
 using AlgernonCommons.UI;
 using AlgernonCommons.Utils;
+using ColossalFramework;
+using ColossalFramework.PlatformServices;
 using ColossalFramework.UI;
 using IOperateIt.Settings;
 using IOperateIt.Utils;
+using System.Collections.Generic;
+using System.Linq;
 using UnifiedUI.GUI;
 using UnityEngine;
 
@@ -15,7 +19,7 @@ namespace IOperateIt.UI
 
         public static MainPanel Instance { get; private set; }
         public UIPanel Panel { get; set; }
-        public UIButton GetMainButton() => _mainBtn ?? UUISupport.UUIButton as UIButton;
+        public UIButton GetMainButton() => mainBtn ?? UUISupport.UUIButton as UIButton;
         /// <summary>
         /// Gets or sets the panel's last saved position.
         /// </summary>
@@ -27,19 +31,29 @@ namespace IOperateIt.UI
 
         public static Vector3 DefaultPosition => Vector3.left;
 
+        public int ColorIndex
+        {
+            get;
+            set => field = (int)Mathf.Repeat(value, 4);
+        }
+
         private const float Margin = 10f;
         private const float VehicleRowHeight = 40f;
-        
+
         private const float CloseButtonSize = 35f;
         private const float MainButtonSize = 40f;
         private const float TitleHeight = 13f;
 
-        private UIButton _mainBtn;
-        private UIButton _modSettingsBtn;
-        private UIButton _spawnBtn;
-        internal UIList _vehicleList;
-        private PreviewPanel _previewPanel;
-
+        private UIButton mainBtn;
+        private UIButton modSettingsBtn;
+        private UIButton spawnBtn;
+        internal UIList vehicleList;
+        private PreviewPanel previewPanel;
+        private UILabel noResultsLabel;
+        private UIButton colorChangeBtn;
+        internal readonly Dictionary<uint, VehicleInfo> prefabData = new();
+        private readonly FastList<object> originalData = new();
+        private readonly FastList<object> filteredData = new();
         private void Awake()
         {
             Instance = this;
@@ -53,7 +67,7 @@ namespace IOperateIt.UI
             Panel.width = 800f;
 
             var currentY = CloseButtonSize + Margin;
-            _vehicleList = UIList.AddUIList<MainPanelRow>(Panel, Margin, currentY, 400f, 320f, VehicleRowHeight);
+            vehicleList = UIList.AddUIList<MainPanelRow>(Panel, Margin, currentY, 400f, 320f, VehicleRowHeight);
             var vehicleInfos = new FastList<object>();
 
             for (uint i = 0; i < PrefabCollection<VehicleInfo>.PrefabCount(); i++)
@@ -63,22 +77,29 @@ namespace IOperateIt.UI
                 if (vehicleInfo != null && !vehicleInfo.name.ToLower().Contains("trailer"))
                 {
                     vehicleInfos.Add(i);
+                    originalData.Add(i);
+                    prefabData.Add(i, PrefabCollection<VehicleInfo>.GetPrefab(i));
                 }
             }
-            _vehicleList.Data = vehicleInfos;
-            _vehicleList.EventSelectionChanged += (component, obj) =>
+            vehicleList.Data = vehicleInfos;
+
+            vehicleList.EventSelectionChanged += (component, obj) =>
             {
-                if (Panel.isVisible && obj is uint index)
+                if (Panel.isVisible)
                 {
-                    UpdateListEvent(index);
+                    if (obj is uint index)
+                        UpdateListEvent(index);
+                    else OnClearSelection();
                 }
             };
 
             Panel.eventVisibilityChanged += (component, vis) =>
             {
-                if (vis == true && _vehicleList.SelectedIndex >= 0)
+                if (vis == true)
                 {
-                    UpdateListEvent((uint)_vehicleList.SelectedItem);
+                    if (vehicleList.SelectedIndex >= 0)
+                        UpdateListEvent((uint)vehicleList.SelectedItem);
+                    else OnClearSelection();
                 }
                 else
                 {
@@ -86,19 +107,37 @@ namespace IOperateIt.UI
                     ModSettings.Save();
                 }
             };
+            noResultsLabel = UILabels.AddLabel(Panel, vehicleList.relativePosition.x, vehicleList.relativePosition.y + vehicleList.height * 0.5f, Translations.Translate("NO_RESULTS"), width: vehicleList.width, alignment: UIHorizontalAlignment.Center);
+            noResultsLabel.isVisible = false;
 
-            _previewPanel = Panel.AddUIComponent<PreviewPanel>();
-            _previewPanel.relativePosition = UILayout.PositionRightOf(_vehicleList);
+            previewPanel = Panel.AddUIComponent<PreviewPanel>();
+            previewPanel.relativePosition = UILayout.PositionRightOf(vehicleList);
+            previewPanel.enabled = false;
 
-            currentY += _vehicleList.height + Margin;
+            currentY += vehicleList.height + Margin;
 
-            _spawnBtn = UIButtons.AddButton(Panel, (_vehicleList.width - 200f) / 2f, currentY, Translations.Translate("SPAWNBTN_TEXT"), 200f, 40f);
-            _spawnBtn.isEnabled = false;
-            _spawnBtn.playAudioEvents = true;
-            _spawnBtn.eventClick += SpawnBtnClickEvent;
-            _modSettingsBtn = UIButtons.AddButton(Panel, _previewPanel.relativePosition.x + (_previewPanel.width - 200f) / 2f, currentY, Translations.Translate("MODSETTINGSBTN_TEXT"));
-            _modSettingsBtn.eventClick += (_, e) => FPC.FPSCamera.UI.MainPanel.OpenSettingsPanel(Mod.Instance.Name);
-            Panel.height = currentY + _spawnBtn.height + Margin;
+            spawnBtn = UIButtons.AddButton(Panel, (vehicleList.width - 200f) / 2f, currentY, Translations.Translate("SPAWNBTN_TEXT"), 200f, 40f);
+            spawnBtn.isEnabled = false;
+            spawnBtn.playAudioEvents = true;
+            spawnBtn.eventClick += SpawnBtnClickEvent;
+
+            modSettingsBtn = UIButtons.AddButton(Panel, previewPanel.relativePosition.x + (previewPanel.width - 200f) / 2f, currentY, Translations.Translate("MODSETTINGSBTN_TEXT"));
+            modSettingsBtn.eventClick += (_, e) => FPC.FPSCamera.UI.MainPanel.OpenSettingsPanel(Mod.Instance.Name);
+
+            colorChangeBtn = Panel.AddUIComponent<UIButton>();
+            DriveButtons.SetButtonProperties(colorChangeBtn);
+            colorChangeBtn.relativePosition = new Vector3(previewPanel.relativePosition.x, currentY);
+            colorChangeBtn.name = name + nameof(colorChangeBtn);
+            colorChangeBtn.tooltip = Translations.Translate("COLORCHANGEBTN_TOOLTIP");
+            colorChangeBtn.pressedBgSprite = "ToolbarIconZoningPressed";
+            colorChangeBtn.normalBgSprite = "ToolbarIconZoning";
+            colorChangeBtn.hoveredBgSprite = "ToolbarIconZoningHovered";
+            colorChangeBtn.disabledBgSprite = "ToolbarIconZoningDisabled";
+            colorChangeBtn.isEnabled = false;
+            colorChangeBtn.playAudioEvents = true;
+            colorChangeBtn.eventClick += OnColorChangeClick;
+
+            Panel.height = currentY + spawnBtn.height + Margin;
 
             // Title
             {
@@ -121,6 +160,64 @@ namespace IOperateIt.UI
                 closeButton.hoveredBgSprite = "buttonclosehover";
                 closeButton.pressedBgSprite = "buttonclosepressed";
                 closeButton.eventClick += (c, p) => OnEsc();
+
+                // Search Bar
+                var searchBar = SearchBar.Add(Panel, Margin, 2, tooltip: Translations.Translate("SEARCHBARBTN_TOOLTIP"), width: Panel.width);
+                searchBar.OnAnimating += (value) =>
+                {
+                    titleLabel.opacity = 1f - value;
+                };
+                searchBar.OnSearchStarted += (value) =>
+                {
+                    filteredData.Clear();
+                    if (ulong.TryParse(value, out ulong targetId) && targetId <= 9999999999)// workshop id
+                    {
+                        foreach (var kvp in prefabData)
+                        {
+                            if (!PrefabUtils.IsWorkshopAsset(kvp.Value)) continue;
+                            if (kvp.Value.name.Contains(targetId.ToString()))
+                                filteredData.Add(kvp.Key);
+                        }
+                    }
+                    else // text search
+                    {
+                        char[] chars = value.Where(c => !char.IsWhiteSpace(c)).Distinct().ToArray();
+                        if (chars.Length == 0) return;
+
+                        foreach (var kvp in prefabData)
+                        {
+                            string title = kvp.Value.GetUncheckedLocalizedTitle();
+                            string name = kvp.Value.name;
+                            bool allMatch = true;
+
+                            foreach (var kw in chars)
+                            {
+                                if (!title.ToLower().Contains(kw.ToString().ToLower()) && !name.ToLower().Contains(kw.ToString().ToLower()))
+                                {
+                                    allMatch = false;
+                                    break;
+                                }
+                            }
+
+                            if (allMatch)
+                            {
+                                filteredData.Add(kvp.Key);
+                            }
+                        }
+                    }
+                    if (filteredData.m_size == 0)
+                        noResultsLabel.isVisible = true;
+                    vehicleList.Data = filteredData;
+                };
+
+                searchBar.OnClearResults += () =>
+                {
+                    vehicleList.Data = originalData;
+                    filteredData.Clear();
+                    foreach (var item in originalData)
+                        filteredData.Add(item);
+                    noResultsLabel.isVisible = false;
+                };
             }
 
             Panel.Hide();
@@ -142,26 +239,20 @@ namespace IOperateIt.UI
 
                 SavedButtonPosition = new Vector2(x, y);
             }
-            _mainBtn = UIView.GetAView().AddUIComponent(typeof(UIButton)) as UIButton;
-            _mainBtn.name = "MainButton";
-            _mainBtn.tooltip = Translations.Translate("MAINPANELBTN_TOOLTIP");
-            _mainBtn.absolutePosition = new Vector3(x, y);
-            _mainBtn.size = new Vector2(MainButtonSize, MainButtonSize);
-            _mainBtn.scaleFactor = .8f;
+            mainBtn = UIView.GetAView().AddUIComponent(typeof(UIButton)) as UIButton;
+            DriveButtons.SetButtonProperties(mainBtn);
+            mainBtn.name = "MainButton";
+            mainBtn.tooltip = Translations.Translate("MAINPANELBTN_TOOLTIP");
+            mainBtn.absolutePosition = new Vector3(x, y);
+            mainBtn.size = new Vector2(MainButtonSize, MainButtonSize);
 
-            _mainBtn.atlas = DriveButtonAtlas.Atlas;
-            _mainBtn.pressedBgSprite = DriveButtonAtlas.BgPressed;
-            _mainBtn.normalBgSprite = DriveButtonAtlas.Bg;
-            _mainBtn.hoveredBgSprite = DriveButtonAtlas.BgHovered;
-            _mainBtn.disabledBgSprite = DriveButtonAtlas.BgDisabled;
-            _mainBtn.normalFgSprite = DriveButtonAtlas.Fg;
-
-            _mainBtn.textColor = new Color32(255, 255, 255, 255);
-            _mainBtn.disabledTextColor = new Color32(7, 7, 7, 255);
-            _mainBtn.hoveredTextColor = new Color32(255, 255, 255, 255);
-            _mainBtn.focusedTextColor = new Color32(255, 255, 255, 255);
-            _mainBtn.pressedTextColor = new Color32(30, 30, 44, 255);
-            _mainBtn.eventClick += (_, m) =>
+            mainBtn.atlas = DriveButtonAtlas.Atlas;
+            mainBtn.pressedBgSprite = DriveButtonAtlas.BgPressed;
+            mainBtn.normalBgSprite = DriveButtonAtlas.Bg;
+            mainBtn.hoveredBgSprite = DriveButtonAtlas.BgHovered;
+            mainBtn.disabledBgSprite = DriveButtonAtlas.BgDisabled;
+            mainBtn.normalFgSprite = DriveButtonAtlas.Fg;
+            mainBtn.eventClick += (_, m) =>
             {
                 if (!Panel.isVisible) LoadPanelPosition();
 
@@ -169,20 +260,30 @@ namespace IOperateIt.UI
             };
 
             //drag
-            var mainBtn_drag = _mainBtn.AddUIComponent<UIDragHandle>();
-            mainBtn_drag.name = _mainBtn.name + "_drag";
-            mainBtn_drag.size = _mainBtn.size;
+            var mainBtn_drag = mainBtn.AddUIComponent<UIDragHandle>();
+            mainBtn_drag.name = mainBtn.name + "_drag";
+            mainBtn_drag.size = mainBtn.size;
             mainBtn_drag.relativePosition = Vector3.zero;
-            mainBtn_drag.target = _mainBtn;
-            mainBtn_drag.transform.parent = _mainBtn.transform;
+            mainBtn_drag.target = mainBtn;
+            mainBtn_drag.transform.parent = mainBtn.transform;
             mainBtn_drag.eventMouseDown += (_, p) => Panel.isVisible = false;
-            mainBtn_drag.eventMouseUp += (_, p) => { SavedButtonPosition = _mainBtn.absolutePosition; ModSettings.Save(); };
+            mainBtn_drag.eventMouseUp += (_, p) => { SavedButtonPosition = mainBtn.absolutePosition; ModSettings.Save(); };
             #endregion
+        }
+
+        private void OnClearSelection()
+        {
+            spawnBtn?.isEnabled = false;
+            colorChangeBtn?.isEnabled = false;
+            previewPanel.enabled = false;
         }
 
         private void OnDestory()
         {
-            _spawnBtn.eventClick -= SpawnBtnClickEvent;
+            spawnBtn.eventClick -= SpawnBtnClickEvent;
+            prefabData.Clear();
+            originalData.Clear();
+            filteredData.Clear();
             Destroy(Panel);
             Destroy(GetMainButton());
         }
@@ -219,21 +320,25 @@ namespace IOperateIt.UI
             VehicleInfo selectedVehicle = PrefabCollection<VehicleInfo>.GetPrefab(index);
             if (selectedVehicle != null)
             {
-                if (selectedVehicle.name == "Forest Forwarder 01") // The Forest Forwarder has blinking alpha set for some reason
+                Color color = default;
+                switch (ColorIndex)
                 {
-                    Color adjustedColor = selectedVehicle.m_color0;
-                    adjustedColor.a = 0;
-                    _previewPanel.SetTarget(selectedVehicle, adjustedColor, true);
-                    DriveController.Instance.UpdateColor(adjustedColor, true);
+                    case 0: color = selectedVehicle.m_color0; break;
+                    case 1: color = selectedVehicle.m_color1; break;
+                    case 2: color = selectedVehicle.m_color2; break;
+                    case 3: color = selectedVehicle.m_color3; break;
                 }
-                else
-                {
-                    _previewPanel.SetTarget(selectedVehicle);
-                    DriveController.Instance.UpdateColor(default, false);
-                }
+
+                color.a = 0;
+                previewPanel.enabled = true;
+                previewPanel.SetTarget(selectedVehicle, color, true);
+                DriveController.Instance.UpdateColor(color, true);
                 DriveController.Instance.UpdateVehicleInfo(selectedVehicle);
-                _spawnBtn.isEnabled = true;
+
+                spawnBtn.isEnabled = true;
+                colorChangeBtn.isEnabled = true;
             }
+            else OnClearSelection();
         }
         private void SpawnBtnClickEvent(UIComponent component, UIMouseEventParameter eventParam)
         {
@@ -250,7 +355,13 @@ namespace IOperateIt.UI
                 }
                 OnEsc();
             }
-            else _spawnBtn.isEnabled = false;
+            else spawnBtn.isEnabled = false;
+        }
+        private void OnColorChangeClick(UIComponent component, UIMouseEventParameter p)
+        {
+            if (vehicleList.SelectedIndex < 0) return;
+            ColorIndex++;
+            UpdateListEvent((uint)vehicleList.SelectedItem);
         }
         public void LocaleChanged()
         {
@@ -269,19 +380,20 @@ namespace IOperateIt.UI
             private const float ScrollMargin = 10f;
 
             // Vehicle name label.
-            private UILabel _vehicleNameLabel;
+            private UILabel vehicleNameLabel;
 
             // Preview image.
-            private UISprite _vehicleSprite;
+            private UISprite vehicleSprite;
 
             // Steam icon.
-            private UISprite _steamSprite;
+            private UISprite steamSprite;
 
             /// <summary>
             /// Vehicle prefab.
             /// </summary>
-            private VehicleInfo _info;
+            private VehicleInfo info;
 
+            private ulong workshopId;
             /// <summary>
             /// Gets the height for this row.
             /// </summary>
@@ -294,37 +406,54 @@ namespace IOperateIt.UI
             /// <param name="rowIndex">Row index number (for background banding).</param>
             public override void Display(object data, int rowIndex)
             {
-                _info = PrefabCollection<VehicleInfo>.GetPrefab((uint)data);
+                info = Instance.prefabData[(uint)data];
                 // Perform initial setup for new rows.
-                if (_vehicleNameLabel == null)
+                if (vehicleNameLabel == null)
                 {
                     // Add object name label.
-                    _vehicleNameLabel = AddLabel(VehicleSpriteSize + Margin, width - Margin - VehicleSpriteSize - Margin - SteamSpriteWidth - ScrollMargin - Margin, wordWrap: true);
+                    vehicleNameLabel = AddLabel(VehicleSpriteSize + Margin, width - Margin - VehicleSpriteSize - Margin - SteamSpriteWidth - ScrollMargin - Margin, wordWrap: true);
 
                     // Add preview sprite image.
-                    _vehicleSprite = AddUIComponent<UISprite>();
-                    _vehicleSprite.height = VehicleSpriteSize;
-                    _vehicleSprite.width = VehicleSpriteSize;
-                    _vehicleSprite.relativePosition = Vector2.zero;
+                    vehicleSprite = AddUIComponent<UISprite>();
+                    vehicleSprite.height = VehicleSpriteSize;
+                    vehicleSprite.width = VehicleSpriteSize;
+                    vehicleSprite.relativePosition = Vector2.zero;
 
                     // Add setam sprite.
-                    _steamSprite = AddUIComponent<UISprite>();
-                    _steamSprite.width = SteamSpriteWidth;
-                    _steamSprite.height = SteamSpriteHeight;
-                    _steamSprite.atlas = UITextures.InGameAtlas;
-                    _steamSprite.spriteName = "SteamWorkshop";
-                    _steamSprite.relativePosition = new Vector2(width - Margin - ScrollMargin - SteamSpriteWidth, (height - SteamSpriteHeight) / 2f);
+                    steamSprite = AddUIComponent<UISprite>();
+                    steamSprite.width = SteamSpriteWidth;
+                    steamSprite.height = SteamSpriteHeight;
+                    steamSprite.atlas = UITextures.InGameAtlas;
+                    steamSprite.spriteName = "SteamWorkshop";
+                    steamSprite.relativePosition = new Vector2(width - Margin - ScrollMargin - SteamSpriteWidth, (height - SteamSpriteHeight) / 2f);
                 }
+                vehicleNameLabel.text = info.GetUncheckedLocalizedTitle();
+                vehicleNameLabel.tooltip = info.name.SplitUppercase() != info.GetUncheckedLocalizedTitle() ? info.name : null;
+                vehicleSprite.atlas = info?.m_Atlas;
+                vehicleSprite.spriteName = info?.m_Thumbnail;
 
-                _vehicleNameLabel.text = _info.GetUncheckedLocalizedTitle();
-
-                _vehicleSprite.atlas = _info?.m_Atlas;
-                _vehicleSprite.spriteName = _info?.m_Thumbnail;
-
-                _steamSprite.isVisible = PrefabUtils.IsWorkshopAsset(_info);
+                steamSprite.isVisible = PrefabUtils.IsWorkshopAsset(info);
+                if (steamSprite.isVisible)
+                {
+                    steamSprite.tooltip = Translations.Translate("STEAMSPRITE_TOOLTIP");
+                    if (ulong.TryParse(info.name.Split('.').FirstOrDefault(), out ulong workshopId))
+                    {
+                        this.workshopId = workshopId;
+                        steamSprite.eventClick -= OnSteamSpriteClick;
+                        steamSprite.eventClick += OnSteamSpriteClick;
+                    }
+                }
 
                 // Set initial background as deselected state.
                 Deselect(rowIndex);
+            }
+            private void OnSteamSpriteClick(UIComponent component, UIMouseEventParameter p)
+            {
+                p.Use();
+                if (PlatformService.IsOverlayEnabled())
+                    PlatformService.ActivateGameOverlayToWorkshopItem(new PublishedFileId(workshopId));
+                else
+                    Application.OpenURL($"https://steamcommunity.com/sharedfiles/filedetails/?id={workshopId}");
             }
         }
     }

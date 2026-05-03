@@ -45,3 +45,7 @@ SPAWNBTN_TEXT,Spawn vehicle
 MODSETTINGSBTN_TEXT,Mod settings
 ROAD_SELECT,Select a road segment to start driving
 DRIVINGMODE,Driving mode
+SEARCHBARBTN_TOOLTIP,Search vehicle by name or Workshop ID
+NO_RESULTS,No results found.
+STEAMSPRITE_TOOLTIP,Click to open the vehicle's Workshop page
+COLORCHANGEBTN_TOOLTIP,Change the vehicle color (from 4 defined colors)
