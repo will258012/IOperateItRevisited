@@ -237,12 +237,14 @@ namespace IOperateIt
             sb.AppendLine($"t: {throttle:F2}");
             sb.AppendLine($"b: {Brake:F2}");
             sb.AppendLine($"s: {vehicleRigidBody.velocity.magnitude * UNIT_TO_M * MS_TO_KMPH:F1} km/h");
+            sb.AppendLine($"fallback: {physicsFallback}");
             sb.AppendLine($"rps: {radps:F1}");
             sb.AppendLine($"wct: front={Wheel.FrontCount} rear={Wheel.RearCount}");
             for (int i = 0; i < wheelObjects.Count; i++)
             {
                 var w = wheelObjects[i];
-                sb.AppendLine($"w{i}: origin={w.origin} slip={w.slip:F2} radps={w.radps:F1}");
+                sb.AppendLine($"w{i}: origin={w.origin} slip={w.slip:F2} radps={w.radps:F1} moment:{w.moment} radius:{w.radius}");
+                sb.AppendLine($"impulse (binormal,normal,tangent): {w.Impulse}");
             }
             GUI.Label(new Rect(100f, 100f, 700f, 700f), sb.ToString());
         }
@@ -765,8 +767,8 @@ namespace IOperateIt
             slopeAngle = Mathf.Clamp(slopeAngle, -45f, 45f);
             if (CurrentDirection == Direction.Reverse) slopeAngle = -slopeAngle;
 
-            Vector3 currentEuler = vehicleRigidBody.rotation.eulerAngles;
-            Quaternion targetRotation = Quaternion.Euler(-slopeAngle, currentEuler.y, currentEuler.z);
+            var currentEuler = vehicleRigidBody.rotation.eulerAngles;
+            var targetRotation = Quaternion.Euler(-slopeAngle, currentEuler.y, currentEuler.z);
             vehicleRigidBody.MoveRotation(Quaternion.Slerp(vehicleRigidBody.rotation, targetRotation, Time.fixedDeltaTime * 6f));
         }
 
@@ -860,7 +862,7 @@ namespace IOperateIt
                 }
                 if (steer < 0f)
                 {
-                    steer = Mathf.Clamp(steer + (Time.fixedDeltaTime * STEER_REST), -steerLimit, 0f);
+                    steer = Mathf.Clamp(steer + (Time.fixedDeltaTime * STEER_REST), -steerLimit, max: 0f);
                 }
             }
         }
