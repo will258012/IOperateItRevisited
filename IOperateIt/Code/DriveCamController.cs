@@ -108,8 +108,16 @@ namespace IOperateIt
                 vehicleDir = Quaternion.Euler(0f, targetRigidBody.rotation.eulerAngles.y, 0f) * Vector3.forward;
             }
 
-            var targetRotation = Quaternion.identity;
-            targetRotation.SetLookRotation(vehicleDir);
+            var targetRotation = Quaternion.LookRotation(vehicleDir);
+
+            bool isFPS = ModSettings.Offset.z > -1f;
+            // Limit pitch
+            var eulerAngles = targetRotation.eulerAngles;
+            if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
+            eulerAngles.x = eulerAngles.x.Clamp(isFPS ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
+            eulerAngles.z = 0f;
+
+            targetRotation = Quaternion.Euler(eulerAngles);
 
             if (Time.time > lastMovedTime + LOOK_RESET_TIME)
             {
@@ -137,15 +145,6 @@ namespace IOperateIt
 
                 rotation = targetRotation * rotationOffset;
             }
-
-            bool isFPS = ModSettings.Offset.z > -1f;
-
-            // Limit pitch
-            var eulerAngles = rotation.eulerAngles;
-            if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
-            eulerAngles.x = eulerAngles.x.Clamp(isFPS ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
-            eulerAngles.z = 0f;
-            rotation = Quaternion.Euler(eulerAngles);
 
             var newFinalOffset = ((isFPS ? targetRigidBody.rotation /*rotate with the offset position*/ :
                  rotation /*rotate with the vehicle position*/) * ModSettings.Offset);
@@ -294,7 +293,7 @@ namespace IOperateIt
             // Limit pitch
             var eulerAngles = rotationOffset.eulerAngles;
             if (eulerAngles.x > 180f) eulerAngles.x -= 360f;
-            eulerAngles.x = eulerAngles.x.Clamp(ModSettings.Offset.z > -1f ? -FPCModSettings.Instance.XMLMaxPitchDeg : 0f, FPCModSettings.Instance.XMLMaxPitchDeg);
+            eulerAngles.x = eulerAngles.x.Clamp(-FPCModSettings.Instance.XMLMaxPitchDeg, FPCModSettings.Instance.XMLMaxPitchDeg);
             eulerAngles.z = 0f;
             rotationOffset = Quaternion.Euler(eulerAngles);
         }
