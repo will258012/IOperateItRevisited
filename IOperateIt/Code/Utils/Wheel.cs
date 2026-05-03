@@ -1,7 +1,5 @@
 ﻿using IOperateIt.Settings;
-using System;
 using UnityEngine;
-using static ParadeGroupInfo;
 
 namespace IOperateIt.Utils
 {
@@ -10,7 +8,7 @@ namespace IOperateIt.Utils
         public static int WheelCount { get; private set; } = 0;
         public static int FrontCount { get; private set; } = 0;
         public static int RearCount => WheelCount - FrontCount;
-        
+
         public static Rigidbody RigidBody { private get; set; }
 
         public Vector3 tangent;
@@ -32,6 +30,15 @@ namespace IOperateIt.Utils
         public float frictionCoeff;
         public float slip;
         public MapUtils.CollisionTypes collisionType;
+        /// <summary>
+        /// X = <see cref="binormalImpulse"/><br/>
+        /// Y = <see cref="normalImpulse"/><br/>
+        /// Z = <see cref="tangentImpulse"/>
+        /// </summary>
+        public Vector3 Impulse { 
+            get => new(binormalImpulse, normalImpulse, tangentImpulse); 
+            set { binormalImpulse = value.x; normalImpulse = value.y; tangentImpulse = value.z; } 
+        }
         public bool IsOnGround { get; private set; }
         public bool IsSimulated { get; private set; }
         public bool IsPowered { get => isPowered && (torqueFract > 0.0f); private set => isPowered = value; }
@@ -59,9 +66,7 @@ namespace IOperateIt.Utils
             w.torqueFract = torque;
             w.radps = 0.0f;
             w.brakeForce = brakeForce;
-            w.normalImpulse = 0.0f;
-            w.binormalImpulse = 0.0f;
-            w.tangentImpulse = 0.0f;
+            w.Impulse = Vector3.zero;
             w.compression = 0.0f;
             w.frictionCoeff = ModSettings.GripCoeffK;
             w.slip = 0.0f;
@@ -149,7 +154,7 @@ namespace IOperateIt.Utils
             if (IsOnGround)
             {
                 var prelimContactVel = RigidBody.GetPointVelocity(contactPoint);
-                Vector2 flatImpulses = new Vector2(binormalImpulse, tangentImpulse);
+                var flatImpulses = new Vector2(binormalImpulse, tangentImpulse);
                 float radDelta = (Vector3.Dot(prelimContactVel, tangent) / radius) - radps;
                 radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), normalImpulse * radius * frictionCoeff / moment);
             }
@@ -176,11 +181,11 @@ namespace IOperateIt.Utils
                 if (deltaVel < 0f)
                 {
                     IsOnGround = true;
-                    normalImpulse = RigidBody.mass * (-deltaVel) / (Wheel.WheelCount * normDotUp);
+                    normalImpulse = RigidBody.mass * (-deltaVel) / (WheelCount * normDotUp);
                     contactPoint = gameObject.transform.TransformPoint(new Vector3(0.0f, -radius, 0.0f));
                     contactVelocity = RigidBody.GetPointVelocity(contactPoint);
-                    Vector3 flatVel = contactVelocity - Vector3.Dot(contactVelocity, normal) * normal;
-                    slip = Mathf.Clamp01(Vector3.Magnitude(flatVel - (radps * radius * tangent)) / Mathf.Clamp(flatVel.magnitude, 8f, 40f));
+                    var flatVel = contactVelocity - Vector3.Dot(contactVelocity, normal) * normal;
+                    slip = Mathf.Clamp01(Vector3.Magnitude(flatVel - (radps * radius * tangent)) / Mathf.Clamp(flatVel.magnitude, 8f, 40f) / DriveController.GRIP_MAX_SLIP);
                     frictionCoeff = Mathf.Lerp(ModSettings.GripCoeffS, ModSettings.GripCoeffK, Mathf.Max((slip - DriveController.GRIP_OPTIM_SLIP) / (1.0f - DriveController.GRIP_OPTIM_SLIP), 0.0f));
                 }
             }
