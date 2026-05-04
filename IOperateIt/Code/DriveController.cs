@@ -18,7 +18,7 @@ namespace IOperateIt
         private const float STEER_RESP = 1.5f;
         private const float STEER_REST = 1.5f;
         private const float GEAR_RESP = 0.2f;
-        private const float BRAKE_SPEED_FACTOR = 0.7f;
+        private const float BRAKE_SPEED_FACTOR = 0.9f;
         private const float PARK_SPEED = 0.25f;
         private const float DEPEN_VELOCITY = 2.0f;
         private const float STEER_MAX = 40f;
@@ -33,9 +33,12 @@ namespace IOperateIt
         public const float VALID_INCLINE = 0.5f;
         public const float GRIP_MAX_SLIP = 0.5f;
         public const float GRIP_OPTIM_SLIP = 0.2f;
-        private const float ENGINE_PEAK_POWER_RPS = 900.0f;
-        private const float ENGINE_IDLE_RPS = 90.0f;
-        private const float ENGINE_GEAR_RATIO = 7.0f;
+
+        private const float ENGINE_PEAK_POWER_RPS = 900f;
+        private const float ENGINE_IDLE_RPS = 90f;
+        private const float ENGINE_GEAR_RATIO = 8f;
+
+        private const float ACCEL_G = 10f;
         const float MS_TO_KMPH = 3.6f;
         const float UNIT_TO_M = 25.0f / 54.0f;
         const float M_TO_UNIT = 54.0f / 25.0f;
@@ -96,7 +99,7 @@ namespace IOperateIt
 
             vehicleRigidBody = gameObject.AddComponent<Rigidbody>();
             vehicleRigidBody.isKinematic = false;
-            vehicleRigidBody.useGravity = true;
+            vehicleRigidBody.useGravity = false;
             vehicleRigidBody.freezeRotation = false;
             vehicleRigidBody.interpolation = RigidbodyInterpolation.Interpolate;
 
@@ -250,15 +253,15 @@ namespace IOperateIt
 #endif
         private void FallbackPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
         {
-            //vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
+            vehicleRigidBody.AddForce(Vector3.down * ACCEL_G, ForceMode.Acceleration);
 
             float height = MapUtils.CalculateHeight(vehiclePos, roofHeight, out var type, out var segmentId);
             if (segmentId != default) lastValidSegmentId = segmentId;
-            bool onGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
-            effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground && onGround;
+            bool isOnGround = vehiclePos.y + ModSettings.SpringOffset < terrainHeight;
+            effectManager.IsDusty = type == MapUtils.CollisionTypes.Ground && isOnGround;
 
 
-            CalculateSlope(ref vehiclePos, onGround);
+            CalculateSlope(ref vehiclePos, isOnGround);
             terrainHeight = height;
 
 
@@ -269,7 +272,7 @@ namespace IOperateIt
                 vehicleRigidBody.transform.position = vehiclePos;
                 vehicleRigidBody.velocity = vehicleVel;
             }
-            else if (onGround)
+            else if (isOnGround)
             {
                 if (vehiclePos.y + SPRING_MAX_COMPRESS < terrainHeight)
                 {
@@ -291,7 +294,7 @@ namespace IOperateIt
                 }
             }
 
-            if (onGround)
+            if (isOnGround)
             {
                 var relativeVel = vehicleRigidBody.transform.InverseTransformDirection(vehicleVel);
 
@@ -328,7 +331,7 @@ namespace IOperateIt
 
                 vehicleRigidBody.AddRelativeTorque(angularTarget, ForceMode.VelocityChange);
             }
-
+            ApplySimplyESP(ref vehicleVel, isOnGround);
             compression = Mathf.Max(terrainHeight - (vehiclePos.y + ModSettings.SpringOffset), 0.0f);
 
             distanceTravelled += (int)CurrentDirection * Vector3.Magnitude(vehiclePos - prevPosition);
@@ -336,11 +339,9 @@ namespace IOperateIt
 
         private void WheelPhysics(ref Vector3 vehiclePos, ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel)
         {
-            var upVec = vehicleRigidBody.transform.TransformDirection(Vector3.up);
+            var upVec = vehicleRigidBody.transform.TransformDirection(Vector3.up).normalized;
 
-            //vehicleRigidBody.AddForce((Vector3.down * (ACCEL_G * vehicleRigidBody.mass)) - (upVec * ModSettings.DownForce * Mathf.Abs(Vector3.Dot(vehicleVel, vehicleRigidBody.transform.TransformDirection(Vector3.forward)))), ForceMode.Force);
-
-            vehicleRigidBody.AddForce(-(upVec * ModSettings.DownForce * Mathf.Abs(Vector3.Dot(vehicleVel, vehicleRigidBody.transform.TransformDirection(Vector3.forward)))), ForceMode.Force);
+            vehicleRigidBody.AddForce((Vector3.down * (ACCEL_G * vehicleRigidBody.mass)) - (upVec * ModSettings.DownForce * Mathf.Abs(Vector3.Dot(vehicleVel, vehicleRigidBody.transform.TransformDirection(Vector3.forward).normalized))), ForceMode.Force);
 
             ushort segmentId = default;
             foreach (var w in wheelObjects) // first calculate the heights at each wheel to prep for road normal calcs
@@ -382,29 +383,84 @@ namespace IOperateIt
                 distanceTravelled += w.radps * w.torqueFract * w.radius * Time.fixedDeltaTime;
                 engineRps += w.radps * w.torqueFract;
             }
-            radps = engineRps * ENGINE_GEAR_RATIO;
-            torque = GetTorque(engineRps) * ENGINE_GEAR_RATIO;
 
-            float avgFrontRps = 0.0f;
-            float avgRearRps = 0.0f;
-            foreach (var w in wheelObjects) // calcuate first pass wheel angular velocity
+            if (Gear == Direction.Neutral)
+                engineRps = throttle * ENGINE_PEAK_POWER_RPS;
+
+            radps = Mathf.Lerp(engineRps, radps, /*Inertia*/Mathf.Pow(0.01f, Time.fixedDeltaTime));
+
+            torque = GetTorque(radps);
+            torque = torque * ENGINE_GEAR_RATIO * (torque > 0f ? throttle : 1f);
+
+            ApplyAssists(ref vehicleVel);
+            ApplyForces(ref vehicleVel, ref vehicleAngularVel, upVec);
+
+        }
+        private void ApplyAssists(ref Vector3 vehicleVel)
+        {
             {
-                float wheelTorque = (int)Gear * throttle * w.torqueFract * torque;
-                w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
+                float avgRps = 0f; int poweredCount = 0;
+                foreach (var w in wheelObjects)
+                {
+                    // Find the average wheel speed per differential
+                    if (w.IsPowered)
+                    {
+                        avgRps += w.radps * w.torqueFract;
+                        poweredCount++;
+                    }
+                }
 
-                if (w.IsFront)
+                bool isOnGround = false; float maxSlip = 0f;
+                foreach (var w in wheelObjects)
                 {
-                    avgFrontRps += w.radps;
+                    if (w.IsOnGround) isOnGround = true;
+                    // calcuate wheel angular velocity along with any assists.
+                    float wheelTorque = (int)Gear * w.torqueFract * torque;
+
+                    // LSD
+                    wheelTorque += (avgRps - w.radps) * w.moment / Time.fixedDeltaTime * 0.2f * w.torqueFract * poweredCount;
+
+                    // ABS
+                    float speedBrakeMultiplier = 1f + (vehicleVel.magnitude * BRAKE_SPEED_FACTOR);
+                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS || !w.IsOnGround)
+                        ? Brake * speedBrakeMultiplier
+                        : 0.0f;
+                    wheelTorque -= Mathf.Sign(w.radps) * Mathf.Min(totalBrake * w.brakeForce * w.radius, Mathf.Abs(wheelTorque + w.radps * w.moment / Time.fixedDeltaTime));
+
+                    // TCS
+                    if (w.IsOnGround && w.radps * wheelTorque > 0f)
+                    {
+                        wheelTorque *= 1.0f - Mathf.Min(w.slip, 1f);
+                    }
+
+                    maxSlip = Mathf.Max(maxSlip, w.slip);
+                    // Apply
+                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
                 }
-                else
-                {
-                    avgRearRps += w.radps;
-                }
+
+                ApplySimplyESP(ref vehicleVel, isOnGround, maxSlip);
             }
+        }
+        private void ApplySimplyESP(ref Vector3 vehicleVel, bool isOnGround, float maxSlip = 0f)
+        {
+            float assistFactor = Mathf.InverseLerp(10f, 30f, vehicleVel.magnitude);
 
-            avgFrontRps /= Wheel.FrontCount;
-            avgRearRps /= Wheel.RearCount;
+            if (isOnGround && (Brake > 0.5f || maxSlip > GRIP_MAX_SLIP))
+            {
+                float brakeCut =
+                    Mathf.Max(Brake, maxSlip) *
+                    assistFactor *
+                    ModSettings.BrakingForce *
+                    0.2f *
+                    Time.fixedDeltaTime;
 
+                vehicleVel = Vector3.MoveTowards(vehicleVel, Vector3.zero, brakeCut);
+                vehicleRigidBody.velocity = vehicleVel;
+            }
+        }
+
+        private void ApplyForces(ref Vector3 vehicleVel, ref Vector3 vehicleAngularVel, Vector3 upVec)
+        {
             foreach (var w in wheelObjects) // calculate the lateral and longitudinal forces. Apply all forces.
             {
                 if (w.IsOnGround)
@@ -421,32 +477,6 @@ namespace IOperateIt
 
                     float longSpeed = Vector3.Dot(w.contactVelocity, w.tangent);
                     float lateralSpeed = Vector3.Dot(w.contactVelocity, w.binormal);
-
-                    // limited slip diff
-                    float radDelta = w.IsFront ? avgFrontRps : avgRearRps;
-                    radDelta -= w.radps;
-                    w.radps += Mathf.Sign(radDelta) * Mathf.Min(Mathf.Abs(radDelta), radDelta * radDelta * 10.0f);
-
-                    // braking ABS
-                    float speedBrakeMultiplier = 1f + (vehicleVel.magnitude * BRAKE_SPEED_FACTOR);
-                    float totalBrake = (w.slip < GRIP_OPTIM_SLIP || !ModSettings.BrakingABS) && w.IsOnGround
-                        ? Brake * speedBrakeMultiplier
-                        : 0.0f;
-
-                    if (Brake > 0.5f && vehicleVel.magnitude > 20f && w.IsOnGround)
-                    {
-                        float brakeCut = Brake * ModSettings.BrakingForce * 0.1f * Time.fixedDeltaTime;
-                        vehicleVel = Vector3.MoveTowards(vehicleVel, Vector3.zero, brakeCut);
-                        vehicleRigidBody.velocity = vehicleVel;
-                    }
-
-                    // basic traction control
-                    float actionableDelta = Mathf.Max((Mathf.Sign(w.radps) * (w.radps - (longSpeed / w.radius))) - (w.normalImpulse * w.frictionCoeff * Time.fixedDeltaTime * w.radius / w.moment), 0.0f);
-                    totalBrake += actionableDelta * w.moment / (w.radius * Time.fixedDeltaTime * w.brakeForce);
-
-                    totalBrake = Mathf.Clamp(totalBrake, 0.0f, 1.0f);
-                    float wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(totalBrake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
 
                     float longComponent = normalContribution * vehicleRigidBody.mass * ((w.radps * w.radius) - longSpeed);
                     if (Mathf.Abs(longSpeed) < 1.0f || Mathf.Abs(w.radps) < 0.1f) // exaggerated torque at low speeds for better stop and start
@@ -495,15 +525,10 @@ namespace IOperateIt
                             vehicleRigidBody.AddTorque(Vector3.Normalize(Vector3.Cross(upVec, w.normal)) * 0.25f, ForceMode.VelocityChange);
                         }
                     }
-
-                    float wheelTorque;
-                    wheelTorque = (int)Gear * throttle * w.torqueFract * torque;
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
-                    wheelTorque = -Mathf.Sign(w.radps) * Mathf.Min(Brake * w.brakeForce * w.radius, Mathf.Abs(w.radps) * w.moment / Time.fixedDeltaTime);
-                    w.radps += wheelTorque * Time.fixedDeltaTime / w.moment;
                 }
             }
         }
+
 
         private void LimitVelocity()
         {
@@ -522,6 +547,7 @@ namespace IOperateIt
             if (netSegment.m_flags.IsFlagSet(NetSegment.Flags.Created))
             {
                 netSegment.GetClosestPositionAndDirection(vehicleRigidBody.transform.position, out var newPos, out var dir);
+                newPos += Vector3.up * 2f;
                 if (Vector3.Distance(newPos, vehicleRigidBody.transform.position) < 50f)
                     vehicleRigidBody.transform.SetPositionAndRotation(newPos, Quaternion.LookRotation(dir));
                 else
@@ -534,6 +560,7 @@ namespace IOperateIt
             steer = 0f;
             Brake = 0f;
             throttle = 0f;
+            vehicleRigidBody.Sleep();
 
             DriveCamController.Instance.ResetCam();
 
